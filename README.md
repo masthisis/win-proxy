@@ -88,7 +88,8 @@ fails silently.
 | [docs/FEATURES.md](docs/FEATURES.md) | Feature matrix vs CFW / v2rayN / Happ |
 | [docs/BUILDING.md](docs/BUILDING.md) | Build & packaging instructions (Windows + cross-compile) |
 | [docs/TESTING.md](docs/TESTING.md) | Test philosophy; unit + real-core integration tests; testing with your own subscription |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | What's next |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | What's next (tracked as issues labelled `v1.1` / `v2`) |
+| [docs/WORKFLOW.md](docs/WORKFLOW.md) | The operating contract: issue → branch → PR → merge → release; how to drive development with *"fetch issue #N"* |
 | [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md) | Open-source components & licenses |
 
 ## Sponsors of speed

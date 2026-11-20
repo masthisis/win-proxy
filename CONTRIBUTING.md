@@ -72,6 +72,10 @@ method or event changes.
 
 ## Pull request process
 
+- Follow the operating contract in
+  [docs/WORKFLOW.md](docs/WORKFLOW.md): every change starts as an issue,
+  lives on a `<type>/#<issue>-<slug>` branch, and lands as a PR containing
+  `Closes #N` (squash merge, CI green, branch deleted).
 - Branch from `main`, keep the diff focused — one logical change per PR.
 - Fill in the PR template (it includes the pre-merge checklist).
 - CI must be green: frontend type-check + build, unit tests, and the full

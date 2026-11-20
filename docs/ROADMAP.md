@@ -3,6 +3,11 @@
 Prioritized backlog. Everything here is designed to be picked up by an AI
 agent using the recipes in [AI_DEVELOPER_GUIDE.md](AI_DEVELOPER_GUIDE.md).
 
+Each item below is **tracked as a GitHub issue** (labels `v1.1` / `v2`) with
+full spec, investigation and acceptance criteria — see
+[WORKFLOW.md](WORKFLOW.md) for how items are fetched, implemented, merged and
+released.
+
 ## v1.x (refinement)
 
 - **Subscription merging**: activate multiple node subscriptions at once
