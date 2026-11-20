@@ -969,6 +969,12 @@ table.tbl {
 
 /* ---------- header update chip (issue #41) ---------- */
 
+/* Test Center profile selector (issue #42) */
+.profile-select {
+  max-width: 220px;
+  font-weight: 500;
+}
+
 .update-chip {
   display: flex;
   align-items: center;

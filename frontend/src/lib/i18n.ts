@@ -113,6 +113,13 @@ const en: Record<string, string> = {
   "profiles.renameSave": "Save name",
 
   // ---- test center ----
+  "test.profile": "Subscription",
+  "test.profileActive": "Active subscription",
+  "test.profileAll": "All subscriptions",
+  "test.testAllSubsLatency": "Test all subscriptions",
+  "test.speedProfile": "Speed test this subscription",
+  "test.colProfile": "Subscription",
+  "test.captionAll": "All subscriptions ({n})",
   "test.colName": "Name",
   "test.colType": "Type",
   "test.colLatency": "Latency",
@@ -423,6 +430,13 @@ const fa: Record<string, string> = {
   "profiles.renameSave": "ذخیره نام",
 
   // ---- test center ----
+  "test.profile": "اشتراک",
+  "test.profileActive": "اشتراک فعال",
+  "test.profileAll": "همه اشتراک‌ها",
+  "test.testAllSubsLatency": "آزمون همه اشتراک‌ها",
+  "test.speedProfile": "آزمون سرعت این اشتراک",
+  "test.colProfile": "اشتراک",
+  "test.captionAll": "همه اشتراک‌ها ({n})",
   "test.colName": "نام",
   "test.colType": "نوع",
   "test.colLatency": "تأخیر",

@@ -225,10 +225,14 @@ func (m *Manager) Remove(ctx context.Context, id string) error {
 	_ = os.Remove(m.paths.ClashPath(id))
 	m.emitList()
 
+	// Issue #42: the removed profile's provider must disappear from the
+	// runtime config (all profiles are declared now), so ALWAYS reapply —
+	// a missing provider file would otherwise fail the next core reload.
+	reason := "profile-removed"
 	if wasActive {
-		return m.reapply(ctx, "remove-active")
+		reason = "remove-active"
 	}
-	return nil
+	return m.reapply(ctx, reason)
 }
 
 // ----------------------------------------------------------------- add ----
@@ -316,10 +320,15 @@ func (m *Manager) commitNew(ctx context.Context, p Summary, dec *DecodeResult) (
 	// so no spinner badge leaks in the UI (issue #40).
 	m.progress("new", PhaseDone, "")
 	m.progress(p.ID, PhaseDone, fmt.Sprintf("%d nodes", p.NodeCount))
+	// Issue #42: EVERY nodes profile is declared as a provider in the
+	// runtime config now — adding any profile changes the config, so
+	// always hot-reload (the engine no-ops when not running).
+	reason := "profile-added"
 	if activeID == p.ID {
-		if err := m.reapply(ctx, "add-first-profile"); err != nil {
-			return nil, err
-		}
+		reason = "add-first-profile"
+	}
+	if err := m.reapply(ctx, reason); err != nil {
+		return nil, err
 	}
 	return &p, nil
 }

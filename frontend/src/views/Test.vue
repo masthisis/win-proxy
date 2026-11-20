@@ -1,6 +1,6 @@
 <script setup lang="ts">
-/** Test Center: node table with latency/speed actions + failover watchdog. */
-import { computed, onMounted, ref } from "vue";
+/** Test Center: profile selector, node table with latency/speed actions + failover watchdog. */
+import { computed, onMounted, ref, watch } from "vue";
 import * as Proxy from "../../bindings/github.com/neurorift/neurorift/proxyservice.js";
 import * as Test from "../../bindings/github.com/neurorift/neurorift/testservice.js";
 import * as ProfileSvc from "../../bindings/github.com/neurorift/neurorift/profileservice.js";
@@ -15,6 +15,7 @@ interface Row {
   name: string;
   type: string;
   delay: number;
+  profileName?: string;
 }
 
 const testAllBusy = ref(false);
@@ -22,13 +23,31 @@ const pingBusy = ref<string | null>(null);
 const speedOneBusy = ref<string | null>(null);
 const fallbackNodes = ref<Row[]>([]);
 
+/** Issue #42: which subscription the table shows. "" = active profile. */
+const selectedProfileId = ref("");
+const profileNodesBusy = ref(false);
+
 const primaryGroup = computed(() => store.groups.find((g) => !g.hidden));
 
+const selectedProfile = computed(() => store.profiles.find((p) => p.id === selectedProfileId.value));
+const showingActive = computed(() => selectedProfileId.value === "");
+const showingAll = computed(() => selectedProfileId.value === "__all__");
+
+const activeProfileName = computed(
+  () => store.profiles.find((p) => p.id === (store.activeProfileId || store.engineStatus?.activeProfile))?.name,
+);
+
 const rows = computed<Row[]>(() => {
-  if (primaryGroup.value) {
-    return (primaryGroup.value.all ?? []).map((n) => ({ name: n.name, type: n.type, delay: n.delay }));
+  if (showingAll.value) {
+    return fallbackNodes.value;
   }
-  return fallbackNodes.value;
+  if (showingActive.value) {
+    if (primaryGroup.value) {
+      return (primaryGroup.value.all ?? []).map((n) => ({ name: n.name, type: n.type, delay: n.delay }));
+    }
+    return fallbackNodes.value.filter((r) => r.profileName === activeProfileName.value);
+  }
+  return fallbackNodes.value.filter((r) => r.profileName === selectedProfile.value?.name);
 });
 
 const speedOf = (name: string): SpeedResultPayload | undefined => store.speedResults[name];
@@ -58,31 +77,71 @@ const speedPercent = computed(() => {
 });
 
 async function loadFallbackNodes(): Promise<void> {
-  const id = store.activeProfileId || store.engineStatus?.activeProfile;
-  if (!id) return;
+  // Issue #42: load the node list of EVERY profile (merged view) so the
+  // table works for non-active subscriptions and the "all subscriptions"
+  // selection even when the engine is down.
+  profileNodesBusy.value = true;
+  const merged: Row[] = [];
   try {
-    const names = await ProfileSvc.GetNodes(id);
-    fallbackNodes.value = (names ?? []).map((n) => ({ name: n, type: "", delay: store.latency[n] ?? 0 }));
-  } catch {
-    /* ignore — engine may be down */
+    for (const p of store.profiles) {
+      try {
+        const names = await ProfileSvc.GetNodes(p.id);
+        for (const n of names ?? []) {
+          merged.push({ name: n, type: "", delay: store.latency[n] ?? 0, profileName: p.name });
+        }
+      } catch {
+        /* skip unreadable profiles */
+      }
+    }
+    fallbackNodes.value = merged;
+  } finally {
+    profileNodesBusy.value = false;
   }
 }
+
+const profileIdForTesting = computed<string>(() => {
+  if (showingAll.value) return "__all__";
+  if (showingActive.value) return store.activeProfileId || store.engineStatus?.activeProfile || "";
+  return selectedProfileId.value;
+});
 
 onMounted(() => {
   void refreshFailover();
   void refreshSpeedHistory();
-  if (!store.groups.length) void loadFallbackNodes();
+  if (!store.groups.length || store.profiles.length > 1) void loadFallbackNodes();
 });
+
+// Reload per-profile node lists when the profile set changes.
+watch(
+  () => store.profiles.map((p) => p.id + ":" + p.nodeCount).join("|"),
+  () => void loadFallbackNodes(),
+);
 
 async function testAll(): Promise<void> {
   if (testAllBusy.value) return;
   testAllBusy.value = true;
-  toast.info(t("toast.testingAll"));
+  const target = profileIdForTesting.value;
   try {
-    const batch = await Proxy.TestAllNodes();
-    toast.success(t("toast.tested", { n: batch?.results?.length ?? 0 }));
-    for (const r of batch?.results ?? []) applyLatency(r.node, r.delay);
-    if (!primaryGroup.value) void loadFallbackNodes();
+    if (target === "__all__") {
+      const batches = await Test.TestAllProfilesLatency();
+      let n = 0;
+      for (const b of batches ?? []) {
+        for (const r of b?.results ?? []) {
+          applyLatency(r.node, r.delay);
+          n++;
+        }
+      }
+      toast.success(t("toast.tested", { n }));
+    } else if (target) {
+      const batch = await Test.TestProfileLatency(target);
+      for (const r of batch?.results ?? []) applyLatency(r.node, r.delay);
+      toast.success(t("toast.tested", { n: batch?.results?.length ?? 0 }));
+    } else {
+      const batch = await Proxy.TestAllNodes();
+      toast.success(t("toast.tested", { n: batch?.results?.length ?? 0 }));
+      for (const r of batch?.results ?? []) applyLatency(r.node, r.delay);
+    }
+    if (!primaryGroup.value || !showingActive.value) void loadFallbackNodes();
   } catch (e) {
     toast.error(errMsg(e));
   } finally {
@@ -135,6 +194,18 @@ async function speedTop5(): Promise<void> {
   }
 }
 
+async function speedProfile(): Promise<void> {
+  const target = profileIdForTesting.value;
+  if (store.speedBusy || !target || target === "__all__") return;
+  store.speedBusy = true;
+  try {
+    await Test.SpeedTestProfile(target);
+  } catch (e) {
+    toast.error(errMsg(e));
+    store.speedBusy = false;
+  }
+}
+
 async function failoverTestNow(): Promise<void> {
   try {
     await Test.FailoverTestNow();
@@ -145,6 +216,15 @@ async function failoverTestNow(): Promise<void> {
 
 const evBadge = (type: string): string =>
   type === "switched" ? "danger" : type === "probe-failed" ? "warn" : "success";
+
+const rowKey = (row: Row): string => `${row.profileName ?? ""}::${row.name}`;
+
+const tableCaption = computed(() => {
+  if (showingAll.value) return t("test.captionAll", { n: store.profiles.length });
+  if (selectedProfile.value) return `${selectedProfile.value.name} · ${selectedProfile.value.nodeCount ?? ""}`;
+  if (primaryGroup.value) return primaryGroup.value.name;
+  return activeProfileName.value ?? "";
+});
 </script>
 
 <template>
@@ -152,19 +232,39 @@ const evBadge = (type: string): string =>
     <!-- toolbar -->
     <div class="panel">
       <div class="row" style="justify-content: space-between">
-        <div class="row">
-          <button class="btn" :disabled="testAllBusy || !rows.length" @click="testAll()">
+        <div class="row" style="flex-wrap: wrap">
+          <!-- Issue #42: test ANY imported subscription, not just the active one -->
+          <select
+            v-model="selectedProfileId"
+            class="profile-select"
+            :aria-label="t('test.profile')"
+            :title="t('test.profile')"
+          >
+            <option value="">{{ t("test.profileActive") }}</option>
+            <option v-for="p in store.profiles" :key="p.id" :value="p.id">{{ p.name }}</option>
+            <option v-if="store.profiles.length > 1" value="__all__">{{ t("test.profileAll") }}</option>
+          </select>
+          <button class="btn" :disabled="testAllBusy || !rows.length || !engineRunning()" @click="testAll()">
             <span v-if="testAllBusy" class="spinner" />
             <IconTest v-else :size="14" />
-            {{ t("test.testAllLatency") }}
+            {{ showingAll ? t("test.testAllSubsLatency") : t("test.testAllLatency") }}
           </button>
-          <button class="btn primary" :disabled="store.speedBusy || !rows.length" @click="speedTop5()">
+          <button class="btn primary" :disabled="store.speedBusy || !rows.length || !engineRunning()" @click="speedTop5()">
             <span v-if="store.speedBusy" class="spinner" style="border-top-color: var(--accent)" />
             <IconGauge v-else :size="14" />
             {{ t("test.speedTop5") }}
           </button>
+          <button
+            v-if="!showingAll && selectedProfileId"
+            class="btn"
+            :disabled="store.speedBusy || !engineRunning()"
+            @click="speedProfile()"
+          >
+            <IconGauge :size="14" />
+            {{ t("test.speedProfile") }}
+          </button>
         </div>
-        <span v-if="primaryGroup" class="dim small">{{ primaryGroup.name }}</span>
+        <span class="dim small">{{ tableCaption }}</span>
       </div>
 
       <!-- live speed progress -->
@@ -193,6 +293,7 @@ const evBadge = (type: string): string =>
       <table class="tbl">
         <thead>
           <tr>
+            <th v-if="showingAll">{{ t("test.colProfile") }}</th>
             <th>{{ t("test.colName") }}</th>
             <th>{{ t("test.colType") }}</th>
             <th>{{ t("test.colLatency") }}</th>
@@ -202,7 +303,10 @@ const evBadge = (type: string): string =>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in rows" :key="row.name">
+          <tr v-for="row in rows" :key="rowKey(row)">
+            <td v-if="showingAll" class="dim" style="max-width: 140px; overflow: hidden; text-overflow: ellipsis" :title="row.profileName">
+              {{ row.profileName }}
+            </td>
             <td class="mono" style="max-width: 260px; overflow: hidden; text-overflow: ellipsis" :title="row.name">
               {{ row.name }}
             </td>
