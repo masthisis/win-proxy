@@ -2,7 +2,23 @@
 
 ## Unreleased
 
-## v1.4.0 - the user-driven quality release
+## v1.5.0 - union routing, sparklines, test ergonomics
+
+Three backlog issues shipped through the full workflow.
+
+- **Subscription union (#48, closes #8).** Any subscription can join the
+  active profile's routing groups with one toggle — `Node Select` and
+  `NR Auto` then offer the nodes of every union member (selections
+  persist via store-selected), while the hidden speed-test group keeps
+  covering everything. Union badge + toggle on the profile cards.
+- **Latency sparklines (#12).** The Test Center gains a Trend column:
+  a 20-sample sparkline per node (green = improving, amber =
+  degrading, grey = flat), refreshed after every latency batch.
+- **Speed-test ergonomics (#11).** Quick byte-cap presets (10/50/100/
+  200 MB) in the Test Center toolbar and a Cancel button while a
+  throughput test runs.
+
+## v1.4.0 - the user-driven quality release - the user-driven quality release
 
 Nine issues from real daily-driver feedback plus competitor research
 (v2rayN, Clash Verge Rev, FlClash, Hiddify, Proton VPN), each fixed or
