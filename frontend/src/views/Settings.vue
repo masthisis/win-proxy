@@ -11,7 +11,7 @@ import type { Settings as SettingsDoc } from "../../bindings/github.com/neurorif
 import { store, checkAppUpdate, downloadAppUpdate, installAppUpdate, openUpdateNotes } from "../store";
 import { t, setLang, type Lang } from "../lib/i18n";
 import { toast, errMsg } from "../lib/toast";
-import { IconChevron, IconFolder, IconWarn, IconCheck, IconRefresh, IconDownload, IconExternal } from "../components/Icons";
+import { IconChevron, IconFolder, IconWarn, IconCheck, IconRefresh, IconDownload, IconExternal, IconTrash, IconPlus } from "../components/Icons";
 
 const form = ref<SettingsDoc | null>(null);
 const saving = ref(false);
@@ -48,6 +48,7 @@ const open = reactive<Record<string, boolean>>({
   dns: false,
   tun: false,
   subscriptions: false,
+  routing: false,
   updates: false,
   reporting: false,
 });
@@ -61,6 +62,7 @@ const SECTIONS = [
   { id: "dns", label: "settings.secDns" },
   { id: "tun", label: "settings.secTun" },
   { id: "subscriptions", label: "settings.secSubscriptions" },
+  { id: "routing", label: "settings.secRouting" },
   { id: "updates", label: "settings.secUpdates" },
   { id: "reporting", label: "settings.secReporting" },
 ] as const;
@@ -219,6 +221,112 @@ async function openFolder(which: "config" | "core" | "logs"): Promise<void> {
     await Sys.OpenFolder(which);
   } catch (e) {
     toast.error(errMsg(e));
+  }
+}
+
+/* ---------------------------------------------------------------- */
+/* routing overrides (#50 / #10)                                      */
+/* ---------------------------------------------------------------- */
+
+const OV_TYPES = ["domain-suffix", "domain", "domain-keyword", "process-name"] as const;
+
+/** Route targets offered as suggestions: built-ins + groups + their nodes. */
+const targetOptions = computed<string[]>(() => {
+  const opts = ["DIRECT", "REJECT"];
+  for (const g of store.groups) {
+    if (!g.hidden) opts.push(g.name);
+    for (const n of g.all) opts.push(n.name);
+  }
+  return [...new Set(opts)];
+});
+
+function addOverride(): void {
+  if (!form.value) return;
+  form.value.routingOverrides = [
+    ...(form.value.routingOverrides ?? []),
+    { pattern: "", type: "domain-suffix", target: "DIRECT" },
+  ];
+}
+
+function removeOverride(i: number): void {
+  form.value?.routingOverrides?.splice(i, 1);
+}
+
+function moveOverride(i: number, dir: -1 | 1): void {
+  const arr = form.value?.routingOverrides;
+  if (!arr) return;
+  const j = i + dir;
+  if (j < 0 || j >= arr.length) return;
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+}
+
+/** Exports the override list as the YAML snippet the importer reads. */
+function exportOverrides(): void {
+  const list = form.value?.routingOverrides ?? [];
+  if (!list.length) return;
+  const lines = list.map(
+    (o) => `  - pattern: ${JSON.stringify(o.pattern)}\n    type: ${o.type}\n    target: ${JSON.stringify(o.target)}`,
+  );
+  const text = `routingOverrides:\n${lines.join("\n")}\n`;
+  const blob = new Blob([text], { type: "text/yaml" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "neurorift-overrides.yaml";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+const ovFile = ref<HTMLInputElement | null>(null);
+
+/** Parses our strict snippet format (see exportOverrides). */
+function parseOverridesYAML(text: string): { pattern: string; type: string; target: string }[] {
+  const strip = (v: string): string => {
+    v = v.trim();
+    if (v.length >= 2 && ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'")))) {
+      return v.slice(1, -1);
+    }
+    return v;
+  };
+  const out: { pattern: string; type: string; target: string }[] = [];
+  let cur: { pattern: string; type: string; target: string } | null = null;
+  const push = () => {
+    if (cur && cur.pattern && cur.target) out.push(cur);
+    cur = null;
+  };
+  for (const line of text.split(/\r?\n/)) {
+    let m = line.match(/^\s*-\s*pattern:\s*(.+)$/);
+    if (m) {
+      push();
+      cur = { pattern: strip(m[1]), type: "domain-suffix", target: "" };
+      continue;
+    }
+    m = line.match(/^\s*type:\s*(\S+)\s*$/);
+    if (m && cur) {
+      cur.type = (OV_TYPES as readonly string[]).includes(m[1]) ? m[1] : "domain-suffix";
+      continue;
+    }
+    m = line.match(/^\s*target:\s*(.+)$/);
+    if (m && cur) {
+      cur.target = strip(m[1]);
+    }
+  }
+  push();
+  return out;
+}
+
+async function importOverrides(ev: Event): Promise<void> {
+  const input = ev.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file || !form.value) return;
+  try {
+    const text = await file.text();
+    const parsed = parseOverridesYAML(text);
+    if (!parsed.length) throw new Error("no entries");
+    form.value.routingOverrides = [...(form.value.routingOverrides ?? []), ...parsed];
+    toast.success(t("settings.routingImported", { n: parsed.length }));
+  } catch {
+    toast.error(t("settings.routingImportFailed"));
   }
 }
 </script>
@@ -491,6 +599,80 @@ async function openFolder(which: "config" | "core" | "logs"): Promise<void> {
             <span class="box" />
             <span>{{ t("settings.subViaProxy") }}</span>
           </label>
+        </div>
+      </section>
+
+      <!-- Routing overrides (#50 / #10) -->
+      <section class="panel">
+        <button class="section-head" :aria-expanded="open.routing" @click="open.routing = !open.routing">
+          <IconChevron :size="14" class="chev" :class="{ open: open.routing }" />
+          {{ t("settings.secRouting") }}
+          <span v-if="form.routingOverrides?.length" class="badge accent">{{ form.routingOverrides.length }}</span>
+        </button>
+        <div v-if="open.routing" style="margin-top: 12px">
+          <p class="hint" style="margin: 0 0 10px">{{ t("settings.routingDesc") }}</p>
+
+          <div v-if="!form.routingOverrides?.length" class="dim" style="padding: 6px 0 10px">
+            {{ t("settings.routingEmpty") }}
+          </div>
+
+          <div v-for="(o, i) in form.routingOverrides" :key="i" class="row" style="gap: 6px; margin-bottom: 6px">
+            <select v-model="o.type" class="input" style="width: 140px" :aria-label="t('settings.routingType')">
+              <option v-for="ty in OV_TYPES" :key="ty" :value="ty">{{ t(`settings.routingType.${ty}`) }}</option>
+            </select>
+            <input
+              v-model="o.pattern"
+              class="input mono"
+              :placeholder="i === 0 ? 'openai.com / telegram.exe' : ''"
+              style="flex: 1; min-width: 120px"
+              :aria-label="t('settings.routingPattern')"
+            />
+            <input
+              v-model="o.target"
+              class="input mono"
+              list="ov-targets"
+              :placeholder="t('settings.routingTarget')"
+              style="flex: 1; min-width: 120px"
+              :aria-label="t('settings.routingTarget')"
+            />
+            <button
+              class="btn-icon"
+              :disabled="i === 0"
+              :aria-label="t('routing.moveUp')"
+              :title="t('routing.moveUp')"
+              @click="moveOverride(i, -1)"
+            >
+              <IconChevron :size="13" style="transform: rotate(-90deg)" />
+            </button>
+            <button
+              class="btn-icon"
+              :disabled="i === (form.routingOverrides?.length ?? 0) - 1"
+              :aria-label="t('routing.moveDown')"
+              :title="t('routing.moveDown')"
+              @click="moveOverride(i, 1)"
+            >
+              <IconChevron :size="13" style="transform: rotate(90deg)" />
+            </button>
+            <button class="btn-icon" :aria-label="t('common.delete')" :title="t('common.delete')" @click="removeOverride(i)">
+              <IconTrash :size="13" />
+            </button>
+          </div>
+          <datalist id="ov-targets">
+            <option v-for="tg in targetOptions" :key="tg" :value="tg" />
+          </datalist>
+
+          <div class="row" style="gap: 8px; margin-top: 10px">
+            <button class="btn sm" @click="addOverride()">
+              <IconPlus :size="13" />
+              {{ t("settings.routingAdd") }}
+            </button>
+            <button class="btn sm" :disabled="!form.routingOverrides?.length" @click="exportOverrides()">
+              {{ t("settings.routingExport") }}
+            </button>
+            <button class="btn sm" @click="ovFile?.click()">{{ t("settings.routingImport") }}</button>
+            <input ref="ovFile" type="file" accept=".yaml,.yml,.txt" style="display: none" @change="importOverrides" />
+          </div>
+          <p class="hint" style="margin: 10px 0 0">{{ t("settings.routingHint") }}</p>
         </div>
       </section>
 

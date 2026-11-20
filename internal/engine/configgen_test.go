@@ -165,3 +165,73 @@ func TestGenerateNodes_UnionProviders(t *testing.T) {
 		t.Errorf("non-union inactive provider leaked into routing groups:\n%s", groupsBlock)
 	}
 }
+
+// setOverrides installs routing overrides through the real settings manager.
+func setOverrides(t *testing.T, gen *ConfigGen, ov ...settings.RoutingOverride) {
+	t.Helper()
+	s := gen.Settings.Get()
+	s.RoutingOverrides = ov
+	if _, err := gen.Settings.Replace(s); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestGenerateNodes_RoutingOverrides (issue #50 / #10): overrides are
+// injected after the LAN block and before the MATCH catch-all; targets that
+// do not exist in the config are skipped instead of breaking the core.
+func TestGenerateNodes_RoutingOverrides(t *testing.T) {
+	gen := newGenForTest(t, "aaaa",
+		profile.Profile{ID: "aaaa", Name: "Sub One", Kind: profile.KindNodes},
+	)
+	setOverrides(t, gen,
+		settings.RoutingOverride{Pattern: "openai.com", Type: "domain-suffix", Target: "n-aaaa"},
+		settings.RoutingOverride{Pattern: "stale.example", Type: "domain", Target: "ghost-node"},
+		settings.RoutingOverride{Pattern: "telegram.exe", Type: "process-name", Target: "DIRECT"},
+	)
+	out, err := gen.Generate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rulesStart := strings.Index(out, "rules:")
+	rulesBlock := out[rulesStart:]
+	if !strings.Contains(rulesBlock, "DOMAIN-SUFFIX,openai.com,n-aaaa") {
+		t.Errorf("override rule missing from nodes config:\n%s", rulesBlock)
+	}
+	if strings.Contains(rulesBlock, "stale.example") {
+		t.Errorf("stale-target override must be skipped, not emitted:\n%s", rulesBlock)
+	}
+	if !strings.Contains(rulesBlock, "PROCESS-NAME,telegram.exe,DIRECT") {
+		t.Errorf("process-name override missing:\n%s", rulesBlock)
+	}
+	// Order: LAN block first, then overrides, then MATCH.
+	lan := strings.Index(rulesBlock, "IP-CIDR,10.0.0.0/8")
+	ovr := strings.Index(rulesBlock, "DOMAIN-SUFFIX,openai.com")
+	match := strings.Index(rulesBlock, "MATCH,")
+	if !(lan < ovr && ovr < match) {
+		t.Errorf("override rules must sit between the LAN block and MATCH (lan=%d ovr=%d match=%d):\n%s", lan, ovr, match, rulesBlock)
+	}
+}
+
+// TestGenerateClash_RoutingOverrides (issue #50 / #10): overrides are
+// spliced into a user clash document after its leading LAN-direct rules and
+// before the user's own rules.
+func TestGenerateClash_RoutingOverrides(t *testing.T) {
+	gen := newGenForTest(t, "cccc",
+		profile.Profile{ID: "cccc", Name: "Clashy", Kind: profile.KindClash},
+	)
+	setOverrides(t, gen,
+		settings.RoutingOverride{Pattern: "example.org", Type: "domain-suffix", Target: "DIRECT"},
+	)
+	out, err := gen.Generate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The test clash doc has "rules: [MATCH,DIRECT]" — the override must be
+	// emitted, and the user's MATCH must stay last.
+	if !strings.Contains(out, "DOMAIN-SUFFIX,example.org,DIRECT") {
+		t.Errorf("override rule missing from clash document:\n%s", out)
+	}
+	if !strings.Contains(out, "MATCH,DIRECT") {
+		t.Errorf("user's trailing MATCH rule lost:\n%s", out)
+	}
+}

@@ -13,6 +13,7 @@ package settings
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -44,6 +45,20 @@ type Test struct {
 	SpeedMaxMB int `json:"speedMaxMb"`
 	// UploadTest enables the upload phase of speed tests.
 	UploadTest bool `json:"uploadTest"`
+}
+
+// RoutingOverride is one user-defined routing rule that takes precedence
+// over the profile's own rules (issue #50 / #10). Pattern semantics depend
+// on Type; Target is a node name, group name, DIRECT or REJECT.
+type RoutingOverride struct {
+	// Pattern is the matched value: domain, domain suffix, domain
+	// keyword or process name (e.g. "openai.com", "telegram.exe").
+	Pattern string `json:"pattern"`
+	// Type is the match type: domain-suffix | domain | domain-keyword |
+	// process-name.
+	Type string `json:"type"`
+	// Target is the routing destination: node, group, DIRECT or REJECT.
+	Target string `json:"target"`
 }
 
 // Failover configures the automatic node-switching watchdog.
@@ -134,23 +149,26 @@ type WindowGeometry struct {
 
 // Settings is the complete, JSON-serializable settings document.
 type Settings struct {
-	Language           string         `json:"language"` // en | fa
-	StartMinimized     bool           `json:"startMinimized"`
-	AutoConnect        bool           `json:"autoConnect"` // start engine on launch
-	SystemProxyOnStart bool           `json:"systemProxyOnStart"`
-	AllowLan           bool           `json:"allowLan"`
-	Mode               string         `json:"mode"` // rule | global | direct
-	Ports              Ports          `json:"ports"`
-	Test               Test           `json:"test"`
-	Failover           Failover       `json:"failover"`
-	Core               Core           `json:"core"`
-	DNS                DNS            `json:"dns"`
-	Tun                Tun            `json:"tun"`
-	Subscription       Subscription   `json:"subscription"`
-	Log                Log            `json:"log"`
-	Updates            Updates        `json:"updates"`
-	Reporting          Reporting      `json:"reporting"`
-	Window             WindowGeometry `json:"window"` // main-window geometry (#44)
+	Language           string       `json:"language"` // en | fa
+	StartMinimized     bool         `json:"startMinimized"`
+	AutoConnect        bool         `json:"autoConnect"` // start engine on launch
+	SystemProxyOnStart bool         `json:"systemProxyOnStart"`
+	AllowLan           bool         `json:"allowLan"`
+	Mode               string       `json:"mode"` // rule | global | direct
+	Ports              Ports        `json:"ports"`
+	Test               Test         `json:"test"`
+	Failover           Failover     `json:"failover"`
+	Core               Core         `json:"core"`
+	DNS                DNS          `json:"dns"`
+	Tun                Tun          `json:"tun"`
+	Subscription       Subscription `json:"subscription"`
+	Log                Log          `json:"log"`
+	// RoutingOverrides are injected as high-priority rules into every
+	// generated runtime config, right after the LAN block (#50).
+	RoutingOverrides []RoutingOverride `json:"routingOverrides"`
+	Updates          Updates           `json:"updates"`
+	Reporting        Reporting         `json:"reporting"`
+	Window           WindowGeometry    `json:"window"` // main-window geometry (#44)
 	// ControllerSecret authenticates the local mihomo API (auto-generated).
 	ControllerSecret string `json:"controllerSecret"`
 	// BypassDomains are appended to the system-proxy bypass list.
@@ -200,6 +218,7 @@ func Default() Settings {
 		Tun:              Tun{Enable: false, Stack: "mixed"},
 		Subscription:     Subscription{DefaultIntervalH: 24, UpdateViaProxy: false},
 		Log:              Log{AppLevel: "info", CoreLevel: "info"},
+		RoutingOverrides: []RoutingOverride{},
 		Updates:          Updates{AutoCheck: true, IncludePrerelease: false},
 		Reporting:        Reporting{Enable: true, GithubToken: ""},
 		ControllerSecret: "",
@@ -278,6 +297,34 @@ func (s *Settings) validate() {
 	if s.Subscription.DefaultIntervalH < 0 || s.Subscription.DefaultIntervalH > 24*30 {
 		s.Subscription.DefaultIntervalH = d.Subscription.DefaultIntervalH
 	}
+	s.RoutingOverrides = sanitizeRoutingOverrides(s.RoutingOverrides)
+}
+
+// sanitizeRoutingOverrides normalizes the override list: trims patterns,
+// fixes the match type, drops malformed rows and caps the list length
+// (mihomo evaluates rules top-down; an absurd list only slows matching).
+func sanitizeRoutingOverrides(in []RoutingOverride) []RoutingOverride {
+	out := make([]RoutingOverride, 0, len(in))
+	for _, o := range in {
+		o.Pattern = strings.TrimSpace(o.Pattern)
+		o.Target = strings.TrimSpace(o.Target)
+		switch o.Type {
+		case "domain-suffix", "domain", "domain-keyword", "process-name":
+		default:
+			o.Type = "domain-suffix"
+		}
+		if o.Pattern == "" || o.Target == "" {
+			continue
+		}
+		out = append(out, o)
+	}
+	if len(out) > 200 {
+		out = out[:200]
+	}
+	if out == nil {
+		out = []RoutingOverride{}
+	}
+	return out
 }
 
 func clampInt(v, lo, hi, def int) int {
@@ -302,7 +349,22 @@ func NeedsConfigReload(a, b Settings) bool {
 		a.Tun != b.Tun ||
 		a.Log.CoreLevel != b.Log.CoreLevel ||
 		a.Test.URL != b.Test.URL ||
-		a.Test.TimeoutMS != b.Test.TimeoutMS
+		a.Test.TimeoutMS != b.Test.TimeoutMS ||
+		!routingOverridesEqual(a.RoutingOverrides, b.RoutingOverrides)
+}
+
+// routingOverridesEqual compares two override lists (order matters — the
+// list is injected top-down into the rules).
+func routingOverridesEqual(a, b []RoutingOverride) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // slicesEqual compares two string slices (order sensitive).

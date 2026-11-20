@@ -318,6 +318,21 @@ export async function toggleSysProxy(): Promise<void> {
 }
 
 /* ------------------------------------------------------------------ */
+/* routing overrides (#50)                                              */
+/* ------------------------------------------------------------------ */
+
+/** Appends one routing override to the settings document and saves it.
+ *  The engine hot-reloads the config because the override list is part of
+ *  the generated rules (settings.NeedsConfigReload). */
+export async function addRoutingOverride(pattern: string, type: string, target: string): Promise<void> {
+  if (!store.settings) await refreshSettings();
+  const s = JSON.parse(JSON.stringify(store.settings)) as SettingsDoc;
+  s.routingOverrides = [...(s.routingOverrides ?? []), { pattern, type, target }];
+  const saved = await SettingsSvc.Save(s);
+  store.settings = saved;
+}
+
+/* ------------------------------------------------------------------ */
 /* application self-update (#13)                                        */
 /* ------------------------------------------------------------------ */
 

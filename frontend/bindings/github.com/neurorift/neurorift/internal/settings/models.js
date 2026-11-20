@@ -303,6 +303,58 @@ export class Reporting {
 }
 
 /**
+ * RoutingOverride is one user-defined routing rule that takes precedence
+ * over the profile's own rules (issue #50 / #10). Pattern semantics depend
+ * on Type; Target is a node name, group name, DIRECT or REJECT.
+ */
+export class RoutingOverride {
+    /**
+     * Creates a new RoutingOverride instance.
+     * @param {Partial<RoutingOverride>} [$$source = {}] - The source object to create the RoutingOverride.
+     */
+    constructor($$source = {}) {
+        if (!("pattern" in $$source)) {
+            /**
+             * Pattern is the matched value: domain, domain suffix, domain
+             * keyword or process name (e.g. "openai.com", "telegram.exe").
+             * @member
+             * @type {string}
+             */
+            this["pattern"] = "";
+        }
+        if (!("type" in $$source)) {
+            /**
+             * Type is the match type: domain-suffix | domain | domain-keyword |
+             * process-name.
+             * @member
+             * @type {string}
+             */
+            this["type"] = "";
+        }
+        if (!("target" in $$source)) {
+            /**
+             * Target is the routing destination: node, group, DIRECT or REJECT.
+             * @member
+             * @type {string}
+             */
+            this["target"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RoutingOverride instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {RoutingOverride}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new RoutingOverride(/** @type {Partial<RoutingOverride>} */($$parsedSource));
+    }
+}
+
+/**
  * Settings is the complete, JSON-serializable settings document.
  */
 export class Settings {
@@ -412,6 +464,15 @@ export class Settings {
              */
             this["log"] = (new Log());
         }
+        if (!("routingOverrides" in $$source)) {
+            /**
+             * RoutingOverrides are injected as high-priority rules into every
+             * generated runtime config, right after the LAN block (#50).
+             * @member
+             * @type {RoutingOverride[]}
+             */
+            this["routingOverrides"] = [];
+        }
         if (!("updates" in $$source)) {
             /**
              * @member
@@ -468,10 +529,11 @@ export class Settings {
         const $$createField11_0 = $$createType6;
         const $$createField12_0 = $$createType7;
         const $$createField13_0 = $$createType8;
-        const $$createField14_0 = $$createType9;
-        const $$createField15_0 = $$createType10;
-        const $$createField16_0 = $$createType11;
-        const $$createField18_0 = $$createType0;
+        const $$createField14_0 = $$createType10;
+        const $$createField15_0 = $$createType11;
+        const $$createField16_0 = $$createType12;
+        const $$createField17_0 = $$createType13;
+        const $$createField19_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("ports" in $$parsedSource) {
             $$parsedSource["ports"] = $$createField6_0($$parsedSource["ports"]);
@@ -497,17 +559,20 @@ export class Settings {
         if ("log" in $$parsedSource) {
             $$parsedSource["log"] = $$createField13_0($$parsedSource["log"]);
         }
+        if ("routingOverrides" in $$parsedSource) {
+            $$parsedSource["routingOverrides"] = $$createField14_0($$parsedSource["routingOverrides"]);
+        }
         if ("updates" in $$parsedSource) {
-            $$parsedSource["updates"] = $$createField14_0($$parsedSource["updates"]);
+            $$parsedSource["updates"] = $$createField15_0($$parsedSource["updates"]);
         }
         if ("reporting" in $$parsedSource) {
-            $$parsedSource["reporting"] = $$createField15_0($$parsedSource["reporting"]);
+            $$parsedSource["reporting"] = $$createField16_0($$parsedSource["reporting"]);
         }
         if ("window" in $$parsedSource) {
-            $$parsedSource["window"] = $$createField16_0($$parsedSource["window"]);
+            $$parsedSource["window"] = $$createField17_0($$parsedSource["window"]);
         }
         if ("bypassDomains" in $$parsedSource) {
-            $$parsedSource["bypassDomains"] = $$createField18_0($$parsedSource["bypassDomains"]);
+            $$parsedSource["bypassDomains"] = $$createField19_0($$parsedSource["bypassDomains"]);
         }
         return new Settings(/** @type {Partial<Settings>} */($$parsedSource));
     }
@@ -800,6 +865,8 @@ const $$createType5 = DNS.createFrom;
 const $$createType6 = Tun.createFrom;
 const $$createType7 = Subscription.createFrom;
 const $$createType8 = Log.createFrom;
-const $$createType9 = Updates.createFrom;
-const $$createType10 = Reporting.createFrom;
-const $$createType11 = WindowGeometry.createFrom;
+const $$createType9 = RoutingOverride.createFrom;
+const $$createType10 = $Create.Array($$createType9);
+const $$createType11 = Updates.createFrom;
+const $$createType12 = Reporting.createFrom;
+const $$createType13 = WindowGeometry.createFrom;
