@@ -1,14 +1,16 @@
 <script setup lang="ts">
 /** Profiles: add (URL/clipboard/file), manage, update, rename, delete. */
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import * as AppSvc from "../../bindings/github.com/neurorift/neurorift/appservice.js";
 import * as Profile from "../../bindings/github.com/neurorift/neurorift/profileservice.js";
 import type { Profile as ProfileSummary } from "../../bindings/github.com/neurorift/neurorift/internal/profile/models.js";
+import type { LintIssue } from "../../bindings/github.com/neurorift/neurorift/internal/profile/models.js";
 import { store, refreshProfiles } from "../store";
 import { t } from "../lib/i18n";
 import { toast, errMsg } from "../lib/toast";
 import { askConfirm } from "../lib/confirm";
 import { fmtBytes, fmtDateTime, relTimeKey, sourceHost, isZeroTime } from "../lib/format";
+import Modal from "../components/Modal.vue";
 import {
   IconLink,
   IconClipboard,
@@ -224,6 +226,84 @@ async function removeProfile(p: ProfileSummary): Promise<void> {
 
 const kindBadge = (p: ProfileSummary): string => (p.kind === "clash" ? "violet" : p.kind === "local" ? "warn" : "accent");
 
+/* ---------------------------------------------------------------- */
+/* raw YAML editor (#49 / #9)                                         */
+/* ---------------------------------------------------------------- */
+
+const yamlOpen = ref(false);
+const yamlProfile = ref<ProfileSummary | null>(null);
+const yamlText = ref("");
+const yamlOriginal = ref("");
+const yamlIssues = ref<LintIssue[]>([]);
+const yamlChecking = ref(false);
+const yamlSaving = ref(false);
+let yamlDebounce: ReturnType<typeof setTimeout> | undefined;
+
+const yamlEditable = computed(
+  () => yamlProfile.value?.kind === "clash" || yamlProfile.value?.kind === "local",
+);
+const yamlValid = computed(() => (yamlIssues.value?.length ?? 0) === 0);
+const yamlDirty = computed(() => yamlText.value !== yamlOriginal.value);
+const yamlTitle = computed(() =>
+  yamlEditable.value ? t("yaml.editTitle", { name: yamlProfile.value?.name ?? "" }) : t("yaml.viewTitle", { name: yamlProfile.value?.name ?? "" }),
+);
+
+async function editYaml(p: ProfileSummary): Promise<void> {
+  try {
+    const raw = await Profile.GetRaw(p.id);
+    yamlProfile.value = p;
+    yamlText.value = raw;
+    yamlOriginal.value = raw;
+    yamlIssues.value = [];
+    yamlOpen.value = true;
+  } catch (e) {
+    toast.error(errMsg(e));
+  }
+}
+
+function closeYaml(): void {
+  clearTimeout(yamlDebounce);
+  yamlOpen.value = false;
+  yamlProfile.value = null;
+}
+
+/** Debounced live validation (500 ms, issue #49). */
+function onYamlInput(): void {
+  if (!yamlEditable.value) return;
+  clearTimeout(yamlDebounce);
+  yamlDebounce = setTimeout(async () => {
+    yamlChecking.value = true;
+    try {
+      const issues = await Profile.ValidateRaw(yamlText.value);
+      yamlIssues.value = issues ?? [];
+    } catch {
+      yamlIssues.value = [];
+    } finally {
+      yamlChecking.value = false;
+    }
+  }, 500);
+}
+
+async function saveYaml(): Promise<void> {
+  if (!yamlProfile.value || !yamlEditable.value || yamlSaving.value || !yamlValid.value) return;
+  yamlSaving.value = true;
+  try {
+    const res = await Profile.UpdateRaw(yamlProfile.value.id, yamlText.value);
+    if (res && !res.ok) {
+      yamlIssues.value = res.issues ?? [];
+      toast.error(t("yaml.notSaved"));
+      return;
+    }
+    toast.success(t("yaml.savedToast", { name: yamlProfile.value.name }));
+    await refreshProfiles();
+    closeYaml();
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    yamlSaving.value = false;
+  }
+}
+
 // Ctrl+U = update all subscriptions (issue #46).
 if (typeof window !== "undefined") {
   window.addEventListener("keydown", (e) => {
@@ -363,6 +443,14 @@ if (typeof window !== "undefined") {
               <span v-if="unionBusyId === p.id" class="spinner" style="width: 11px; height: 11px" />
               <IconLink v-else :size="14" />
             </button>
+            <button
+              class="btn-icon"
+              :aria-label="p.kind === 'nodes' ? t('yaml.view') : t('yaml.edit')"
+              :title="p.kind === 'nodes' ? t('yaml.view') : t('yaml.edit')"
+              @click="editYaml(p)"
+            >
+              <IconFile :size="14" />
+            </button>
             <button class="btn-icon" :aria-label="t('common.rename')" :title="t('common.rename')" @click="startRename(p)">
               <IconEdit :size="14" />
             </button>
@@ -436,5 +524,40 @@ if (typeof window !== "undefined") {
         <span>{{ store.subProgress[p.id].detail || t("profiles.phase.error") }}</span>
       </div>
     </section>
+
+    <!-- raw YAML editor / viewer (#49) -->
+    <Modal :open="yamlOpen" :title="yamlTitle" @close="closeYaml">
+      <p v-if="!yamlEditable" class="dim small" style="margin: 0 0 8px">{{ t("yaml.readOnly") }}</p>
+      <textarea
+        v-model="yamlText"
+        class="mono"
+        spellcheck="false"
+        :readonly="!yamlEditable"
+        style="width: 100%; min-height: 320px; resize: vertical; font-size: 12px; line-height: 1.5; white-space: pre; overflow: auto"
+        @input="onYamlInput"
+      />
+      <div v-if="yamlIssues?.length" class="error-box" style="margin-top: 10px">
+        <IconWarn :size="14" />
+        <ul style="margin: 0; padding-left: 16px">
+          <li v-for="(is, i) in yamlIssues" :key="i" class="mono">{{ t("yaml.line") }} {{ is.line }}: {{ is.message }}</li>
+        </ul>
+      </div>
+      <div v-else-if="yamlEditable" class="row" style="margin-top: 10px; gap: 6px">
+        <span v-if="yamlChecking" class="dim small">{{ t("yaml.checking") }}</span>
+        <span v-else-if="yamlText" class="badge success">{{ t("yaml.valid") }}</span>
+      </div>
+      <template #actions>
+        <button class="btn" @click="closeYaml()">{{ t("common.close") }}</button>
+        <button
+          v-if="yamlEditable"
+          class="btn primary"
+          :disabled="!yamlValid || !yamlDirty || yamlSaving || yamlChecking"
+          @click="saveYaml()"
+        >
+          <span v-if="yamlSaving" class="spinner" style="width: 11px; height: 11px" />
+          {{ t("common.save") }}
+        </button>
+      </template>
+    </Modal>
   </div>
 </template>

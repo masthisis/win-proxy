@@ -80,6 +80,24 @@ func (s *ProfileService) GetNodes(id string) ([]string, error) {
 	return s.c.Profiles.NodeNames(id)
 }
 
+// GetRaw returns the raw YAML of a profile (#49) — editable for
+// clash/local profiles, a read-only provider export for nodes profiles.
+func (s *ProfileService) GetRaw(id string) (string, error) {
+	return s.c.Profiles.GetRaw(id)
+}
+
+// ValidateRaw lints YAML text without saving anything (live validation
+// for the editor, debounced on the frontend; issue #49).
+func (s *ProfileService) ValidateRaw(content string) []profile.LintIssue {
+	return profile.LintYAML(content)
+}
+
+// UpdateRaw saves edited profile YAML; validation problems come back as
+// lint issues (result.ok=false) so the editor can show them inline (#49).
+func (s *ProfileService) UpdateRaw(id, content string) (profile.RawEditResult, error) {
+	return s.c.Profiles.UpdateRaw(context.Background(), id, content)
+}
+
 // Active returns the active profile (nil-safe).
 func (s *ProfileService) Active() (*profile.Summary, bool) {
 	p, ok := s.c.Profiles.Active()

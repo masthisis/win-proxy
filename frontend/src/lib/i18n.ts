@@ -240,6 +240,18 @@ const en: Record<string, string> = {
   "conn.routeViaTitle": "Add routing override",
   "conn.routeViaBody": "Route {host} through:",
   "conn.routeAdded": "Override added for {host} — config reloaded",
+
+  // ---- raw YAML editor (#49) ----
+  "yaml.edit": "Edit YAML",
+  "yaml.view": "View YAML",
+  "yaml.editTitle": "Edit YAML — {name}",
+  "yaml.viewTitle": "YAML — {name}",
+  "yaml.valid": "YAML is valid",
+  "yaml.checking": "Checking…",
+  "yaml.line": "line",
+  "yaml.notSaved": "Validation failed — the profile was not saved",
+  "yaml.savedToast": "Profile {name} saved — config reloaded",
+  "yaml.readOnly": "Nodes profiles are generated files — this view is read-only.",
   "settings.secUpdates": "Application updates",
 
   // ---- app self-update (#13) ----
@@ -605,6 +617,18 @@ const fa: Record<string, string> = {
   "conn.routeViaTitle": "افزودن قاعده مسیریابی",
   "conn.routeViaBody": "عبور {host} از:",
   "conn.routeAdded": "قاعده برای {host} اضافه شد — پیکربندی بازبارگذاری شد",
+
+  // ---- raw YAML editor (#49) ----
+  "yaml.edit": "ویرایش YAML",
+  "yaml.view": "مشاهده YAML",
+  "yaml.editTitle": "ویرایش YAML — {name}",
+  "yaml.viewTitle": "YAML — {name}",
+  "yaml.valid": "YAML معتبر است",
+  "yaml.checking": "در حال بررسی…",
+  "yaml.line": "خط",
+  "yaml.notSaved": "اعتبارسنجی ناموفق بود — پروفایل ذخیره نشد",
+  "yaml.savedToast": "پروفایل {name} ذخیره شد — پیکربندی بازبارگذاری شد",
+  "yaml.readOnly": "پروفایل‌های نودی فایل‌های تولیدشده هستند — این نمای فقط خواندنی است.",
   "settings.secUpdates": "به‌روزرسانی برنامه",
 
   // ---- app self-update (#13) ----
