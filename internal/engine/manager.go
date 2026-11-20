@@ -300,6 +300,13 @@ func (m *Manager) ApplyFromProfiles(ctx context.Context, reason string) error {
 		}
 	}
 	m.Log.Info("config applied", "reason", reason)
+
+	// Issue #40: a hot reload changes the group tree WITHOUT a lifecycle
+	// transition — the UI would keep rendering the previous profile's nodes
+	// until a manual restart. Announce the new config so views re-fetch
+	// groups + mode, and re-broadcast status (ActiveProfile may have changed).
+	m.Bus.Emit(nr.EventGroupsRefresh, reason)
+	m.setState(m.state, m.detail)
 	return nil
 }
 

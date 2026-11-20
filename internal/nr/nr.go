@@ -40,6 +40,11 @@ const (
 	EventAppUpdate       = "app:update"       // payload: selfupdate.Status
 	EventCoreCrashLoop   = "core:crashloop"   // payload: string detail (#36)
 	EventReportsChanged  = "reports:changed"  // payload: nil — pending set changed (#36)
+	// EventGroupsRefresh is emitted after a config hot-reload succeeded
+	// (profile activated / subscription updated): the group tree on the
+	// core changed without a lifecycle transition, so views must re-fetch
+	// groups and mode (#40).
+	EventGroupsRefresh = "groups:refresh" // payload: string reason
 	// Tray-originated events (emitted directly from main.go, not the bus).
 	EventTraySysProxy = "tray:sysproxy" // payload: bool
 	EventTrayMode     = "tray:mode"     // payload: string (rule|global|direct)

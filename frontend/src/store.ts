@@ -373,17 +373,36 @@ export async function openUpdateNotes(): Promise<void> {
 /* event wiring                                                        */
 /* ------------------------------------------------------------------ */
 
+/** Debounced group refresh: config hot-reloads can arrive in bursts
+ *  (reload + provider refresh + profile list) — collapse them (#40). */
+let groupsRefreshTimer: number | undefined;
+function scheduleGroupsRefresh(): void {
+  if (!engineRunning()) return;
+  window.clearTimeout(groupsRefreshTimer);
+  groupsRefreshTimer = window.setTimeout(() => {
+    void refreshGroups();
+    void refreshMode();
+  }, 250);
+}
+
 function onCoreStatus(ev: WailsEventLike): void {
   const st = ev.data as EngineStatusPayload;
   if (!st || typeof st !== "object") return;
   const prev = store.engineStatus?.state;
+  const prevProfile = store.engineStatus?.activeProfile;
   store.engineStatus = st;
   if (st.activeProfile) store.activeProfileId = st.activeProfile;
   if (st.state === "running") {
     store.coreDownload = null;
-    if (prev !== "running") {
+    // Issue #40: a hot reload re-broadcasts the SAME running state with a
+    // possibly different active profile — refresh groups whenever the
+    // active profile changed, not only on stopped->running transitions.
+    const profileChanged = prevProfile !== undefined && prevProfile !== st.activeProfile;
+    if (prev !== "running" || profileChanged) {
       void refreshGroups();
       void refreshMode();
+    }
+    if (prev !== "running") {
       void refreshFailover();
       void refreshSpeedHistory();
     }
@@ -523,6 +542,14 @@ function subscribeEvents(): void {
   Events.On(EV.coreLogs, onCoreLogs);
   Events.On(EV.profilesChanged, () => {
     void refreshProfiles();
+    // Issue #40: an updated active subscription hot-swapped its provider —
+    // node lists must re-fetch without an app restart.
+    scheduleGroupsRefresh();
+  });
+  Events.On(EV.groupsRefresh, () => {
+    // Backend finished a config hot-reload (activation / subscription
+    // update): re-fetch the group tree + mode (#40).
+    scheduleGroupsRefresh();
   });
   Events.On(EV.settingsChanged, () => {
     void refreshSettings();
