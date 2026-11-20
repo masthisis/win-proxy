@@ -100,6 +100,13 @@ export const IconUpload = icon("IconUpload", () => [
 
 export const IconClose = icon("IconClose", () => [p("M6 6l12 12"), p("M18 6 6 18")]);
 
+export const IconSort = icon("IconSort", () => [
+  p("M7 4v16"),
+  p("M4 7l3-3 3 3"),
+  p("M17 20V4"),
+  p("M14 17l3 3 3-3"),
+]);
+
 export const IconCheck = icon("IconCheck", () => [p("M4.5 12.5 9.5 17.5 19.5 6.5")]);
 
 export const IconTrash = icon("IconTrash", () => [

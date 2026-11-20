@@ -8,7 +8,7 @@ import { t } from "../lib/i18n";
 import { toast, errMsg } from "../lib/toast";
 import NodeChip from "../components/NodeChip.vue";
 import StatusPill from "../components/StatusPill.vue";
-import { IconRefresh, IconBolt, IconGauge, IconProfiles, IconWarn } from "../components/Icons";
+import { IconRefresh, IconBolt, IconGauge, IconProfiles, IconWarn, IconSort } from "../components/Icons";
 
 const MODES = ["rule", "global", "direct"] as const;
 
@@ -16,6 +16,31 @@ const modeBusy = ref(false);
 const testAllBusy = ref(false);
 const groupTestBusy = ref<string | null>(null);
 const selecting = ref<string | null>(null);
+
+/** Issue #43: node search + sort-by-delay toggle (persisted per session). */
+const nodeSearch = ref("");
+const sortByDelay = ref((localStorage.getItem("nr.dash.sortByDelay") ?? "0") === "1");
+
+function setSortByDelay(v: boolean): void {
+  sortByDelay.value = v;
+  localStorage.setItem("nr.dash.sortByDelay", v ? "1" : "0");
+}
+
+function groupNodes(g: GroupUI): NodeUI[] {
+  const q = nodeSearch.value.trim().toLowerCase();
+  let list = g.all ?? [];
+  if (q) list = list.filter((n) => n.name.toLowerCase().includes(q));
+  if (sortByDelay.value) {
+    list = [...list].sort((a, b) => {
+      const fa = a.delay > 0 ? 0 : 1;
+      const fb = b.delay > 0 ? 0 : 1;
+      if (fa !== fb) return fa - fb;
+      if (a.delay !== b.delay) return a.delay - b.delay;
+      return a.name.localeCompare(b.name);
+    });
+  }
+  return list;
+}
 
 const engineState = computed(() => store.engineStatus?.state ?? "unknown");
 // "unknown" (status not yet fetched / call failed) is treated as off.
@@ -135,6 +160,23 @@ async function selectNode(g: GroupUI, node: NodeUI): Promise<void> {
             <StatusPill :state="engineState" />
           </div>
           <div class="row">
+            <input
+              v-model="nodeSearch"
+              type="text"
+              class="node-search"
+              :placeholder="t('test.searchNodes')"
+              style="max-width: 180px"
+            />
+            <button
+              class="btn-icon"
+              :class="{ on: sortByDelay }"
+              :aria-pressed="sortByDelay"
+              :aria-label="t('dash.sortByDelay')"
+              :title="t('dash.sortByDelay')"
+              @click="setSortByDelay(!sortByDelay)"
+            >
+              <IconSort :size="15" />
+            </button>
             <button class="btn" :disabled="testAllBusy || !engineRunning() || !visibleGroups.length" @click="testAll()">
               <span v-if="testAllBusy" class="spinner" />
               <IconGauge v-else :size="14" />
@@ -220,7 +262,7 @@ async function selectNode(g: GroupUI, node: NodeUI): Promise<void> {
         </header>
         <div class="chips">
           <NodeChip
-            v-for="n in g.all"
+            v-for="n in groupNodes(g)"
             :key="n.name"
             :node="n"
             :selected="n.name === g.now"

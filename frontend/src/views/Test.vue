@@ -23,6 +23,33 @@ const pingBusy = ref<string | null>(null);
 const speedOneBusy = ref<string | null>(null);
 const fallbackNodes = ref<Row[]>([]);
 
+/** Issue #43: sorting, search and filters for the node table. */
+type SortKey = "default" | "name" | "delay" | "down" | "up";
+const sortBy = ref<SortKey>("default");
+const sortDir = ref<1 | -1>(1);
+const search = ref("");
+const latFilter = ref<"all" | "alive" | "failed">("all");
+const autoSort = ref((localStorage.getItem("nr.test.autoSort") ?? "1") === "1");
+
+function setAutoSort(v: boolean): void {
+  autoSort.value = v;
+  localStorage.setItem("nr.test.autoSort", v ? "1" : "0");
+}
+
+function toggleSort(key: Exclude<SortKey, "default">): void {
+  if (sortBy.value === key) {
+    sortDir.value = sortDir.value === 1 ? -1 : 1;
+  } else {
+    sortBy.value = key;
+    sortDir.value = 1;
+  }
+}
+
+function sortIndicator(key: Exclude<SortKey, "default">): string {
+  if (sortBy.value !== key) return "";
+  return sortDir.value === 1 ? "▲" : "▼";
+}
+
 /** Issue #42: which subscription the table shows. "" = active profile. */
 const selectedProfileId = ref("");
 const profileNodesBusy = ref(false);
@@ -53,6 +80,50 @@ const rows = computed<Row[]>(() => {
 const speedOf = (name: string): SpeedResultPayload | undefined => store.speedResults[name];
 const speedDown = (name: string): string => (speedOf(name) ? fmtMbps(speedOf(name)!.downloadMbps) : "—");
 const speedUp = (name: string): string => (speedOf(name) ? fmtMbps(speedOf(name)!.uploadMbps) : "—");
+
+/** Issue #43: search + alive/failed filter + sortable columns. */
+const filteredRows = computed<Row[]>(() => {
+  const q = search.value.trim().toLowerCase();
+  return rows.value.filter((r) => {
+    if (q && !r.name.toLowerCase().includes(q)) return false;
+    if (latFilter.value === "alive" && !(r.delay > 0)) return false;
+    if (latFilter.value === "failed" && r.delay > 0) return false;
+    return true;
+  });
+});
+
+const sortedRows = computed<Row[]>(() => {
+  const list = [...filteredRows.value];
+  const dir = sortDir.value;
+  switch (sortBy.value) {
+    case "name":
+      list.sort((a, b) => dir * a.name.localeCompare(b.name));
+      break;
+    case "delay":
+      // Alive nodes first (ascending), failures at the end.
+      list.sort((a, b) => {
+        const fa = a.delay > 0 ? 0 : 1;
+        const fb = b.delay > 0 ? 0 : 1;
+        if (fa !== fb) return fa - fb;
+        if (a.delay !== b.delay) return dir * (a.delay - b.delay);
+        return a.name.localeCompare(b.name);
+      });
+      break;
+    case "down": {
+      const d = (r: Row) => speedOf(r.name)?.downloadMbps ?? -1;
+      list.sort((a, b) => dir * (d(a) - d(b)) || a.name.localeCompare(b.name));
+      break;
+    }
+    case "up": {
+      const u = (r: Row) => speedOf(r.name)?.uploadMbps ?? -1;
+      list.sort((a, b) => dir * (u(a) - u(b)) || a.name.localeCompare(b.name));
+      break;
+    }
+    default:
+      break; // provider order
+  }
+  return list;
+});
 
 function latCls(d: number): string {
   if (d > 0 && d < 200) return "good";
@@ -140,6 +211,11 @@ async function testAll(): Promise<void> {
       const batch = await Proxy.TestAllNodes();
       toast.success(t("toast.tested", { n: batch?.results?.length ?? 0 }));
       for (const r of batch?.results ?? []) applyLatency(r.node, r.delay);
+    }
+    // Issue #43: v2rayN-style auto-sort by latency after a batch test.
+    if (autoSort.value) {
+      sortBy.value = "delay";
+      sortDir.value = 1;
     }
     if (!primaryGroup.value || !showingActive.value) void loadFallbackNodes();
   } catch (e) {
@@ -267,6 +343,29 @@ const tableCaption = computed(() => {
         <span class="dim small">{{ tableCaption }}</span>
       </div>
 
+      <!-- Issue #43: search, filters, auto-sort -->
+      <div class="row" style="margin-top: 10px; flex-wrap: wrap">
+        <input
+          v-model="search"
+          type="text"
+          class="node-search"
+          :placeholder="t('test.searchNodes')"
+          style="max-width: 220px"
+        />
+        <div class="seg" role="group" :aria-label="t('test.filter')">
+          <button :class="{ active: latFilter === 'all' }" @click="latFilter = 'all'">{{ t("test.filterAll") }}</button>
+          <button :class="{ active: latFilter === 'alive' }" @click="latFilter = 'alive'">{{ t("test.filterAlive") }}</button>
+          <button :class="{ active: latFilter === 'failed' }" @click="latFilter = 'failed'">{{ t("test.filterFailed") }}</button>
+        </div>
+        <label class="checkbox" style="gap: 6px">
+          <input :checked="autoSort" type="checkbox" @change="setAutoSort(($event.target as HTMLInputElement).checked)" />
+          <span class="dim small">{{ t("test.autoSort") }}</span>
+        </label>
+        <span class="dim small" style="margin-inline-start: auto">
+          {{ t("test.showing", { n: sortedRows.length, m: rows.length }) }}
+        </span>
+      </div>
+
       <!-- live speed progress -->
       <div v-if="store.speedBusy" style="margin-top: 10px">
         <div class="row" style="justify-content: space-between; margin-bottom: 5px">
@@ -294,16 +393,16 @@ const tableCaption = computed(() => {
         <thead>
           <tr>
             <th v-if="showingAll">{{ t("test.colProfile") }}</th>
-            <th>{{ t("test.colName") }}</th>
+            <th class="sortable" @click="toggleSort('name')">{{ t("test.colName") }} {{ sortIndicator("name") }}</th>
             <th>{{ t("test.colType") }}</th>
-            <th>{{ t("test.colLatency") }}</th>
-            <th>{{ t("test.colDown") }}</th>
-            <th>{{ t("test.colUp") }}</th>
+            <th class="sortable" @click="toggleSort('delay')">{{ t("test.colLatency") }} {{ sortIndicator("delay") }}</th>
+            <th class="sortable" @click="toggleSort('down')">{{ t("test.colDown") }} {{ sortIndicator("down") }}</th>
+            <th class="sortable" @click="toggleSort('up')">{{ t("test.colUp") }} {{ sortIndicator("up") }}</th>
             <th v-if="engineRunning()" style="width: 1%">{{ t("test.colActions") }}</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in rows" :key="rowKey(row)">
+          <tr v-for="row in sortedRows" :key="rowKey(row)">
             <td v-if="showingAll" class="dim" style="max-width: 140px; overflow: hidden; text-overflow: ellipsis" :title="row.profileName">
               {{ row.profileName }}
             </td>
@@ -345,7 +444,7 @@ const tableCaption = computed(() => {
       <div class="empty">
         <IconTest :size="30" />
         <div class="e-title">{{ t("test.emptyTitle") }}</div>
-        <div class="e-body">{{ t("test.emptyBody") }}</div>
+        <div class="e-body">{{ rows.length ? t("test.noMatches") : t("test.emptyBody") }}</div>
       </div>
     </div>
 
