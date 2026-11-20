@@ -72,9 +72,14 @@ type Manager struct {
 	Bus      *bus.Bus
 	Log      *slog.Logger
 
-	// lastLatency keeps the freshest latency per node (failover input).
-	latMu   sync.Mutex
-	latency map[string]int
+	// lastLatency keeps the freshest latency per node (failover input);
+	// latHistory keeps the last samples per node for sparklines (#12).
+	latMu      sync.Mutex
+	latency    map[string]int
+	latHistory map[string][]int
+
+	// latHistoryCap is the sparkline window (samples, not time).
+	latHistoryCap int
 
 	// speedMu serializes speed tests (one at a time).
 	speedMu sync.Mutex
@@ -92,8 +97,23 @@ func NewManager(s *settings.Manager, e *engine.Manager, b *bus.Bus, log *slog.Lo
 	}
 	return &Manager{
 		Settings: s, Engine: e, Bus: b, Log: log,
-		latency: map[string]int{},
+		latency:       map[string]int{},
+		latHistory:    map[string][]int{},
+		latHistoryCap: 20,
 	}
+}
+
+// LatencyHistory returns the recent latency samples per node (issue #12;
+// oldest first, capped at the sparkline window). In-memory only — the
+// window resets on restart by design.
+func (m *Manager) LatencyHistory() map[string][]int {
+	m.latMu.Lock()
+	defer m.latMu.Unlock()
+	out := make(map[string][]int, len(m.latHistory))
+	for k, v := range m.latHistory {
+		out[k] = append([]int(nil), v...)
+	}
+	return out
 }
 
 // CancelSpeedTest aborts the running throughput test (no-op when idle).
@@ -115,6 +135,13 @@ func (m *Manager) LastLatency(node string) int {
 func (m *Manager) recordLatency(node string, delay int) {
 	m.latMu.Lock()
 	m.latency[node] = delay
+	if delay > 0 {
+		h := append(m.latHistory[node], delay)
+		if len(h) > m.latHistoryCap {
+			h = h[len(h)-m.latHistoryCap:]
+		}
+		m.latHistory[node] = h
+	}
 	m.latMu.Unlock()
 }
 

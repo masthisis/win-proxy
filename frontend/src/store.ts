@@ -450,6 +450,7 @@ function onLatencyResults(ev: WailsEventLike): void {
   for (const r of b.results) {
     applyLatency(r.node, r.delay);
   }
+  window.dispatchEvent(new CustomEvent("nr:latency-batch"));
 }
 
 function onSpeedProgress(ev: WailsEventLike): void {

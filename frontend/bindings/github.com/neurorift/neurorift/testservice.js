@@ -45,12 +45,22 @@ export function FailoverTestNow() {
 }
 
 /**
+ * LatencyHistory returns recent per-node latency samples for sparklines (#12).
+ * @returns {$CancellablePromise<{ [_ in string]?: number[] }>}
+ */
+export function LatencyHistory() {
+    return $Call.ByID(2438829691).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType2($result);
+    }));
+}
+
+/**
  * SpeedHistory returns the latest speed result per node.
  * @returns {$CancellablePromise<{ [_ in string]?: nettest$0.SpeedResult }>}
  */
 export function SpeedHistory() {
     return $Call.ByID(2752161416).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType2($result);
+        return $$createType4($result);
     }));
 }
 
@@ -61,7 +71,7 @@ export function SpeedHistory() {
  */
 export function SpeedTest(node) {
     return $Call.ByID(1443595540, node).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType5($result);
     }));
 }
 
@@ -91,7 +101,7 @@ export function SpeedTestQueue(nodes) {
  */
 export function TestAllProfilesLatency() {
     return $Call.ByID(4075150476).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
+        return $$createType7($result);
     }));
 }
 
@@ -103,15 +113,17 @@ export function TestAllProfilesLatency() {
  */
 export function TestProfileLatency(profileID) {
     return $Call.ByID(2859474484, profileID).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType6($result);
+        return $$createType8($result);
     }));
 }
 
 // Private type creation functions
 const $$createType0 = failover$0.Status.createFrom;
-const $$createType1 = nettest$0.SpeedResult.createFrom;
+const $$createType1 = $Create.Array($Create.Any);
 const $$createType2 = $Create.Map($Create.Any, $$createType1);
-const $$createType3 = $Create.Nullable($$createType1);
-const $$createType4 = nettest$0.LatencyBatch.createFrom;
-const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = $Create.Nullable($$createType4);
+const $$createType3 = nettest$0.SpeedResult.createFrom;
+const $$createType4 = $Create.Map($Create.Any, $$createType3);
+const $$createType5 = $Create.Nullable($$createType3);
+const $$createType6 = nettest$0.LatencyBatch.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = $Create.Nullable($$createType6);

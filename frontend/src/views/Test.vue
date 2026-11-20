@@ -10,6 +10,7 @@ import type { SpeedResultPayload } from "../lib/events";
 import { toast, errMsg } from "../lib/toast";
 import { fmtLatency, fmtMbps, fmtMsDuration, fmtDateTime, relTimeKey } from "../lib/format";
 import { IconGauge, IconTest, IconWarn, IconCheck, IconClose, IconRefresh } from "../components/Icons";
+import LatencySpark from "../components/LatencySpark.vue";
 
 interface Row {
   name: string;
@@ -76,6 +77,24 @@ const rows = computed<Row[]>(() => {
   }
   return fallbackNodes.value.filter((r) => r.profileName === selectedProfile.value?.name);
 });
+
+/** Issue #12: recent latency samples per node for the sparkline column. */
+const latencyHistory = ref<Record<string, number[]>>({});
+
+async function refreshLatencyHistory(): Promise<void> {
+  try {
+    const hist = (await Test.LatencyHistory()) ?? {};
+    const clean: Record<string, number[]> = {};
+    for (const [k, v] of Object.entries(hist)) {
+      if (Array.isArray(v)) clean[k] = v;
+    }
+    latencyHistory.value = clean;
+  } catch {
+    /* non-fatal */
+  }
+}
+
+const spark = (name: string): number[] => latencyHistory.value[name] ?? [];
 
 const speedOf = (name: string): SpeedResultPayload | undefined => store.speedResults[name];
 const speedDown = (name: string): string => (speedOf(name) ? fmtMbps(speedOf(name)!.downloadMbps) : "—");
@@ -179,6 +198,7 @@ const profileIdForTesting = computed<string>(() => {
 onMounted(() => {
   void refreshFailover();
   void refreshSpeedHistory();
+  void refreshLatencyHistory();
   if (!store.groups.length || store.profiles.length > 1) void loadFallbackNodes();
 });
 
@@ -187,6 +207,9 @@ watch(
   () => store.profiles.map((p) => p.id + ":" + p.nodeCount).join("|"),
   () => void loadFallbackNodes(),
 );
+
+// Refresh the sparkline history after every latency batch (#12).
+window.addEventListener("nr:latency-batch", () => void refreshLatencyHistory());
 
 async function testAll(): Promise<void> {
   if (testAllBusy.value) return;
@@ -396,6 +419,7 @@ const tableCaption = computed(() => {
             <th class="sortable" @click="toggleSort('name')">{{ t("test.colName") }} {{ sortIndicator("name") }}</th>
             <th>{{ t("test.colType") }}</th>
             <th class="sortable" @click="toggleSort('delay')">{{ t("test.colLatency") }} {{ sortIndicator("delay") }}</th>
+            <th :title="t('test.colTrend')">{{ t("test.colTrend") }}</th>
             <th class="sortable" @click="toggleSort('down')">{{ t("test.colDown") }} {{ sortIndicator("down") }}</th>
             <th class="sortable" @click="toggleSort('up')">{{ t("test.colUp") }} {{ sortIndicator("up") }}</th>
             <th v-if="engineRunning()" style="width: 1%">{{ t("test.colActions") }}</th>
@@ -412,6 +436,9 @@ const tableCaption = computed(() => {
             <td class="dim">{{ row.type || "—" }}</td>
             <td>
               <span class="latency" :class="latCls(row.delay)">{{ fmtLatency(row.delay) }}</span>
+            </td>
+            <td>
+              <LatencySpark :samples="spark(row.name)" />
             </td>
             <td class="num" :title="speedOf(row.name) ? fmtDateTime(speedOf(row.name)!.at) : ''">
               <span v-if="speedOf(row.name)?.error" class="dim" :title="speedOf(row.name)?.error">✕</span>
