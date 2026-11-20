@@ -97,6 +97,29 @@ jobs:
             -ldflags "-w -s -H windowsgui -X github.com/neurorift/neurorift/internal/nr.Version=dev-${GITHUB_SHA::7}" \
             -o build/bin/neurorift.exe .
 
+      - name: Locate or install NSIS
+        id: nsis
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $cands = @(
+            "C:\Program Files (x86)\NSIS\makensis.exe",
+            "C:\Program Files\NSIS\makensis.exe"
+          )
+          $exe = $cands | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $exe) {
+            $cmd = Get-Command makensis -ErrorAction SilentlyContinue
+            if ($cmd) { $exe = $cmd.Source }
+          }
+          if (-not $exe) {
+            Write-Host "NSIS not preinstalled - installing via Chocolatey"
+            choco install nsis -y --no-progress --limit-output | Out-Null
+            $exe = $cands | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (-not $exe -or -not (Test-Path $exe)) { throw "makensis unavailable" }
+          "path=$exe" >> $env:GITHUB_OUTPUT
+          Write-Host "makensis: $exe"
+
       - name: Compile-check NSIS installer script
         working-directory: build/windows/nsis
         shell: pwsh
@@ -111,7 +134,7 @@ jobs:
           Set-Content "$d\mihomo.exe" "ci dummy"
           Copy-Item "$d\mihomo.exe" "$d\MicrosoftEdgeWebview2Setup.exe"
           Copy-Item "$d\MicrosoftEdgeWebview2Setup.exe" .
-          & "C:\Program Files (x86)\NSIS\makensis.exe" `
+          & "${{ steps.nsis.outputs.path }}" `
             "-DARG_WAILS_AMD64_BINARY=$d\neurorift.exe" `
             "-DNR_MIHOMO_BINARY=$d\mihomo.exe" `
             "-DINFO_PRODUCTVERSION=0.0.0" `

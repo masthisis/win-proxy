@@ -103,6 +103,29 @@ jobs:
           Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" `
             -OutFile build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
 
+      - name: Locate or install NSIS
+        id: nsis
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $cands = @(
+            "C:\Program Files (x86)\NSIS\makensis.exe",
+            "C:\Program Files\NSIS\makensis.exe"
+          )
+          $exe = $cands | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $exe) {
+            $cmd = Get-Command makensis -ErrorAction SilentlyContinue
+            if ($cmd) { $exe = $cmd.Source }
+          }
+          if (-not $exe) {
+            Write-Host "NSIS not preinstalled - installing via Chocolatey"
+            choco install nsis -y --no-progress --limit-output | Out-Null
+            $exe = $cands | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (-not $exe -or -not (Test-Path $exe)) { throw "makensis unavailable" }
+          "path=$exe" >> $env:GITHUB_OUTPUT
+          Write-Host "makensis: $exe"
+
       - name: Build NSIS installer
         working-directory: build/windows/nsis
         shell: pwsh
@@ -114,7 +137,7 @@ jobs:
           # VIProductVersion needs 4 numeric parts: strip any -rc.N suffix
           # from the tag for the version resource, keep it in the file name.
           $numeric = ($env:VERSION -split '-')[0]
-          & "C:\Program Files (x86)\NSIS\makensis.exe" `
+          & "${{ steps.nsis.outputs.path }}" `
             "-DARG_WAILS_AMD64_BINARY=..\..\..\build\bin\neurorift.exe" `
             "-DNR_MIHOMO_BINARY=$core" `
             "-DINFO_PRODUCTVERSION=$numeric" `
