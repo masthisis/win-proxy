@@ -46,7 +46,26 @@ type lifecycle struct {
 	showWindow func()
 }
 
-func (l *lifecycle) ServiceStartup(ctx context.Context) error {
+// Compile-time proof that lifecycle implements the Wails service hooks.
+//
+// REGRESSION GUARD (issue #34): Wails discovers these hooks through a
+// runtime type assertion — a method with the wrong signature simply makes
+// the framework silently skip the hook (no compile error, no log). That
+// is exactly how every release before v1.2.1 ran without any of the app
+// wiring (event bridge, runtime bridges, background loops, auto-connect):
+// ServiceStartup had one parameter too few. These assertions turn any
+// future signature drift into a build failure instead of a silent outage.
+var (
+	_ application.ServiceStartup  = (*lifecycle)(nil)
+	_ application.ServiceShutdown = (*lifecycle)(nil)
+)
+
+// ServiceStartup wires the whole application: background loops, the
+// internal-bus → webview event bridge, runtime bridges and the
+// single-instance listener. Wails calls it during App.Run() BEFORE the
+// main message loop starts, so it must never block: everything slow is
+// spawned onto goroutines.
+func (l *lifecycle) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
 	l.c.ctx = ctx
 	l.stopBG = l.c.StartBackground(ctx)
 	forwardEvents(l.c, l.app)
@@ -56,6 +75,11 @@ func (l *lifecycle) ServiceStartup(ctx context.Context) error {
 	// zombie-killing takeover path. Wails' built-in option is disabled —
 	// its notify never finds its own message-only window and its blocking
 	// SendMessage hangs forever against a hung instance.
+	//
+	// Must stay on its own goroutine: internally it uses
+	// application.InvokeSync, which blocks until the main loop pumps
+	// messages — and the main loop only starts AFTER this hook returns.
+	// Calling it inline would deadlock App.Run().
 	go singleinstance.ListenOnMainThread(l.c.Log, l.showWindow)
 
 	// Boot telemetry (#27): the webview is alive and executing JS —

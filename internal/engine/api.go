@@ -318,20 +318,9 @@ func (a *API) SetMode(ctx context.Context, mode string) error {
 	return a.PatchConfigs(ctx, map[string]any{"mode": mode})
 }
 
-// Memory returns the core's in-use memory (bytes).
-func (a *API) Memory(ctx context.Context) (int64, error) {
-	var out struct {
-		InUse int64 `json:"inuse"`
-	}
-	if err := a.do(ctx, http.MethodGet, "/memory", nil, &out); err != nil {
-		return 0, err
-	}
-	return out.InUse, nil
-}
-
-// StreamLine opens a chunked-JSON-lines endpoint (/traffic, /logs) and calls
-// onLine for every decoded raw line. It returns when ctx is cancelled or the
-// transport errors.
+// StreamLine opens a chunked-JSON-lines endpoint (/traffic, /logs,
+// /memory) and calls onLine for every decoded raw line. It returns when
+// ctx is cancelled or the transport errors.
 func (a *API) StreamLine(ctx context.Context, path string, onLine func(line []byte)) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.base+path, nil)
 	if err != nil {

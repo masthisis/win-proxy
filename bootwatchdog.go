@@ -55,8 +55,9 @@ func armBootWatchdog(cl *crashLog) {
 			cl.Printf("stack tail:\n%s", tailOf(dump, 4000))
 		}
 		notifyError(cl, nil, fmt.Errorf(
-			"NeuroRift startup stalled before its window could be created.\r\n"+
-				"A goroutine dump was written to:\r\n%s", firstNonEmpty(path, cl.path)), false)
+			"NeuroRift startup stalled: the application services did not\r\n"+
+				"finish initializing within %s.\r\n"+
+				"A goroutine dump was written to:\r\n%s", bootWatchdogBudget, firstNonEmpty(path, cl.path)), false)
 	}()
 }
 
