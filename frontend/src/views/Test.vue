@@ -4,6 +4,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import * as Proxy from "../../bindings/github.com/neurorift/neurorift/proxyservice.js";
 import * as Test from "../../bindings/github.com/neurorift/neurorift/testservice.js";
 import * as ProfileSvc from "../../bindings/github.com/neurorift/neurorift/profileservice.js";
+import * as SettingsSvc from "../../bindings/github.com/neurorift/neurorift/settingsservice.js";
 import { store, refreshFailover, refreshSpeedHistory, applyLatency, engineRunning } from "../store";
 import { t } from "../lib/i18n";
 import type { SpeedResultPayload } from "../lib/events";
@@ -293,6 +294,35 @@ async function speedTop5(): Promise<void> {
   }
 }
 
+/** Issue #11: byte-cap presets for the speed test (quick chips). */
+const PRESETS_MB = [10, 50, 100, 200];
+const presetBusy = ref(false);
+
+async function applyPreset(mb: number): Promise<void> {
+  if (presetBusy.value || !store.settings) return;
+  presetBusy.value = true;
+  try {
+    const next = JSON.parse(JSON.stringify(store.settings)) as typeof store.settings;
+    next.test.speedMaxMb = mb;
+    const saved = await SettingsSvc.Save(next);
+    store.settings = saved;
+    toast.success(t("test.presetApplied", { mb }));
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    presetBusy.value = false;
+  }
+}
+
+async function cancelSpeed(): Promise<void> {
+  try {
+    await Test.CancelSpeedTest();
+    toast.info(t("test.cancelled"));
+  } catch (e) {
+    toast.error(errMsg(e));
+  }
+}
+
 async function speedProfile(): Promise<void> {
   const target = profileIdForTesting.value;
   if (store.speedBusy || !target || target === "__all__") return;
@@ -364,6 +394,26 @@ const tableCaption = computed(() => {
           </button>
         </div>
         <span class="dim small">{{ tableCaption }}</span>
+      </div>
+
+      <!-- Issue #11: byte-cap presets + cancel -->
+      <div class="row" style="margin-top: 8px; flex-wrap: wrap">
+        <span class="dim small">{{ t("test.presetLabel") }}</span>
+        <div class="seg" role="group" :aria-label="t('test.presetLabel')">
+          <button
+            v-for="mb in PRESETS_MB"
+            :key="mb"
+            :class="{ active: store.settings?.test?.speedMaxMb === mb }"
+            :disabled="presetBusy || store.speedBusy"
+            @click="applyPreset(mb)"
+          >
+            {{ mb }} MB
+          </button>
+        </div>
+        <button v-if="store.speedBusy" class="btn sm danger" style="margin-inline-start: auto" @click="cancelSpeed()">
+          <IconClose :size="12" />
+          {{ t("common.cancel") }}
+        </button>
       </div>
 
       <!-- Issue #43: search, filters, auto-sort -->
