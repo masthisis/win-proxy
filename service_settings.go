@@ -67,6 +67,11 @@ func (s *TestService) SpeedHistory() map[string]nettest.SpeedResult {
 	return s.c.History.Recent()
 }
 
+// LatencyHistory returns recent per-node latency samples for sparklines (#12).
+func (s *TestService) LatencyHistory() map[string][]int {
+	return s.c.NetTest.LatencyHistory()
+}
+
 // FailoverStatus returns the watchdog state.
 func (s *TestService) FailoverStatus() failover.Status { return s.c.Watchdog.Status() }
 
