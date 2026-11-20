@@ -237,3 +237,105 @@ func isGroup(api *engine.API, name string) bool {
 func (m *Manager) TestAllNodes(ctx context.Context) (*LatencyBatch, error) {
 	return m.TestGroupLatency(ctx, nr.GroupSpeedTest)
 }
+
+// TestProfileLatency batch-tests the nodes of ONE profile — any imported
+// subscription, not just the active one (issue #42). All profiles are
+// declared as providers in the runtime config, so the hidden speed-test
+// group covers their nodes; one GroupDelay call measures everything
+// core-side and we filter the results down to the profile's node list.
+func (m *Manager) TestProfileLatency(ctx context.Context, profileID string) (*LatencyBatch, error) {
+	api := m.Engine.API()
+	if api == nil {
+		return nil, fmt.Errorf("engine not running")
+	}
+	names, err := m.Engine.Profiles.NodeNames(profileID)
+	if err != nil {
+		return nil, fmt.Errorf("profile nodes: %w", err)
+	}
+	if len(names) == 0 {
+		return nil, fmt.Errorf("profile has no nodes")
+	}
+
+	s := m.Settings.Get()
+	res, err := api.GroupDelay(ctx, nr.GroupSpeedTest, s.Test.URL, s.Test.TimeoutMS)
+	if err != nil {
+		return nil, err
+	}
+
+	profile, _ := m.Engine.Profiles.Get(profileID)
+	groupName := profile.Name
+	if groupName == "" {
+		groupName = profileID
+	}
+	batch := &LatencyBatch{Group: groupName, At: time.Now(), Results: []LatencySample{}}
+	for _, name := range names {
+		if d, ok := res[name]; ok && d > 0 {
+			m.recordLatency(name, d)
+			batch.Results = append(batch.Results, LatencySample{Node: name, Delay: d})
+		} else {
+			batch.Results = append(batch.Results, LatencySample{Node: name, Error: "timeout"})
+		}
+	}
+	// Nodes that appear in the group result but not in the profile list
+	// (renamed upstream) are ignored — this batch is profile-scoped.
+	sortBatch(batch.Results)
+	m.Bus.Emit(nr.EventLatencyResults, batch)
+	return batch, nil
+}
+
+// TestAllProfilesLatency tests EVERY nodes-kind profile in one pass: a
+// single GroupDelay call covers all providers (#42); the results are split
+// per profile and emitted as one batch per profile (plus a merged batch for
+// convenience).
+func (m *Manager) TestAllProfilesLatency(ctx context.Context) ([]LatencyBatch, error) {
+	api := m.Engine.API()
+	if api == nil {
+		return nil, fmt.Errorf("engine not running")
+	}
+	profiles := m.Engine.Profiles.List()
+	if len(profiles) == 0 {
+		return nil, fmt.Errorf("no profiles imported")
+	}
+
+	s := m.Settings.Get()
+	res, err := api.GroupDelay(ctx, nr.GroupSpeedTest, s.Test.URL, s.Test.TimeoutMS)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	out := make([]LatencyBatch, 0, len(profiles))
+	for _, p := range profiles {
+		names, err := m.Engine.Profiles.NodeNames(p.ID)
+		if err != nil || len(names) == 0 {
+			continue
+		}
+		batch := LatencyBatch{Group: p.Name, At: now, Results: []LatencySample{}}
+		for _, name := range names {
+			if d, ok := res[name]; ok && d > 0 {
+				m.recordLatency(name, d)
+				batch.Results = append(batch.Results, LatencySample{Node: name, Delay: d})
+			} else {
+				batch.Results = append(batch.Results, LatencySample{Node: name, Error: "timeout"})
+			}
+		}
+		sortBatch(batch.Results)
+		m.Bus.Emit(nr.EventLatencyResults, &batch)
+		out = append(out, batch)
+	}
+	return out, nil
+}
+
+// sortBatch orders samples best-first (alive by delay, then failures).
+func sortBatch(results []LatencySample) {
+	sort.Slice(results, func(i, j int) bool {
+		fi, fj := results[i], results[j]
+		if (fi.Error != "") != (fj.Error != "") {
+			return fi.Error == ""
+		}
+		if fi.Delay != fj.Delay {
+			return fi.Delay < fj.Delay
+		}
+		return fi.Node < fj.Node
+	})
+}

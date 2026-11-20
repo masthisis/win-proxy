@@ -50,6 +50,32 @@ func (g *ConfigGen) Generate() (string, error) {
 	return g.generateNodes(s, active, hasActive)
 }
 
+// appProviders builds the file proxy-provider map for EVERY nodes-kind
+// profile (issue #42): all imported subscriptions stay loaded so the Test
+// Center can latency/speed-test any of them. Only the ACTIVE profile gets
+// health-check enabled — inactive providers must not generate background
+// URL-test traffic.
+func (g *ConfigGen) appProviders(s settings.Settings, activeID string) *yamlx.OMap {
+	providers := newOMap()
+	for _, p := range g.Profiles.List() {
+		if p.Kind != profile.KindNodes {
+			continue
+		}
+		prov := newOMap().
+			Set("type", "file").
+			Set("path", g.Profiles.ProviderPathFor(p.ID)).
+			Set("interval", 60) // re-read file periodically as a safety net
+		if p.ID == activeID {
+			prov.Set("health-check", newOMap().
+				Set("enable", true).
+				Set("url", s.Test.URL).
+				Set("interval", 300))
+		}
+		providers.Set(providerName(p.ID), prov)
+	}
+	return providers
+}
+
 // ---------------------------------------------------------------- nodes ----
 
 func (g *ConfigGen) generateNodes(s settings.Settings, active profile.Summary, hasActive bool) (string, error) {
@@ -84,38 +110,58 @@ func (g *ConfigGen) generateNodes(s settings.Settings, active profile.Summary, h
 		root.Set("tun", tunBlock(s))
 	}
 
-	// Providers: only the ACTIVE subscription is loaded (CFW semantics).
-	groups := []any{}
-	if hasActive && active.Kind == profile.KindNodes {
-		prov := newOMap().
-			Set("type", "file").
-			Set("path", g.Profiles.ProviderPathFor(active.ID)).
-			Set("interval", 60). // re-read file periodically as a safety net
-			Set("health-check", newOMap().
-				Set("enable", true).
-				Set("url", s.Test.URL).
-				Set("interval", 300))
-		root.Set("proxy-providers", newOMap().Set(providerName(active.ID), prov))
+	// Providers: EVERY nodes-kind subscription is loaded so any of them can
+	// be tested from the Test Center (#42). Routing groups stay scoped to the
+	// ACTIVE provider (CFW semantics).
+	id := ""
+	if hasActive {
+		id = active.ID
+	}
+	providers := g.appProviders(s, id)
+	if providers.Len() > 0 {
+		root.Set("proxy-providers", providers)
 	}
 
-	// Generated groups. include-all pulls in every provider node (+ DIRECT).
-	groups = append(groups,
+	// Generated groups. The hidden speed-test group covers every provider
+	// node (+ DIRECT); the user-facing selectors are scoped to the active
+	// provider via `use` (issue #42: other subscriptions stay testable but
+	// never leak into routing).
+	groups := []any{
 		newOMap().
 			Set("name", nr.GroupSpeedTest).
 			Set("type", "select").
 			Set("include-all", true),
-		newOMap().
-			Set("name", nr.GroupNodeSelect).
-			Set("type", "select").
-			Set("include-all", true),
-		newOMap().
-			Set("name", nr.GroupAutoSelect).
-			Set("type", "url-test").
-			Set("include-all", true).
-			Set("interval", 300).
-			Set("tolerance", 50).
-			Set("lazy", true),
-	)
+	}
+	if hasActive && active.Kind == profile.KindNodes {
+		groups = append(groups,
+			newOMap().
+				Set("name", nr.GroupNodeSelect).
+				Set("type", "select").
+				Set("proxies", []any{"DIRECT"}).
+				Set("use", []any{providerName(active.ID)}),
+			newOMap().
+				Set("name", nr.GroupAutoSelect).
+				Set("type", "url-test").
+				Set("use", []any{providerName(active.ID)}).
+				Set("interval", 300).
+				Set("tolerance", 50).
+				Set("lazy", true),
+		)
+	} else {
+		groups = append(groups,
+			newOMap().
+				Set("name", nr.GroupNodeSelect).
+				Set("type", "select").
+				Set("include-all", true),
+			newOMap().
+				Set("name", nr.GroupAutoSelect).
+				Set("type", "url-test").
+				Set("include-all", true).
+				Set("interval", 300).
+				Set("tolerance", 50).
+				Set("lazy", true),
+		)
+	}
 	root.Set("proxy-groups", groups)
 	root.Set("rules", defaultRules())
 
@@ -191,6 +237,25 @@ func (g *ConfigGen) generateClash(s settings.Settings, active profile.Summary) (
 		Tag:     "!!seq",
 		Content: listeners,
 	})
+
+	// Issue #42: inject EVERY app file-provider into the user document so
+	// imported subscriptions stay testable from the Test Center while a
+	// clash profile is active. User-defined providers are never touched.
+	if providers := g.appProviders(s, active.ID); providers.Len() > 0 {
+		provsNode := mapMapValue(rootMap, "proxy-providers")
+		if provsNode == nil {
+			provsNode = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		}
+		for _, name := range providers.Keys() {
+			if mappingHasKey(provsNode, name) {
+				continue // never overwrite user keys
+			}
+			v, _ := providers.Get(name)
+			provsNode.Content = append(provsNode.Content,
+				scalarNode(name), yamlNodeFrom(v))
+		}
+		setMapKey(rootMap, "proxy-providers", provsNode)
+	}
 
 	// Ensure some rules exist; an empty rules list is a config error.
 	if rules := mapListValue(rootMap, "rules"); len(rules) == 0 {
@@ -332,6 +397,30 @@ func mapListValue(root *yaml.Node, key string) []*yaml.Node {
 		}
 	}
 	return nil
+}
+
+// mapMapValue reads a mapping-valued key from a mapping node (nil when the
+// key is absent or not a mapping).
+func mapMapValue(root *yaml.Node, key string) *yaml.Node {
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value == key && root.Content[i+1].Kind == yaml.MappingNode {
+			return root.Content[i+1]
+		}
+	}
+	return nil
+}
+
+// mappingHasKey reports whether a mapping node already contains key.
+func mappingHasKey(root *yaml.Node, key string) bool {
+	if root == nil {
+		return false
+	}
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value == key {
+			return true
+		}
+	}
+	return false
 }
 
 // dnsNode builds the dns block as a yaml.Node for clash splicing.

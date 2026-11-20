@@ -76,6 +76,40 @@ func (s *TestService) FailoverTestNow() { s.c.Watchdog.TestNow(context.Backgroun
 // CancelSpeedTest aborts a running throughput test (no-op when idle).
 func (s *TestService) CancelSpeedTest() { s.c.NetTest.CancelSpeedTest() }
 
+// TestProfileLatency batch-tests every node of ONE profile — any imported
+// subscription, not just the active one (issue #42).
+func (s *TestService) TestProfileLatency(profileID string) (*nettest.LatencyBatch, error) {
+	return s.c.NetTest.TestProfileLatency(context.Background(), profileID)
+}
+
+// TestAllProfilesLatency latency-tests every imported profile in one pass
+// (issue #42). Returns one batch per profile.
+func (s *TestService) TestAllProfilesLatency() ([]nettest.LatencyBatch, error) {
+	return s.c.NetTest.TestAllProfilesLatency(context.Background())
+}
+
+// SpeedTestProfile runs throughput tests over a profile's nodes sequentially;
+// progress/results arrive via the speed:progress / speed:done events.
+func (s *TestService) SpeedTestProfile(profileID string) error {
+	names, err := s.c.Profiles.NodeNames(profileID)
+	if err != nil {
+		return err
+	}
+	if len(names) == 0 {
+		return fmt.Errorf("profile has no nodes")
+	}
+	go func() {
+		for _, n := range names {
+			res, err := s.c.NetTest.SpeedTest(context.Background(), n)
+			if err != nil {
+				return
+			}
+			s.c.History.Append(*res)
+		}
+	}()
+	return nil
+}
+
 // SysService exposes OS-level integration.
 type SysService struct{ c *Container }
 
