@@ -96,6 +96,21 @@ func notifyError(cl *crashLog, lg *slog.Logger, err error, fatal bool) {
 	messageBox(msg, "NeuroRift", mbOK|mbIconError)
 }
 
+// redirectStderrToFile points the process stderr handle at f so RUNTIME
+// panics — including goroutine crashes, which bypass every recover — are
+// persisted (issue #32). Release builds use -H windowsgui: there is no
+// console, so panic traces written to fd 2 used to vanish.
+func redirectStderrToFile(f *os.File) bool {
+	// Go ≥ 1.27 resolves fd 2 through a live GetStdHandle on every runtime
+	// write (see runtime.write1), so this Win32 call is enough to route
+	// panic traces into the file — no fd duplication needed.
+	if err := windows.SetStdHandle(windows.STD_ERROR_HANDLE, windows.Handle(f.Fd())); err != nil {
+		return false
+	}
+	os.Stderr = f
+	return true
+}
+
 // webview2RuntimeInstalled reports whether the WebView2 Evergreen runtime is
 // registered for this machine or user. A fixed-version runtime supplied via
 // WEBVIEW2_BROWSER_EXECUTABLE_FOLDER short-circuits the check.

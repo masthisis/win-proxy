@@ -20,50 +20,50 @@ const AppIdentifier = "app.neurorift.desktop"
 const UpdateRepo = "masthisis/win-proxy"
 
 // Version is overridden at build time via -ldflags "-X ...".
-var Version = "1.1.0"
+var Version = "1.2.0"
 
 // Event names emitted on the Wails event bus (backend -> frontend).
 const (
-        EventCoreStatus      = "core:status"      // payload: engine.Status
-        EventCoreDownload    = "core:download"    // payload: core.DownloadProgress
-        EventCoreConsole     = "core:console"     // payload: string (core stdout line)
-        EventProfilesList    = "profiles:changed" // payload: profile.Summary list (re-fetch via API)
-        EventSubProgress     = "sub:progress"     // payload: profile.Progress
-        EventLatencyResults  = "latency:results"  // payload: nettest.LatencyBatch
-        EventSpeedProgress   = "speed:progress"   // payload: nettest.SpeedProgress
-        EventSpeedDone       = "speed:done"       // payload: nettest.SpeedResult
-        EventFailover        = "failover:event"   // payload: failover.Event
-        EventTraffic         = "net:traffic"      // payload: engine.TrafficTick
-        EventConnections     = "net:connections"  // payload: engine.ConnectionsSnapshot
-        EventLogsCore        = "core:logs"        // payload: []string (batched lines)
-        EventSettingsChanged = "settings:changed" // payload: nil (re-fetch via API)
-        EventAppUpdate       = "app:update"       // payload: selfupdate.Status
-        // Tray-originated events (emitted directly from main.go, not the bus).
-        EventTraySysProxy = "tray:sysproxy" // payload: bool
-        EventTrayMode     = "tray:mode"     // payload: string (rule|global|direct)
+	EventCoreStatus      = "core:status"      // payload: engine.Status
+	EventCoreDownload    = "core:download"    // payload: core.DownloadProgress
+	EventCoreConsole     = "core:console"     // payload: string (core stdout line)
+	EventProfilesList    = "profiles:changed" // payload: profile.Summary list (re-fetch via API)
+	EventSubProgress     = "sub:progress"     // payload: profile.Progress
+	EventLatencyResults  = "latency:results"  // payload: nettest.LatencyBatch
+	EventSpeedProgress   = "speed:progress"   // payload: nettest.SpeedProgress
+	EventSpeedDone       = "speed:done"       // payload: nettest.SpeedResult
+	EventFailover        = "failover:event"   // payload: failover.Event
+	EventTraffic         = "net:traffic"      // payload: engine.TrafficTick
+	EventConnections     = "net:connections"  // payload: engine.ConnectionsSnapshot
+	EventLogsCore        = "core:logs"        // payload: []string (batched lines)
+	EventSettingsChanged = "settings:changed" // payload: nil (re-fetch via API)
+	EventAppUpdate       = "app:update"       // payload: selfupdate.Status
+	// Tray-originated events (emitted directly from main.go, not the bus).
+	EventTraySysProxy = "tray:sysproxy" // payload: bool
+	EventTrayMode     = "tray:mode"     // payload: string (rule|global|direct)
 )
 
 // Well-known mihomo object names injected by the config generator.
 const (
-        // GroupSpeedTest is the hidden selector used by the speed-test engine.
-        GroupSpeedTest = "⚡ NR SpeedTest"
-        // GroupNodeSelect is the primary selector for "nodes" style profiles.
-        GroupNodeSelect = "🚀 Node Select"
-        // GroupAutoSelect is the url-test group for "nodes" style profiles.
-        GroupAutoSelect = "♻️ NR Auto"
-        // ListenerSpeedTest is the inbound listener name used by speed tests.
-        ListenerSpeedTest = "nr-speedtest"
+	// GroupSpeedTest is the hidden selector used by the speed-test engine.
+	GroupSpeedTest = "⚡ NR SpeedTest"
+	// GroupNodeSelect is the primary selector for "nodes" style profiles.
+	GroupNodeSelect = "🚀 Node Select"
+	// GroupAutoSelect is the url-test group for "nodes" style profiles.
+	GroupAutoSelect = "♻️ NR Auto"
+	// ListenerSpeedTest is the inbound listener name used by speed tests.
+	ListenerSpeedTest = "nr-speedtest"
 )
 
 // CoreState enumerates the lifecycle states of the mihomo engine.
 type CoreState string
 
 const (
-        CoreStopped  CoreState = "stopped"
-        CoreStarting CoreState = "starting"
-        CoreRunning  CoreState = "running"
-        CoreFailed   CoreState = "failed"
-        CoreUpdating CoreState = "updating"
+	CoreStopped  CoreState = "stopped"
+	CoreStarting CoreState = "starting"
+	CoreRunning  CoreState = "running"
+	CoreFailed   CoreState = "failed"
+	CoreUpdating CoreState = "updating"
 )
 
 // Str returns s as a plain string (helper for JSON payloads).
