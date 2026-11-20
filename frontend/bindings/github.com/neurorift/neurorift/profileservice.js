@@ -144,8 +144,21 @@ export function Update(id) {
     }));
 }
 
+/**
+ * UpdateAll refreshes every refreshable subscription in parallel and
+ * returns an aggregate summary (issue #46).
+ * @returns {$CancellablePromise<profile$0.UpdateSummary | null>}
+ */
+export function UpdateAll() {
+    return $Call.ByID(763197780).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType5($result);
+    }));
+}
+
 // Private type creation functions
 const $$createType0 = profile$0.Profile.createFrom;
 const $$createType1 = $Create.Nullable($$createType0);
 const $$createType2 = $Create.Array($Create.Any);
 const $$createType3 = $Create.Array($$createType0);
+const $$createType4 = profile$0.UpdateSummary.createFrom;
+const $$createType5 = $Create.Nullable($$createType4);

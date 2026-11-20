@@ -46,6 +46,12 @@ func (s *ProfileService) Update(id string) (*profile.Summary, error) {
 	return s.c.Profiles.Update(context.Background(), id)
 }
 
+// UpdateAll refreshes every refreshable subscription in parallel and
+// returns an aggregate summary (issue #46).
+func (s *ProfileService) UpdateAll() (*profile.UpdateSummary, error) {
+	return s.c.Profiles.UpdateAll(context.Background())
+}
+
 // Remove deletes a profile.
 func (s *ProfileService) Remove(id string) error {
 	return s.c.Profiles.Remove(context.Background(), id)

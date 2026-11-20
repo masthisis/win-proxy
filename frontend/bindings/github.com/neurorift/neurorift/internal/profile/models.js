@@ -108,6 +108,16 @@ export class Profile {
              */
             this["subInfo"] = undefined;
         }
+        if (/** @type {any} */(false)) {
+            /**
+             * LastError is the most recent sync failure (issue #46; "" = healthy).
+             * Surfaced on the profile card so a silently-failing subscription is
+             * visible without opening the logs.
+             * @member
+             * @type {string | undefined}
+             */
+            this["lastError"] = undefined;
+        }
 
         Object.assign(this, $$source);
     }
@@ -190,6 +200,65 @@ export const Summary = Profile;
  * @typedef {Profile} Summary
  */
 
+/**
+ * UpdateSummary is the aggregate outcome of UpdateAll (issue #46).
+ */
+export class UpdateSummary {
+    /**
+     * Creates a new UpdateSummary instance.
+     * @param {Partial<UpdateSummary>} [$$source = {}] - The source object to create the UpdateSummary.
+     */
+    constructor($$source = {}) {
+        if (!("updated" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["updated"] = 0;
+        }
+        if (!("failed" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["failed"] = 0;
+        }
+        if (!("skipped" in $$source)) {
+            /**
+             * clipboard/static profiles
+             * @member
+             * @type {number}
+             */
+            this["skipped"] = 0;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * profile name -> error
+             * @member
+             * @type {{ [_ in string]?: string } | undefined}
+             */
+            this["errors"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new UpdateSummary instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {UpdateSummary}
+     */
+    static createFrom($$source = {}) {
+        const $$createField3_0 = $$createType2;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("errors" in $$parsedSource) {
+            $$parsedSource["errors"] = $$createField3_0($$parsedSource["errors"]);
+        }
+        return new UpdateSummary(/** @type {Partial<UpdateSummary>} */($$parsedSource));
+    }
+}
+
 // Private type creation functions
 const $$createType0 = SubscriptionInfo.createFrom;
 const $$createType1 = $Create.Nullable($$createType0);
+const $$createType2 = $Create.Map($Create.Any, $Create.Any);
