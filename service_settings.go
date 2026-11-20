@@ -12,6 +12,7 @@ import (
 	"github.com/neurorift/neurorift/internal/nettest"
 	"github.com/neurorift/neurorift/internal/nr"
 	"github.com/neurorift/neurorift/internal/platform"
+	"github.com/neurorift/neurorift/internal/proxyguard"
 	"github.com/neurorift/neurorift/internal/settings"
 )
 
@@ -132,12 +133,24 @@ func (s *SysService) GetSystemProxy() SysProxyState {
 }
 
 // SetSystemProxy enables/disables the OS HTTP proxy pointing at our mixed
-// port. The previous state is restored on disable.
+// port. The previous state is restored on disable. The proxy guard's
+// expectation is kept in sync (#47) so it only re-applies a proxy the user
+// actually wanted on.
 func (s *SysService) SetSystemProxy(enabled bool) error {
 	sv := s.c.Settings.Get()
 	server := fmt.Sprintf("127.0.0.1:%d", sv.Ports.Mixed)
 	bypass := strings.Join(sv.BypassDomains, ";")
-	return platform.SetSystemProxy(enabled, server, bypass)
+	if err := platform.SetSystemProxy(enabled, server, bypass); err != nil {
+		return err
+	}
+	s.c.ProxyGuard.SetExpected(enabled)
+	return nil
+}
+
+// GetProxyGuardStatus reports the system-proxy guard state (#47): armed,
+// re-applies today and the last action.
+func (s *SysService) GetProxyGuardStatus() proxyguard.Status {
+	return s.c.ProxyGuard.Status()
 }
 
 // IsElevated reports admin rights (needed for TUN).

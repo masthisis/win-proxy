@@ -8,6 +8,7 @@ export {
     Failover,
     Log,
     Ports,
+    ProxyGuard,
     Reporting,
     RoutingOverride,
     Settings,

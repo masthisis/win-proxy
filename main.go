@@ -275,6 +275,8 @@ func forwardEvents(c *Container, app *application.App) {
 		// self-update progress, crash-loop alerts and report state changes
 		// never reached the webview.
 		nr.EventAppUpdate, nr.EventCoreCrashLoop, nr.EventReportsChanged,
+		// Issue #47: system-proxy guard actions (re-apply / kill-switch).
+		nr.EventProxyGuard,
 	} {
 		fwd(topic)
 	}

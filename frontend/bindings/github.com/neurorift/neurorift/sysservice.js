@@ -13,6 +13,10 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as proxyguard$0 from "./internal/proxyguard/models.js";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
 /**
@@ -24,12 +28,23 @@ export function GetAutostart() {
 }
 
 /**
+ * GetProxyGuardStatus reports the system-proxy guard state (#47): armed,
+ * re-applies today and the last action.
+ * @returns {$CancellablePromise<proxyguard$0.Status>}
+ */
+export function GetProxyGuardStatus() {
+    return $Call.ByID(3817443927).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * GetSystemProxy reads the OS proxy state.
  * @returns {$CancellablePromise<$models.SysProxyState>}
  */
 export function GetSystemProxy() {
     return $Call.ByID(1171326591).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
+        return $$createType1($result);
     }));
 }
 
@@ -72,7 +87,9 @@ export function SetAutostart(enabled) {
 
 /**
  * SetSystemProxy enables/disables the OS HTTP proxy pointing at our mixed
- * port. The previous state is restored on disable.
+ * port. The previous state is restored on disable. The proxy guard's
+ * expectation is kept in sync (#47) so it only re-applies a proxy the user
+ * actually wanted on.
  * @param {boolean} enabled
  * @returns {$CancellablePromise<void>}
  */
@@ -81,4 +98,5 @@ export function SetSystemProxy(enabled) {
 }
 
 // Private type creation functions
-const $$createType0 = $models.SysProxyState.createFrom;
+const $$createType0 = proxyguard$0.Status.createFrom;
+const $$createType1 = $models.SysProxyState.createFrom;

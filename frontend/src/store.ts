@@ -28,6 +28,7 @@ import type {
   EngineStatusPayload,
   FailoverEventPayload,
   LatencyBatchPayload,
+  ProxyGuardStatus,
   SpeedProgressPayload,
   SpeedResultPayload,
   SubProgressPayload,
@@ -95,6 +96,7 @@ export interface AppState {
   failoverEvents: FailoverHistoryItem[];
   appInfo: AppInfo | null;
   appUpdate: AppUpdatePayload | null;
+  proxyGuard: ProxyGuardStatus | null;
   now: number;
 }
 
@@ -132,6 +134,7 @@ export const store = reactive<AppState>({
   failoverEvents: [],
   appInfo: null,
   appUpdate: null,
+  proxyGuard: null,
   now: Date.now(),
 });
 
@@ -571,6 +574,20 @@ function subscribeEvents(): void {
     void refreshSettings();
   });
   Events.On(EV.appUpdate, onAppUpdate);
+
+  // System-proxy guard actions (#47): keep the chip fresh + tell the user
+  // when their proxy was hijacked and repaired, or removed by the
+  // kill-switch.
+  Events.On(EV.proxyGuard, (ev: WailsEventLike) => {
+    const st = ev.data as ProxyGuardStatus;
+    if (!st || typeof st !== "object") return;
+    store.proxyGuard = st;
+    if (st.lastAction === "reapplied") {
+      toast.info(t("guard.reappliedToast", { n: st.reappliedToday }));
+    } else if (st.lastAction === "killswitch") {
+      toast.info(t("guard.killswitchToast"));
+    }
+  });
 
   // Tray-menu actions (main.go emits these directly on the app event bus);
   // without them the tray toggles leave the UI stale (found during #45).

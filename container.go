@@ -25,6 +25,7 @@ import (
 	"github.com/neurorift/neurorift/internal/nr"
 	"github.com/neurorift/neurorift/internal/platform"
 	"github.com/neurorift/neurorift/internal/profile"
+	"github.com/neurorift/neurorift/internal/proxyguard"
 	"github.com/neurorift/neurorift/internal/reporting"
 	"github.com/neurorift/neurorift/internal/selfupdate"
 	"github.com/neurorift/neurorift/internal/settings"
@@ -91,6 +92,9 @@ type Container struct {
 	Watchdog *failover.Watchdog
 	Updates  *selfupdate.Manager
 	Reports  *reporting.Manager
+	// ProxyGuard re-applies the OS system proxy when another app
+	// tampers with it while the engine runs (#47).
+	ProxyGuard *proxyguard.Guard
 
 	Log     *slog.Logger
 	ring    *logRing
@@ -134,6 +138,17 @@ func NewContainer() (*Container, error) {
 	nt := nettest.NewManager(set, eng, b, logger)
 	hist := nettest.NewHistoryStore(paths.SpeedHistory)
 	wd := failover.New(set, eng, nt, b, logger)
+	// System-proxy guard (#47): engine dependency is inverted — the
+	// container forwards core:status events so proxyguard stays
+	// engine-free (same pattern as profile.Manager's ApplyFunc).
+	pg := proxyguard.New(set, b, logger, func() bool {
+		return eng.Status().State == nr.CoreRunning
+	})
+	b.Subscribe(context.Background(), nr.EventCoreStatus, func(_ string, payload any) {
+		if es, ok := payload.(engine.Status); ok {
+			pg.OnEngineState(es.State)
+		}
+	})
 	ups := selfupdate.New(
 		nr.UpdateRepo,
 		filepath.Join(paths.Root, "updatestate.json"),
@@ -176,7 +191,7 @@ func NewContainer() (*Container, error) {
 	return &Container{
 		Paths: paths, Bus: b, Settings: set, Profiles: profs,
 		Engine: eng, NetTest: nt, History: hist, Watchdog: wd,
-		Updates: ups, Reports: rpt,
+		Updates: ups, Reports: rpt, ProxyGuard: pg,
 		Log: logger, ring: ring, logFile: logFile,
 	}, nil
 }
@@ -201,6 +216,7 @@ func (c *Container) StartBackground(parent context.Context) context.CancelFunc {
 	go c.Engine.AutoUpdateLoop(ctx)
 	go c.Updates.Run(ctx)
 	go c.Reports.Run(ctx)
+	go c.ProxyGuard.Run(ctx)
 
 	// Auto-connect: start the engine with the last active profile.
 	if c.Settings.Get().AutoConnect {
