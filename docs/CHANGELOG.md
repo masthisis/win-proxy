@@ -2,7 +2,60 @@
 
 ## Unreleased
 
-## v1.3.0 - the app reports its own problems
+## v1.4.0 - the user-driven quality release
+
+Nine issues from real daily-driver feedback plus competitor research
+(v2rayN, Clash Verge Rev, FlClash, Hiddify, Proton VPN), each fixed or
+built through the issue -> branch -> PR -> CI -> merge workflow.
+
+### Fixed
+
+- **No more console window.** The mihomo core, its version probe, the
+  NSIS installer hand-off and the WebView2 setup bootstrapper are now
+  spawned with `CREATE_NO_WINDOW`/`HideWindow` — the CMD window that
+  shadowed the app is gone, and a source-scan regression guard keeps
+  every future `exec.Command` console-free (#38).
+- **Live traffic stays live.** The `/traffic`, `/memory` and `/logs`
+  streams were silently killed every 30 s by the shared HTTP client's
+  overall timeout (it covers body reads, and those bodies never end).
+  Streaming endpoints now use a dedicated no-timeout client with bounded
+  dial/handshake phases (#39).
+- **New subscriptions are visible immediately.** Activating a profile or
+  updating a subscription hot-reloads the core config without a lifecycle
+  transition, so the UI kept rendering the previous profile's nodes until
+  a full restart. A new `groups:refresh` event (+ status re-broadcast and
+  debounced store refreshes) keeps every view in sync (#40).
+- **Updates show real progress.** `app:update` events were never
+  forwarded to the webview — downloads showed nothing. The events now
+  flow, the download detail includes live speed (MiB/s), a header
+  progress chip is visible from every view, and the install stage gets
+  an indeterminate bar (#41).
+- **Tray menu no longer desyncs the UI** (`tray:sysproxy`/`tray:mode`
+  events are now wired into the store).
+
+### Added
+
+- **Test Center tests EVERY subscription.** All imported subscriptions
+  are declared as core providers (health-check only for the active one),
+  the routing groups stay scoped to the active provider, and the hidden
+  speed-test group covers every node — so any subscription can be
+  latency- and speed-tested without activating it. Profile selector,
+  per-subscription test actions, "test all subscriptions" (#42).
+- **Sorting, search and filters.** Sortable Test Center columns
+  (name/latency/down/up), v2rayN-style auto-sort by delay after batch
+  tests, node search, alive/failed filter chips; Dashboard node search +
+  sort-by-delay toggle with Proton-style health colors (#43).
+- **Window memory.** Size, position and maximised state persist across
+  launches (validated, clamped, multi-monitor-safe); tables scroll
+  internally at small sizes (#44).
+- **Borderless Proton-style window.** Frameless window with a custom
+  titlebar: drag anywhere on the bar, double-click to maximize, Win 11
+  snap layouts, min/max-restore/close-to-tray buttons, live traffic and
+  status integrated (#45).
+- **Update All subscriptions** (Ctrl+U) — parallel refresh with an
+  aggregate summary and per-card sync-failure badges (#46).
+
+## v1.3.0 - the app reports its own problems - the app reports its own problems
 
 Feature (#36): automatic problem reporting to GitHub. When anything goes
 wrong — a panic, a startup stall, a core crash-loop, a fatal error —
