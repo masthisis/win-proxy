@@ -9,6 +9,7 @@ export {
     Log,
     Ports,
     Reporting,
+    RoutingOverride,
     Settings,
     Subscription,
     Test,

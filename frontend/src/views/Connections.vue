@@ -1,14 +1,15 @@
 <script setup lang="ts">
 /** Connections: live table from net:connections events (1 Hz). */
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import * as Proxy from "../../bindings/github.com/neurorift/neurorift/proxyservice.js";
 import type { ConnItem } from "../../bindings/github.com/neurorift/neurorift/internal/engine/models.js";
-import { store } from "../store";
+import { store, addRoutingOverride } from "../store";
 import { t } from "../lib/i18n";
 import { toast, errMsg } from "../lib/toast";
 import { askConfirm } from "../lib/confirm";
 import { fmtBytes, fmtDuration } from "../lib/format";
-import { IconClose, IconConnections, IconDownload, IconUpload } from "../components/Icons";
+import Modal from "../components/Modal.vue";
+import { IconClose, IconConnections, IconDownload, IconLink, IconUpload } from "../components/Icons";
 
 const items = computed<ConnItem[]>(() => {
   const list = store.connections?.items ?? [];
@@ -46,6 +47,46 @@ async function closeAll(): Promise<void> {
     await Proxy.CloseAllConnections();
   } catch (e) {
     toast.error(errMsg(e));
+  }
+}
+
+/* ---- routing override quick-add (#50 / #10) ---- */
+
+/** A host is routable when it is a domain (IP literals have no DOMAIN rule). */
+function isDomainHost(host: string): boolean {
+  return !!host && host.includes(".") && !/^\d{1,3}(\.\d{1,3}){3}/.test(host);
+}
+
+const routeHost = ref<string | null>(null);
+const routeTarget = ref("DIRECT");
+const routeBusy = ref(false);
+
+/** Route targets offered in the quick-add modal: built-ins + visible groups. */
+const routeTargets = computed<string[]>(() => {
+  const opts = ["DIRECT", "REJECT"];
+  for (const g of store.groups) {
+    if (!g.hidden) opts.push(g.name);
+  }
+  return opts;
+});
+
+function askRoute(host: string): void {
+  routeHost.value = host;
+  routeTarget.value = "DIRECT";
+}
+
+async function applyRoute(): Promise<void> {
+  const host = routeHost.value;
+  if (!host || routeBusy.value) return;
+  routeBusy.value = true;
+  try {
+    await addRoutingOverride(host, "domain-suffix", routeTarget.value);
+    toast.success(t("conn.routeAdded", { host }));
+    routeHost.value = null;
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    routeBusy.value = false;
   }
 }
 </script>
@@ -106,9 +147,20 @@ async function closeAll(): Promise<void> {
             <td class="num">{{ fmtBytes(c.up) }}</td>
             <td class="num dim">{{ duration(c.start) }}</td>
             <td>
-              <button class="btn-icon" :aria-label="t('conn.close')" :title="t('conn.close')" @click="closeConn(c.id)">
-                <IconClose :size="13" />
-              </button>
+              <span class="row" style="gap: 2px">
+                <button
+                  v-if="isDomainHost(c.host)"
+                  class="btn-icon"
+                  :aria-label="t('conn.routeVia')"
+                  :title="t('conn.routeVia')"
+                  @click="askRoute(c.host)"
+                >
+                  <IconLink :size="13" />
+                </button>
+                <button class="btn-icon" :aria-label="t('conn.close')" :title="t('conn.close')" @click="closeConn(c.id)">
+                  <IconClose :size="13" />
+                </button>
+              </span>
             </td>
           </tr>
         </tbody>
@@ -122,5 +174,20 @@ async function closeAll(): Promise<void> {
         <div class="e-body">{{ t("conn.emptyBody") }}</div>
       </div>
     </div>
+
+    <!-- Routing override quick-add (#50) -->
+    <Modal :open="routeHost !== null" :title="t('conn.routeViaTitle')" @close="routeHost = null">
+      <p style="margin: 0 0 10px">{{ t("conn.routeViaBody", { host: routeHost ?? "" }) }}</p>
+      <div class="form-grid">
+        <label v-for="tg in routeTargets" :key="tg" class="radio">
+          <input v-model="routeTarget" type="radio" :value="tg" name="route-target" />
+          <span class="mono">{{ tg }}</span>
+        </label>
+      </div>
+      <template #actions>
+        <button class="btn" @click="routeHost = null">{{ t("common.cancel") }}</button>
+        <button class="btn primary" :disabled="routeBusy" @click="applyRoute()">{{ t("common.confirm") }}</button>
+      </template>
+    </Modal>
   </div>
 </template>

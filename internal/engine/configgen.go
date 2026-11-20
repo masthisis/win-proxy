@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/neurorift/neurorift/internal/nr"
 	"github.com/neurorift/neurorift/internal/profile"
@@ -171,7 +172,13 @@ func (g *ConfigGen) generateNodes(s settings.Settings, active profile.Summary, h
 		)
 	}
 	root.Set("proxy-groups", groups)
-	root.Set("rules", defaultRules())
+
+	// Rules: LAN direct block, then the user's routing overrides (#50),
+	// then the catch-all.
+	rules := lanRules()
+	rules = append(rules, g.overrideRuleNodes(s, g.providerTargets())...)
+	rules = append(rules, "MATCH,"+nr.GroupNodeSelect)
+	root.Set("rules", rules)
 
 	return marshalRoot(root)
 }
@@ -270,6 +277,11 @@ func (g *ConfigGen) generateClash(s settings.Settings, active profile.Summary) (
 		setMapKey(rootMap, "rules", yamlNodeFrom(defaultRules()))
 	}
 
+	// Issue #50: the user's routing overrides are spliced in right after
+	// the leading LAN block so local traffic keeps going direct while
+	// everything else respects the overrides before any profile rule.
+	g.spliceOverrideRules(s, rootMap)
+
 	out, err := yaml.Marshal(&doc)
 	if err != nil {
 		return "", err
@@ -311,6 +323,11 @@ func ProviderNameFor(profileID string) string { return providerName(profileID) }
 // defaultRules: LAN stays direct, everything else goes through Node Select.
 // Deliberately dependency-light (no geosite needed for the default profile).
 func defaultRules() []any {
+	return append(lanRules(), "MATCH,"+nr.GroupNodeSelect)
+}
+
+// lanRules is the private-address direct block shared by every config shape.
+func lanRules() []any {
 	return []any{
 		"IP-CIDR,127.0.0.0/8,DIRECT,no-resolve",
 		"IP-CIDR,10.0.0.0/8,DIRECT,no-resolve",
@@ -319,8 +336,138 @@ func defaultRules() []any {
 		"IP-CIDR,169.254.0.0/16,DIRECT,no-resolve",
 		"IP-CIDR,224.0.0.0/4,DIRECT,no-resolve",
 		"IP-CIDR6,fe80::/10,DIRECT,no-resolve",
-		"MATCH," + nr.GroupNodeSelect,
 	}
+}
+
+// ---------------------------------------------------------------- #50 ----
+
+// overrideRulePrefix maps a settings.RoutingOverride match type to the
+// mihomo rule prefix.
+var overrideRulePrefix = map[string]string{
+	"domain-suffix":  "DOMAIN-SUFFIX",
+	"domain":         "DOMAIN",
+	"domain-keyword": "DOMAIN-KEYWORD",
+	"process-name":   "PROCESS-NAME",
+}
+
+// overrideRuleStrings renders the user's routing overrides (#50 / #10) as
+// mihomo rule strings. Rules whose target does not exist in the generated
+// config are skipped: mihomo refuses to load a config referencing an
+// unknown proxy, and one stale override must never take the engine down.
+func overrideRuleStrings(s settings.Settings, validTargets map[string]bool) []string {
+	if len(s.RoutingOverrides) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(s.RoutingOverrides))
+	for _, o := range s.RoutingOverrides {
+		if !validTargets[o.Target] {
+			continue
+		}
+		prefix, ok := overrideRulePrefix[o.Type]
+		if !ok {
+			prefix = "DOMAIN-SUFFIX"
+		}
+		out = append(out, fmt.Sprintf("%s,%s,%s", prefix, o.Pattern, o.Target))
+	}
+	return out
+}
+
+// overrideRuleNodes is the []any variant used by generateNodes.
+func (g *ConfigGen) overrideRuleNodes(s settings.Settings, validTargets map[string]bool) []any {
+	lines := overrideRuleStrings(s, validTargets)
+	if lines == nil {
+		return nil
+	}
+	out := make([]any, len(lines))
+	for i, l := range lines {
+		out[i] = l
+	}
+	return out
+}
+
+// providerTargets lists every name a generated "nodes" config can legally
+// route to: the built-in groups plus every provider node (issue #42 loads
+// all subscriptions as providers, so all their nodes are addressable).
+func (g *ConfigGen) providerTargets() map[string]bool {
+	targets := map[string]bool{
+		"DIRECT": true, "REJECT": true,
+		nr.GroupSpeedTest: true, nr.GroupNodeSelect: true, nr.GroupAutoSelect: true,
+	}
+	for _, p := range g.Profiles.List() {
+		if p.Kind != profile.KindNodes {
+			continue
+		}
+		if names, err := g.Profiles.NodeNames(p.ID); err == nil {
+			for _, n := range names {
+				targets[n] = true
+			}
+		}
+	}
+	return targets
+}
+
+// clashDocTargets lists every name a user clash document can legally route
+// to: its own proxies/groups plus the app-injected providers' nodes.
+func (g *ConfigGen) clashDocTargets(rootMap *yaml.Node) map[string]bool {
+	targets := map[string]bool{"DIRECT": true, "REJECT": true, nr.GroupSpeedTest: true}
+	for _, key := range []string{"proxies", "proxy-groups"} {
+		for _, item := range mapListValue(rootMap, key) {
+			if item.Kind != yaml.MappingNode {
+				continue
+			}
+			for i := 0; i+1 < len(item.Content); i += 2 {
+				if item.Content[i].Value == "name" && item.Content[i+1].Value != "" {
+					targets[item.Content[i+1].Value] = true
+				}
+			}
+		}
+	}
+	for _, p := range g.Profiles.List() {
+		if p.Kind != profile.KindNodes {
+			continue
+		}
+		if names, err := g.Profiles.NodeNames(p.ID); err == nil {
+			for _, n := range names {
+				targets[n] = true
+			}
+		}
+	}
+	return targets
+}
+
+// spliceOverrideRules inserts the override rules into a clash document's
+// rules sequence, right after the leading LAN-direct block (#50).
+func (g *ConfigGen) spliceOverrideRules(s settings.Settings, rootMap *yaml.Node) {
+	lines := overrideRuleStrings(s, g.clashDocTargets(rootMap))
+	if len(lines) == 0 {
+		return
+	}
+	rules := mapListValue(rootMap, "rules")
+	insert := len(rules)
+	for i, r := range rules {
+		if !isLanDirectRule(r.Value) {
+			insert = i
+			break
+		}
+	}
+	merged := make([]*yaml.Node, 0, len(lines)+len(rules))
+	merged = append(merged, rules[:insert]...)
+	for _, l := range lines {
+		merged = append(merged, scalarNode(l))
+	}
+	merged = append(merged, rules[insert:]...)
+	setMapKey(rootMap, "rules", &yaml.Node{
+		Kind:    yaml.SequenceNode,
+		Tag:     "!!seq",
+		Content: merged,
+	})
+}
+
+// isLanDirectRule reports whether a rule line is a private-address DIRECT
+// rule (the "LAN block" overrides are inserted after).
+func isLanDirectRule(v string) bool {
+	return (strings.HasPrefix(v, "IP-CIDR,") || strings.HasPrefix(v, "IP-CIDR6,")) &&
+		strings.HasSuffix(v, ",DIRECT")
 }
 
 func applyDNS(root *yamlx.OMap, s settings.Settings) {
