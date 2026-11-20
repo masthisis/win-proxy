@@ -43,40 +43,56 @@ Single 13 MB exe  •  Go + Wails v3  •  mihomo engine  •  Vue 3 frontend
 ## Download
 
 Ready-to-run Windows x64 builds are published automatically by CI — grab the
-latest portable zip from
+latest release from
 [Releases](https://github.com/masthisis/win-proxy/releases/latest). Every
 release ships:
 
-- `NeuroRift-<version>-windows-x64.zip` — the app **with the mihomo core
-  bundled** (`core/mihomo.exe`), so the first start needs no internet
-- `checksums-windows-x64.txt` — SHA256 sums to verify the download
+- `NeuroRift-<version>-windows-x64-setup.exe` — **the installer** (recommended):
+  Start Menu + Desktop shortcuts, Add/Remove Programs entry, bundled mihomo
+  core and WebView2 runtime check
+- `NeuroRift-<version>-windows-x64.zip` — the portable build: the app **with
+  the mihomo core bundled** (`core/mihomo.exe`), so the first start needs no
+  internet
+- `checksums-windows-x64.txt` — SHA256 sums to verify the downloads
 
 Build it yourself instead? See [docs/BUILDING.md](docs/BUILDING.md).
 
 ## Install (Windows 10/11)
 
-1. Download the latest zip from
-   [Releases](https://github.com/masthisis/win-proxy/releases/latest), extract
-   it anywhere and run `neurorift.exe` — or build from source (see
-   [docs/BUILDING.md](docs/BUILDING.md)).
-2. The exe is unsigned, so Windows SmartScreen may show *"Windows protected
-   your PC"* — click **More info → Run anyway** (or right-click the exe →
-   **Properties → Unblock**, then run). See
-   [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for everything else that can
-   block a first start.
-3. Run it. If the Microsoft **WebView2 Runtime** is missing (older Windows 10
-   or LTSC builds), the app detects it and offers a guided install, then
-   continues.
-4. On first start the mihomo core installs from the **bundled copy** shipped
-   in the zip (`core/mihomo.exe` — keep it next to `neurorift.exe`), so no
-   network is needed. When the bundle is missing, NeuroRift downloads it via
-   direct release URLs with mirror + system-proxy fallbacks (the GitHub API
-   is never used — it is rate-limited and blocked in several regions).
-5. Add your subscription (**Profiles → From URL**), pick a node, flip **System Proxy** on. Done.
+**Recommended — the installer:**
 
-No admin rights needed (except optional TUN mode). Every startup failure is
-logged to `%APPDATA%\NeuroRift\logs\` and surfaced in a dialog — nothing
-fails silently.
+1. Download `NeuroRift-<version>-windows-x64-setup.exe` from
+   [Releases](https://github.com/masthisis/win-proxy/releases/latest) and run
+   it. The setup exe is unsigned, so SmartScreen may show *"Windows protected
+   your PC"* — click **More info → Run anyway** (see
+   [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for everything else that can block
+   a first start).
+2. Follow the wizard — it installs into Program Files and creates Start Menu
+   + Desktop shortcuts. If the Microsoft **WebView2 Runtime** is missing
+   (older Windows 10 / LTSC builds), the installer sets it up for you.
+3. Launch **NeuroRift** from the Start Menu. The mihomo core is already
+   bundled — no network is needed on first start (when the bundle is absent,
+   NeuroRift downloads it via direct release URLs with mirror + system-proxy
+   fallbacks; the rate-limited GitHub API is never used).
+
+**Portable alternative:** extract `NeuroRift-<version>-windows-x64.zip`
+anywhere and run `neurorift.exe` — keep `core/mihomo.exe` next to it. Note
+that portable exes extracted from a browser-downloaded zip get extra
+antivirus/SmartScreen scrutiny on every launch (no *Unblock* = slower
+startup — see [TROUBLESHOOTING.md](TROUBLESHOOTING.md) §7); the installer
+avoids that structurally.
+
+Next: add your subscription (**Profiles → From URL**), pick a node, flip **System Proxy** on. Done.
+
+Uninstalling via Windows Settings → Apps removes the program but **keeps
+your profiles and settings** (`%APPDATA%\NeuroRift`) unless you opt into
+deleting them. Updating: the app checks GitHub for new releases and can
+install them in place.
+
+No admin rights needed to run (the installer itself and optional TUN mode
+do ask for elevation). Every startup failure is logged to
+`%APPDATA%\NeuroRift\logs\` and surfaced in a dialog — nothing fails
+silently.
 
 ## Documentation
 

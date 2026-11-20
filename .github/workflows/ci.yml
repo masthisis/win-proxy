@@ -97,6 +97,31 @@ jobs:
             -ldflags "-w -s -H windowsgui -X github.com/neurorift/neurorift/internal/nr.Version=dev-${GITHUB_SHA::7}" \
             -o build/bin/neurorift.exe .
 
+      - name: Compile-check NSIS installer script
+        working-directory: build/windows/nsis
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          # Dummy payloads: this validates the installer SCRIPT (every File
+          # statement must resolve, all macros expand). The Release workflow
+          # compiles the same script with the real artifacts.
+          $d = "..\..\..\nsis-check"
+          New-Item -ItemType Directory -Force -Path $d | Out-Null
+          Set-Content "$d\neurorift.exe" "ci dummy"
+          Set-Content "$d\mihomo.exe" "ci dummy"
+          Copy-Item "$d\mihomo.exe" "$d\MicrosoftEdgeWebview2Setup.exe"
+          Copy-Item "$d\MicrosoftEdgeWebview2Setup.exe" .
+          & "C:\Program Files (x86)\NSIS\makensis.exe" `
+            "-DARG_WAILS_AMD64_BINARY=$d\neurorift.exe" `
+            "-DNR_MIHOMO_BINARY=$d\mihomo.exe" `
+            "-DINFO_PRODUCTVERSION=0.0.0" `
+            "-DNR_OUTPUT=$d\NeuroRift-ci-check-setup.exe" `
+            project.nsi
+          if (-not (Test-Path "$d\NeuroRift-ci-check-setup.exe")) {
+            throw "compile check produced no installer"
+          }
+          Write-Host "NSIS compile check OK"
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
         with:

@@ -96,6 +96,34 @@ jobs:
           Expand-Archive -Path mihomo.zip -DestinationPath core_stage
           Remove-Item mihomo.zip
 
+      - name: Download WebView2 bootstrapper (baked into the installer)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" `
+            -OutFile build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
+
+      - name: Build NSIS installer
+        working-directory: build/windows/nsis
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $core = (Get-ChildItem ..\..\..\core_stage -Filter "mihomo-*.exe" |
+            Select-Object -First 1).FullName
+          if (-not $core) { throw "mihomo.exe missing from core_stage" }
+          # VIProductVersion needs 4 numeric parts: strip any -rc.N suffix
+          # from the tag for the version resource, keep it in the file name.
+          $numeric = ($env:VERSION -split '-')[0]
+          & "C:\Program Files (x86)\NSIS\makensis.exe" `
+            "-DARG_WAILS_AMD64_BINARY=..\..\..\build\bin\neurorift.exe" `
+            "-DNR_MIHOMO_BINARY=$core" `
+            "-DINFO_PRODUCTVERSION=$numeric" `
+            "-DNR_OUTPUT=..\..\..\build\bin\NeuroRift-$env:VERSION-windows-x64-setup.exe" `
+            project.nsi
+          $setup = "..\..\..\build\bin\NeuroRift-$env:VERSION-windows-x64-setup.exe"
+          if (-not (Test-Path $setup)) { throw "installer was not produced" }
+          Get-Item $setup | Select-Object FullName, Length
+
       - name: Assemble portable distribution
         shell: pwsh
         run: |
@@ -125,8 +153,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $exe = "NeuroRift-$env:VERSION-windows-x64.exe"
-          Copy-Item build/bin/neurorift.exe $exe
+          Copy-Item "build/bin/NeuroRift-$env:VERSION-windows-x64-setup.exe" .
           $files = Get-ChildItem -File | Where-Object { $_.Name -match '^NeuroRift-.*\.(zip|exe)$' }
           $lines = $files | ForEach-Object {
             $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
@@ -143,18 +170,25 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
           body: |
-            Portable Windows x64 build of NeuroRift ${{ github.ref_name }}.
+            Windows x64 build of NeuroRift ${{ github.ref_name }}.
 
-            **Download** `NeuroRift-*-windows-x64.zip`, extract anywhere and run
-            `neurorift.exe`. The zip bundles the mihomo core (`core/mihomo.exe`)
-            so the first start works fully offline. SHA256 sums are in
+            **Recommended: the installer.** Download
+            `NeuroRift-*-windows-x64-setup.exe`, run it and follow the wizard
+            (Start Menu + Desktop shortcuts, Add/Remove Programs entry, bundled
+            mihomo core and WebView2 runtime check; uninstall keeps your
+            profiles and settings). Updating an installed copy: the app checks
+            GitHub for new versions and can install them in place.
+
+            **Portable:** `NeuroRift-*-windows-x64.zip` — extract anywhere and
+            run `neurorift.exe`; keep `core/mihomo.exe` next to it for an
+            offline first start. SHA256 sums for all artifacts are in
             `checksums-windows-x64.txt`.
 
-            The exe is unsigned — SmartScreen may ask for confirmation; choose
-            **More info → Run anyway** (see TROUBLESHOOTING.md). Full changes:
-            [CHANGELOG.md](blob/main/docs/CHANGELOG.md).
+            Both builds are unsigned — SmartScreen may ask for confirmation;
+            choose **More info → Run anyway** (see TROUBLESHOOTING.md). Full
+            changes: [CHANGELOG.md](blob/main/docs/CHANGELOG.md).
           fail_on_unmatched_files: true
           files: |
+            NeuroRift-*-windows-x64-setup.exe
             NeuroRift-*-windows-x64.zip
-            NeuroRift-*-windows-x64.exe
             checksums-windows-x64.txt

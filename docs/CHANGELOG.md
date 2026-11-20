@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **NSIS installer as the primary distribution (#28).** Releases now ship
+  `NeuroRift-<version>-windows-x64-setup.exe`: installs into Program Files
+  with Start Menu + Desktop shortcuts and an Add/Remove Programs entry,
+  bundles the mihomo core (offline first run, parity with the portable zip)
+  and the WebView2 bootstrapper, supports silent `/S` + `/update` (the
+  in-place update path used by the upcoming self-updater) and uninstalls
+  without touching user data (`%APPDATA%\NeuroRift` is kept unless the user
+  opts in). The bare standalone exe asset is retired; the portable zip stays
+  as a secondary artifact and README/BUILDING/TROUBLESHOOTING document the
+  new flow.
 - **Boot-phase telemetry (#27).** Every launch now records how long each
   startup phase took — `crashlog`, `webview2_check`, `container`,
   `wails_init`, `webview_ready` — and writes one summary line
@@ -11,8 +21,8 @@
   Go-side path audits as milliseconds-only, so a large gap between
   double-click and first log line pinpoints the environmental cause
   (Defender/SmartScreen scans of the unsigned portable exe — see the new
-  *Slow startup* section in TROUBLESHOOTING.md; the structural fix, the
-  NSIS installer, lands separately in #28).
+  *Slow startup* section in TROUBLESHOOTING.md; the structural fix is the
+  NSIS installer above).
 
 ## v1.0.3 - operating model + always-green CI
 
