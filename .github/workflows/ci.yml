@@ -78,7 +78,7 @@ jobs:
         run: |
           PATH="$(go env GOPATH)/bin:$PATH"
           go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
-          wails3 -v
+          wails3 version
 
       - name: Generate Windows resource object (icon, manifest, version info)
         shell: bash
