@@ -33,6 +33,13 @@ func NewManager(path string, b *bus.Bus, log *slog.Logger) *Manager {
 	if cur.ControllerSecret == "" {
 		cur.ControllerSecret = randomSecret()
 	}
+	// Migration (#13): settings files written before the self-updater have
+	// no updates block -> zero value would silently disable update checks
+	// for existing installs; apply the default instead. (A user who later
+	// sets both toggles false re-opts out on the next save.)
+	if cur.Updates == (Updates{}) {
+		cur.Updates = Default().Updates
+	}
 	cur.validate()
 	m.cur = cur
 	return m

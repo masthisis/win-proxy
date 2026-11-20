@@ -4,10 +4,10 @@ import { computed, reactive, ref, watch } from "vue";
 import * as SettingsSvc from "../../bindings/github.com/neurorift/neurorift/settingsservice.js";
 import * as Sys from "../../bindings/github.com/neurorift/neurorift/sysservice.js";
 import type { Settings as SettingsDoc } from "../../bindings/github.com/neurorift/neurorift/internal/settings/models.js";
-import { store } from "../store";
+import { store, checkAppUpdate, downloadAppUpdate, installAppUpdate, openUpdateNotes } from "../store";
 import { t, setLang, type Lang } from "../lib/i18n";
 import { toast, errMsg } from "../lib/toast";
-import { IconChevron, IconFolder, IconWarn, IconCheck } from "../components/Icons";
+import { IconChevron, IconFolder, IconWarn, IconCheck, IconRefresh, IconDownload, IconExternal } from "../components/Icons";
 
 const form = ref<SettingsDoc | null>(null);
 const saving = ref(false);
@@ -44,6 +44,7 @@ const open = reactive<Record<string, boolean>>({
   dns: false,
   tun: false,
   subscriptions: false,
+  updates: false,
 });
 
 const SECTIONS = [
@@ -55,7 +56,13 @@ const SECTIONS = [
   { id: "dns", label: "settings.secDns" },
   { id: "tun", label: "settings.secTun" },
   { id: "subscriptions", label: "settings.secSubscriptions" },
+  { id: "updates", label: "settings.secUpdates" },
 ] as const;
+
+const upd = computed(() => store.appUpdate);
+const updBusy = computed(
+  () => upd.value?.state === "checking" || upd.value?.state === "downloading" || upd.value?.state === "restarting",
+);
 
 function clone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T;
@@ -389,6 +396,83 @@ async function openFolder(which: "config" | "core" | "logs"): Promise<void> {
             <span class="box" />
             <span>{{ t("settings.subViaProxy") }}</span>
           </label>
+        </div>
+      </section>
+
+      <!-- Application updates (#13) -->
+      <section class="panel">
+        <button class="section-head" :aria-expanded="open.updates" @click="open.updates = !open.updates">
+          <IconChevron :size="14" class="chev" :class="{ open: open.updates }" />
+          {{ t("settings.secUpdates") }}
+        </button>
+        <div v-if="open.updates" style="margin-top: 12px">
+          <div class="form-grid">
+            <label class="checkbox">
+              <input v-model="form.updates.autoCheck" type="checkbox" />
+              <span class="box" />
+              <span>{{ t("update.autoCheck") }}</span>
+            </label>
+            <label class="checkbox">
+              <input v-model="form.updates.includePrerelease" type="checkbox" />
+              <span class="box" />
+              <span>{{ t("update.includePrerelease") }}</span>
+            </label>
+          </div>
+
+          <div class="kv" style="margin-top: 10px">
+            <span class="k">{{ t("about.version") }}</span>
+            <span class="v mono">{{ upd?.current ?? store.appInfo?.version ?? "—" }}</span>
+            <span class="k">{{ t("about.latest") }}</span>
+            <span class="v mono">
+              <template v-if="upd?.latest">
+                <span v-if="upd.state === 'available'" class="badge warn">{{ upd.latest }}</span>
+                <span v-else>{{ upd.latest }}</span>
+              </template>
+              <template v-else>—</template>
+            </span>
+            <span class="k">{{ t("update.status") }}</span>
+            <span class="v">
+              <span v-if="upd?.state === 'none'" class="badge success"><IconCheck :size="11" /> {{ t("update.upToDate") }}</span>
+              <span v-else-if="upd?.state === 'error'" class="badge warn"><IconWarn :size="11" /> {{ upd.detail || t("update.checkFailed") }}</span>
+              <span v-else-if="upd?.state === 'restarting'" class="badge warn">{{ t("update.restarting") }}</span>
+              <span v-else class="dim">{{ t(`update.state.${upd?.state ?? "idle"}`) }}</span>
+            </span>
+          </div>
+
+          <div v-if="upd?.state === 'downloading'" style="margin-top: 10px">
+            <div class="row" style="justify-content: space-between; margin-bottom: 5px">
+              <span class="dim small">{{ upd.detail }}</span>
+              <span class="dim small mono">{{ Math.round(upd.percent) }}%</span>
+            </div>
+            <div class="progress">
+              <div class="bar" :style="{ width: `${Math.min(100, Math.max(2, upd.percent))}%` }" />
+            </div>
+          </div>
+
+          <div v-if="!upd?.installed && upd?.state === 'available'" class="error-box" style="margin-top: 10px">
+            <IconWarn :size="15" />
+            <span>{{ t("update.portableHint") }}</span>
+          </div>
+
+          <div class="row" style="margin-top: 12px; flex-wrap: wrap">
+            <button class="btn sm" :disabled="updBusy" @click="checkAppUpdate()">
+              <span v-if="upd?.state === 'checking'" class="spinner" style="width: 11px; height: 11px" />
+              <IconRefresh v-else :size="12" />
+              {{ t("update.checkNow") }}
+            </button>
+            <button v-if="upd?.state === 'available'" class="btn sm primary" :disabled="updBusy" @click="downloadAppUpdate()">
+              <IconDownload :size="12" />
+              {{ t("update.download") }}
+            </button>
+            <button v-if="upd?.state === 'ready'" class="btn sm primary" :disabled="updBusy" @click="installAppUpdate()">
+              <IconDownload :size="12" />
+              {{ t("update.installRestart") }}
+            </button>
+            <button v-if="upd?.latest" class="btn sm" @click="openUpdateNotes()">
+              <IconExternal :size="12" />
+              {{ t("update.releaseNotes") }}
+            </button>
+          </div>
         </div>
       </section>
 

@@ -19,6 +19,7 @@ export const EV = {
   connections: "net:connections",
   coreLogs: "core:logs",
   settingsChanged: "settings:changed",
+  appUpdate: "app:update",
 } as const;
 
 /** engine.Status (payload of core:status). */
@@ -93,4 +94,16 @@ export interface ConnectionsPayload {
   items: ConnItem[];
   downloadTotal: number;
   uploadTotal: number;
+}
+
+/** selfupdate.Status (payload of app:update). */
+export interface AppUpdatePayload {
+  state: string; // idle|checking|none|available|downloading|ready|error|restarting
+  current: string;
+  latest: string;
+  detail?: string;
+  percent: number;
+  notesUrl?: string;
+  installed: boolean;
+  notify?: boolean;
 }

@@ -9,7 +9,6 @@ import (
         "fmt"
         "io"
         "net/http"
-        "net/url"
         "os"
         "os/exec"
         "path/filepath"
@@ -17,7 +16,7 @@ import (
         "strings"
         "time"
 
-        "github.com/neurorift/neurorift/internal/platform"
+        "github.com/neurorift/neurorift/internal/ghfetch"
 )
 
 // CoreManager downloads, verifies and updates the mihomo binary.
@@ -25,9 +24,9 @@ import (
 // DESIGN:
 //   - Channel strategy: "stable" = latest GitHub release, "alpha" = newest
 //     prerelease (mihomo publishes alpha builds frequently).
-//   - Mirror chain: every GitHub URL is tried direct first, then wrapped
-//     with the user's mirror prefix (settings.Core.GhProxyPrefix). This is
-//     essential for users behind censored networks.
+//   - Fetch layer: shared with the app self-updater in internal/ghfetch —
+//     direct URL first, then the user mirror prefix, then built-in mirrors,
+//     retried through the OS system proxy.
 //   - Compatible fallback: mihomo's default amd64 build targets GOAMD64=v3
 //     (AVX2). On older CPUs the binary dies instantly with an illegal
 //     instruction; the Manager then retries once with the "-compatible"
@@ -69,19 +68,11 @@ const (
         fallbackKnownTag = "v1.19.34"
 )
 
-// builtinMirrors are public GitHub accelerator prefixes tried after the
-// direct URL and the user-configured prefix. They exist because most
-// first-run install failures happen on networks where github.com itself
-// is slow or blocked; the user prefix stays first in line.
-var builtinMirrors = []string{
-        "https://ghfast.top/",
-        "https://gh-proxy.com/",
-        "https://ghproxy.net/",
-}
+// builtinMirrors lives in internal/ghfetch (BuiltinMirrors); the built-in
+// mirror list is shared with the app self-updater (#13).
 
 // metaPath returns the path of the core meta file.
 func (c *CoreManager) metaPath() string { return filepath.Join(c.CoreDir, metaFile) }
-
 // LoadMeta reads the persisted core metadata (zero value when absent).
 func (c *CoreManager) LoadMeta() CoreMeta {
         data, err := os.ReadFile(c.metaPath())
@@ -131,54 +122,14 @@ func AssetName(tag string, compatible bool) string {
         return fmt.Sprintf("mihomo-linux-%s%s-%s.gz", arch, suffix, tag)
 }
 
-// githubURLs returns the URL candidates for a github.com resource:
-// the direct URL first, then the user-configured mirror prefix, then a
-// set of built-in accelerator mirrors.
+// githubURLs returns the URL candidates for a github.com resource via the
+// shared fetch layer (internal/ghfetch).
 func (c *CoreManager) githubURLs(u string) []string {
-        seen := map[string]bool{u: true}
-        out := []string{u}
-        add := func(prefix string) {
-                prefix = strings.TrimSuffix(strings.TrimSpace(prefix), "/")
-                if prefix == "" || !strings.HasPrefix(prefix, "http") {
-                        return
-                }
-                cand := prefix + "/" + u
-                if seen[cand] {
-                        return
-                }
-                seen[cand] = true
-                out = append(out, cand)
-        }
+        prefix := ""
         if c.GhProxyPrefix != nil {
-                add(c.GhProxyPrefix())
+                prefix = c.GhProxyPrefix()
         }
-        for _, m := range builtinMirrors {
-                add(m)
-        }
-        return out
-}
-
-// sysProxyClient returns an HTTP client routed through the OS system
-// proxy, or nil when none is configured. Users on censored networks
-// usually run another proxy client with the system proxy enabled while
-// setting NeuroRift up — riding it makes first-run downloads work.
-func sysProxyClient() *http.Client {
-        st, err := platform.GetSystemProxy()
-        if err != nil || !st.Enabled || strings.TrimSpace(st.Server) == "" {
-                return nil
-        }
-        server := st.Server
-        if !strings.Contains(server, "://") {
-                server = "http://" + server
-        }
-        u, err := url.Parse(server)
-        if err != nil || u.Host == "" {
-                return nil
-        }
-        return &http.Client{
-                Timeout:   30 * time.Second,
-                Transport: &http.Transport{Proxy: http.ProxyURL(u)},
-        }
+        return ghfetch.URLCandidates(u, prefix)
 }
 
 // downloadURLFor builds the direct release-download URL for a tag.
@@ -200,44 +151,14 @@ func (c *CoreManager) resolveLatestTag(ctx context.Context) (string, error) {
 }
 
 // resolveLatestTagAt tries every mirror/client candidate for the given
-// releases/latest URL and parses the tag out of the redirect.
+// releases/latest URL and parses the tag out of the redirect (shared fetch
+// layer, internal/ghfetch).
 func (c *CoreManager) resolveLatestTagAt(ctx context.Context, latestURL string) (string, error) {
-        clients := []*http.Client{{Timeout: 30 * time.Second}}
-        if via := sysProxyClient(); via != nil {
-                clients = append(clients, via)
+        prefix := ""
+        if c.GhProxyPrefix != nil {
+                prefix = c.GhProxyPrefix()
         }
-        var lastErr error
-        for _, u := range c.githubURLs(latestURL) {
-                for _, base := range clients {
-                        hc := *base
-                        hc.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-                                return http.ErrUseLastResponse
-                        }
-                        req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-                        if err != nil {
-                                lastErr = err
-                                continue
-                        }
-                        resp, err := hc.Do(req)
-                        if err != nil {
-                                lastErr = err
-                                continue
-                        }
-                        _, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
-                        resp.Body.Close()
-                        if resp.StatusCode < 300 || resp.StatusCode > 308 {
-                                lastErr = fmt.Errorf("http %d for %s", resp.StatusCode, u)
-                                continue
-                        }
-                        loc := resp.Header.Get("Location")
-                        const marker = "/tag/"
-                        if i := strings.LastIndex(loc, marker); i >= 0 {
-                                return loc[i+len(marker):], nil
-                        }
-                        lastErr = fmt.Errorf("unexpected redirect %q from %s", loc, u)
-                }
-        }
-        return "", fmt.Errorf("github.com and all mirrors unreachable: %v", lastErr)
+        return ghfetch.ResolveLatestTagAt(ctx, latestURL, prefix)
 }
 
 // FetchRelease resolves the newest release for a channel.
@@ -477,90 +398,14 @@ func (c *CoreManager) InstallRelease(ctx context.Context, rel *Release, compatib
         return nil
 }
 
-// download streams the asset to a temp file, reporting progress. It
-// tries every URL candidate (direct + mirrors) with a direct connection
-// first, then retries the whole chain through the OS system proxy when
-// one is configured (typical while another proxy client is running).
+// download streams the asset to a temp file in CoreDir via the shared
+// fetch layer, reporting progress.
 func (c *CoreManager) download(ctx context.Context, rawURL string) (string, error) {
-        direct := &http.Client{Timeout: dlTimeout}
-        clients := []*http.Client{direct}
-        if via := sysProxyClient(); via != nil {
-                withTimeout := *via
-                withTimeout.Timeout = dlTimeout
-                clients = append(clients, &withTimeout)
+        prefix := ""
+        if c.GhProxyPrefix != nil {
+                prefix = c.GhProxyPrefix()
         }
-        var lastErr error
-        for _, hc := range clients {
-                for _, u := range c.githubURLs(rawURL) {
-                        path, err := c.downloadOne(ctx, u, hc)
-                        if err == nil {
-                                return path, nil
-                        }
-                        lastErr = err
-                }
-        }
-        if lastErr == nil {
-                lastErr = fmt.Errorf("download failed")
-        }
-        return "", lastErr
-}
-
-// downloadOne streams one URL to a temp file in CoreDir using hc.
-func (c *CoreManager) downloadOne(ctx context.Context, u string, hc *http.Client) (string, error) {
-        req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-        if err != nil {
-                return "", err
-        }
-        resp, err := hc.Do(req)
-        if err != nil {
-                return "", err
-        }
-        defer resp.Body.Close()
-        if resp.StatusCode != 200 {
-                return "", fmt.Errorf("http %d for %s", resp.StatusCode, u)
-        }
-        if err := os.MkdirAll(c.CoreDir, 0o755); err != nil {
-                return "", err
-        }
-        tmp, err := os.CreateTemp(c.CoreDir, "mihomo-dl-*")
-        if err != nil {
-                return "", err
-        }
-        total := resp.ContentLength
-        written := int64(0)
-        buf := make([]byte, 64*1024)
-        var lastReport time.Time
-        for {
-                n, rerr := resp.Body.Read(buf)
-                if n > 0 {
-                        if _, werr := tmp.Write(buf[:n]); werr != nil {
-                                tmp.Close()
-                                _ = os.Remove(tmp.Name())
-                                return "", werr
-                        }
-                        written += int64(n)
-                        if c.Progress != nil && time.Since(lastReport) > 250*time.Millisecond {
-                                lastReport = time.Now()
-                                pct := 0.0
-                                if total > 0 {
-                                        pct = float64(written) / float64(total) * 100
-                                }
-                                c.Progress(pct, fmt.Sprintf("%.1f MiB", float64(written)/(1<<20)))
-                        }
-                }
-                if rerr == io.EOF {
-                        break
-                }
-                if rerr != nil {
-                        tmp.Close()
-                        _ = os.Remove(tmp.Name())
-                        return "", rerr
-                }
-        }
-        if err := tmp.Close(); err != nil {
-                return "", err
-        }
-        return tmp.Name(), nil
+        return ghfetch.Download(ctx, rawURL, prefix, c.CoreDir, c.Progress)
 }
 
 // extractBinary unpacks the downloaded archive and returns the executable

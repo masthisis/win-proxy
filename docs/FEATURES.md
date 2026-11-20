@@ -59,6 +59,9 @@ Comparison against the tools NeuroRift replaces or borrows from.
 | Autostart | ✅ | 🟡 | ✅ (Wails AutostartManager) |
 | TUN mode | ✅ (admin) | 🟡 | ✅ (admin required) |
 | Mode switch without reload | ✅ | — | ✅ live patch |
+| App self-update (check → download → silent install) | 🟡 manual | 🟡 manual | ✅ in-app, consent-gated (#13) |
+| Windows installer (Program Files, shortcuts, uninstaller) | ✅ | ✅ | ✅ NSIS setup (#28) |
+| Boot diagnostics (startup phase timing) | ❌ | ❌ | ✅ About panel (#27) |
 | Open source | ❌ | ✅ | ✅ MIT |
 | AI-documented codebase for future development | ❌ | ❌ | ✅ (docs/ suite) |
 
@@ -66,6 +69,5 @@ Comparison against the tools NeuroRift replaces or borrows from.
 
 - Sing-box config import
 - Profile merge (multiple subscriptions active at once)
-- Self-update of the app binary
 - PAC mode
 - mihomo service-mode installation for TUN without UAC prompts

@@ -23,7 +23,9 @@ import (
 	"github.com/neurorift/neurorift/internal/failover"
 	"github.com/neurorift/neurorift/internal/nettest"
 	"github.com/neurorift/neurorift/internal/nr"
+	"github.com/neurorift/neurorift/internal/platform"
 	"github.com/neurorift/neurorift/internal/profile"
+	"github.com/neurorift/neurorift/internal/selfupdate"
 	"github.com/neurorift/neurorift/internal/settings"
 )
 
@@ -86,6 +88,7 @@ type Container struct {
 	NetTest  *nettest.Manager
 	History  *nettest.HistoryStore
 	Watchdog *failover.Watchdog
+	Updates  *selfupdate.Manager
 
 	Log     *slog.Logger
 	ring    *logRing
@@ -129,10 +132,31 @@ func NewContainer() (*Container, error) {
 	nt := nettest.NewManager(set, eng, b, logger)
 	hist := nettest.NewHistoryStore(paths.SpeedHistory)
 	wd := failover.New(set, eng, nt, b, logger)
+	ups := selfupdate.New(
+		nr.UpdateRepo,
+		filepath.Join(paths.Root, "updatestate.json"),
+		paths.Root,
+		func() string { return nr.Version },
+		func() string { return set.Get().Core.GhProxyPrefix },
+		func() selfupdate.UpdateSettings {
+			u := set.Get().Updates
+			return selfupdate.UpdateSettings{AutoCheck: u.AutoCheck, IncludePrerelease: u.IncludePrerelease}
+		},
+		b, logger,
+	)
+	// Hooks (bridges.go): leave the OS proxy usable, stop the engine, quit.
+	ups.PreQuit = func() {
+		if st, err := platform.GetSystemProxy(); err == nil && st.Enabled {
+			_ = platform.SetSystemProxy(false, "", "")
+		}
+		_ = eng.Stop()
+	}
+	ups.Quit = quitApp
 
 	return &Container{
 		Paths: paths, Bus: b, Settings: set, Profiles: profs,
 		Engine: eng, NetTest: nt, History: hist, Watchdog: wd,
+		Updates: ups,
 		Log: logger, ring: ring, logFile: logFile,
 	}, nil
 }
@@ -155,6 +179,7 @@ func (c *Container) StartBackground(parent context.Context) context.CancelFunc {
 	go sched.Run(ctx)
 	go c.Watchdog.Run(ctx)
 	go c.Engine.AutoUpdateLoop(ctx)
+	go c.Updates.Run(ctx)
 
 	// Auto-connect: start the engine with the last active profile.
 	if c.Settings.Get().AutoConnect {

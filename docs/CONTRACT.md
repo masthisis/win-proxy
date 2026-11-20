@@ -78,6 +78,19 @@ a bound signature changes.
 | `OpenFolder(which)` | – | "config" \| "core" \| "logs" |
 | `OpenURL(url)` | – | external browser |
 
+### UpdateService (`updateservice`) — application self-update (#13)
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `Status()` | `selfupdate.Status` | {state, current, latest, detail?, percent, notesUrl?, installed, notify?} |
+| `CheckForUpdate()` | `selfupdate.Status` | manual check (no toast flag); stable = /releases/latest redirect, prereleases = releases.atom — never api.github.com |
+| `DownloadUpdate()` | – | async start; progress via `app:update` (state `downloading`); verifies SHA256 against `checksums-windows-x64.txt` (mismatch discards the download) |
+| `InstallAndRestart()` | – | requires state `ready` + installed copy; runs the setup exe `/S /update` (UAC prompt unless elevated), stops the engine, restores the OS proxy and quits; portable copies open the releases page instead |
+| `OpenReleaseNotes(tag?)` | – | opens the release page in the browser |
+
+States: `idle → checking → available|none → downloading → ready → restarting`;
+`error` (with `detail`) from any state. `notify=true` exactly once per new
+version detected by the background loop (persisted in `updatestate.json`).
+
 ## Events (backend → frontend; payloads arrive as `ev.data`)
 
 | Event | Payload |
@@ -95,6 +108,7 @@ a bound signature changes.
 | `net:connections` | `{items: ConnItem[], downloadTotal, uploadTotal}` (1 Hz) |
 | `core:logs` | `string[]` (batched, ≤500 kept) |
 | `settings:changed` | `null` — re-fetch `SettingsService.Get()` |
+| `app:update` | `selfupdate.Status` — see UpdateService; `notify=true` → toast once per version |
 | `tray:sysproxy` | `bool` (tray-originated toggle) |
 | `tray:mode` | `string` (tray-originated mode switch) |
 
@@ -112,6 +126,7 @@ dns: {override, nameservers: string[]}
 tun: {enable, stack: "system"|"gvisor"|"mixed"}
 subscription: {defaultIntervalH, updateViaProxy}
 log: {appLevel, coreLevel}
+updates: {autoCheck (default true), includePrerelease (default false)}
 controllerSecret: string (auto-generated; read-only in practice)
 bypassDomains: string[]
 ```

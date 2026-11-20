@@ -12,6 +12,7 @@ import * as ProfileSvc from "../bindings/github.com/neurorift/neurorift/profiles
 import * as SettingsSvc from "../bindings/github.com/neurorift/neurorift/settingsservice.js";
 import * as Sys from "../bindings/github.com/neurorift/neurorift/sysservice.js";
 import * as Test from "../bindings/github.com/neurorift/neurorift/testservice.js";
+import * as Update from "../bindings/github.com/neurorift/neurorift/updateservice.js";
 
 import type { AppInfo, GroupUI, SysProxyState } from "../bindings/github.com/neurorift/neurorift/models.js";
 import type { Status as EngineStatus } from "../bindings/github.com/neurorift/neurorift/internal/engine/models.js";
@@ -21,6 +22,7 @@ import type { Status as FailoverStatus } from "../bindings/github.com/neurorift/
 
 import { EV } from "./lib/events";
 import type {
+  AppUpdatePayload,
   ConnectionsPayload,
   DownloadProgressPayload,
   EngineStatusPayload,
@@ -92,6 +94,7 @@ export interface AppState {
   failover: FailoverStatus | null;
   failoverEvents: FailoverHistoryItem[];
   appInfo: AppInfo | null;
+  appUpdate: AppUpdatePayload | null;
   now: number;
 }
 
@@ -128,6 +131,7 @@ export const store = reactive<AppState>({
   failover: null,
   failoverEvents: [],
   appInfo: null,
+  appUpdate: null,
   now: Date.now(),
 });
 
@@ -314,6 +318,58 @@ export async function toggleSysProxy(): Promise<void> {
 }
 
 /* ------------------------------------------------------------------ */
+/* application self-update (#13)                                        */
+/* ------------------------------------------------------------------ */
+
+export async function refreshAppUpdate(): Promise<void> {
+  try {
+    store.appUpdate = await Update.Status();
+  } catch {
+    /* non-fatal */
+  }
+}
+
+export async function checkAppUpdate(): Promise<void> {
+  try {
+    const st = await Update.CheckForUpdate();
+    store.appUpdate = st;
+    if (st.state === "available" && st.latest) {
+      toast.info(t("update.availableToast", { v: st.latest }));
+    } else if (st.state === "none") {
+      toast.success(t("update.upToDate"));
+    } else if (st.state === "error") {
+      toast.error(`${t("update.checkFailed")}: ${st.detail ?? ""}`);
+    }
+  } catch (e) {
+    toast.error(`${t("update.checkFailed")}: ${errMsg(e)}`);
+  }
+}
+
+export async function downloadAppUpdate(): Promise<void> {
+  try {
+    await Update.DownloadUpdate(); // progress arrives via app:update events
+  } catch (e) {
+    toast.error(errMsg(e));
+  }
+}
+
+export async function installAppUpdate(): Promise<void> {
+  try {
+    await Update.InstallAndRestart();
+  } catch (e) {
+    toast.error(errMsg(e));
+  }
+}
+
+export async function openUpdateNotes(): Promise<void> {
+  try {
+    await Update.OpenReleaseNotes(store.appUpdate?.latest ?? "");
+  } catch (e) {
+    toast.error(errMsg(e));
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* event wiring                                                        */
 /* ------------------------------------------------------------------ */
 
@@ -445,6 +501,15 @@ function onCoreLogs(ev: WailsEventLike): void {
   if (Array.isArray(lines)) pushLogs(lines);
 }
 
+function onAppUpdate(ev: WailsEventLike): void {
+  const st = ev.data as AppUpdatePayload;
+  if (!st || typeof st !== "object") return;
+  store.appUpdate = st;
+  if (st.notify && st.state === "available" && st.latest) {
+    toast.info(t("update.availableToast", { v: st.latest }));
+  }
+}
+
 function subscribeEvents(): void {
   Events.On(EV.coreStatus, onCoreStatus);
   Events.On(EV.coreDownload, onCoreDownload);
@@ -462,6 +527,7 @@ function subscribeEvents(): void {
   Events.On(EV.settingsChanged, () => {
     void refreshSettings();
   });
+  Events.On(EV.appUpdate, onAppUpdate);
 }
 
 /* ------------------------------------------------------------------ */
@@ -508,6 +574,7 @@ export async function bootstrap(): Promise<void> {
 
   void refreshProfiles();
   void refreshAppInfo();
+  void refreshAppUpdate();
 
   if (engineRunning()) {
     void refreshGroups();

@@ -98,6 +98,15 @@ type Log struct {
 	CoreLevel string `json:"coreLevel"`
 }
 
+// Updates configures the application self-update checker (#13).
+type Updates struct {
+	// AutoCheck enables the background check (launch + daily). It only
+	// checks and notifies — install always needs explicit consent.
+	AutoCheck bool `json:"autoCheck"`
+	// IncludePrerelease also considers -rc/-beta releases.
+	IncludePrerelease bool `json:"includePrerelease"`
+}
+
 // Settings is the complete, JSON-serializable settings document.
 type Settings struct {
 	Language           string       `json:"language"` // en | fa
@@ -114,6 +123,7 @@ type Settings struct {
 	Tun                Tun          `json:"tun"`
 	Subscription       Subscription `json:"subscription"`
 	Log                Log          `json:"log"`
+	Updates            Updates      `json:"updates"`
 	// ControllerSecret authenticates the local mihomo API (auto-generated).
 	ControllerSecret string `json:"controllerSecret"`
 	// BypassDomains are appended to the system-proxy bypass list.
@@ -163,6 +173,7 @@ func Default() Settings {
 		Tun:              Tun{Enable: false, Stack: "mixed"},
 		Subscription:     Subscription{DefaultIntervalH: 24, UpdateViaProxy: false},
 		Log:              Log{AppLevel: "info", CoreLevel: "info"},
+		Updates:          Updates{AutoCheck: true, IncludePrerelease: false},
 		ControllerSecret: "",
 		BypassDomains: []string{
 			"localhost", "127.*", "10.*", "172.16.*", "172.17.*", "172.18.*",

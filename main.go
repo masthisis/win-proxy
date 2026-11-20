@@ -125,6 +125,7 @@ func main() {
 			application.NewService(&SettingsService{c: container}),
 			application.NewService(&TestService{c: container}),
 			application.NewService(&SysService{c: container}),
+			application.NewService(&UpdateService{c: container}),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -217,6 +218,7 @@ func installBridges(app *application.App) {
 	}
 	autostartOffFn = func() error { return app.Autostart.Disable() }
 	autostartIsOnFn = func() (bool, error) { return app.Autostart.IsEnabled() }
+	quitFn = func() { app.Quit() }
 }
 
 // buildTray creates the system tray icon with its menu.
