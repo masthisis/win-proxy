@@ -7,7 +7,8 @@ the catalog of non-obvious pitfalls that were discovered the hard way
 (against a real mihomo core).
 
 Companion docs: [ARCHITECTURE.md](ARCHITECTURE.md) (system design),
-[CONTRACT.md](CONTRACT.md) (API surface), [TESTING.md](TESTING.md).
+[CONTRACT.md](CONTRACT.md) (API surface), [TESTING.md](TESTING.md),
+[WORKFLOW.md](WORKFLOW.md) (the issue-driven operating contract).
 
 ---
 
@@ -36,6 +37,10 @@ Companion docs: [ARCHITECTURE.md](ARCHITECTURE.md) (system design),
    touching engine/profile/nettest code.
 8. **Don't over-test.** This project deliberately tests general behavior,
    not line coverage (user requirement). See TESTING.md.
+9. **Every change flows through the operating model** in
+   [WORKFLOW.md](WORKFLOW.md): issue → branch → PR → CI → squash merge →
+   (release). Never commit straight to `main` — the issue is opened before
+   the branch, and the PR closes it.
 
 ## 2. Repository map
 
