@@ -118,6 +118,16 @@ export class Profile {
              */
             this["lastError"] = undefined;
         }
+        if (/** @type {any} */(false)) {
+            /**
+             * Union includes this subscription's nodes in the routing groups of
+             * the ACTIVE profile (issue #48 / #8: activate multiple subscriptions
+             * as one provider-union).
+             * @member
+             * @type {boolean | undefined}
+             */
+            this["union"] = undefined;
+        }
 
         Object.assign(this, $$source);
     }

@@ -133,16 +133,24 @@ func (g *ConfigGen) generateNodes(s settings.Settings, active profile.Summary, h
 			Set("include-all", true),
 	}
 	if hasActive && active.Kind == profile.KindNodes {
+		// Issue #48 (#8): union-enabled subscriptions join the routing
+		// groups alongside the active provider.
+		use := []any{providerName(active.ID)}
+		for _, p := range g.Profiles.List() {
+			if p.Union && p.ID != active.ID && p.Kind == profile.KindNodes {
+				use = append(use, providerName(p.ID))
+			}
+		}
 		groups = append(groups,
 			newOMap().
 				Set("name", nr.GroupNodeSelect).
 				Set("type", "select").
 				Set("proxies", []any{"DIRECT"}).
-				Set("use", []any{providerName(active.ID)}),
+				Set("use", use),
 			newOMap().
 				Set("name", nr.GroupAutoSelect).
 				Set("type", "url-test").
-				Set("use", []any{providerName(active.ID)}).
+				Set("use", use).
 				Set("interval", 300).
 				Set("tolerance", 50).
 				Set("lazy", true),

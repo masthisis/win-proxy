@@ -182,6 +182,31 @@ func (m *Manager) Rename(id, name string) error {
 	return os.ErrNotExist
 }
 
+// SetUnion toggles the union membership of a profile and hot-applies the
+// runtime config (issue #48).
+func (m *Manager) SetUnion(ctx context.Context, id string, on bool) error {
+	m.mu.Lock()
+	found := false
+	for i := range m.reg.Profiles {
+		if m.reg.Profiles[i].ID == id {
+			m.reg.Profiles[i].Union = on
+			found = true
+			break
+		}
+	}
+	if !found {
+		m.mu.Unlock()
+		return os.ErrNotExist
+	}
+	err := m.store.Save(m.reg)
+	m.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	m.emitList()
+	return m.reapply(ctx, "union-changed")
+}
+
 // SetInterval changes the auto-update interval (hours, 0 = manual).
 func (m *Manager) SetInterval(id string, hours int) error {
 	m.mu.Lock()
