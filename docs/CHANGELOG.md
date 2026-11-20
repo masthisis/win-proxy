@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+## v1.2.0 - the app opens again
+
+Hotfix for the reported "installed v1.1.0 never opens" failure (#32): every
+release since v1.0.2 died silently right after Wails logged its Platform
+Info line — no window, no error, no crash log.
+
+- **Root cause fixed (#32).** `buildTray` subscribed to the event bus with
+  `c.ctx` while running *before* `app.Run()`, when that field is still nil;
+  the subscription goroutine called `Done()` on a nil interface, and an
+  unrecovered goroutine panic terminated the whole process invisibly
+  (GUI-subsystem builds have no console; goroutine panics bypass every
+  recover). The tray subscription now uses an app-lifetime context, and the
+  bus itself refuses nil contexts (Subscribe degrades to
+  `context.Background()`, Emit skips them) so this class of mistake can
+  never kill the process again.
+- **Self-healing single instance (replaces Wails' built-in, #32).** The new
+  `internal/singleinstance` package: correct mutex detection, a TOP-LEVEL
+  (FindWindow-visible) hidden event window instead of Wails' message-only
+  one its own notify could never find, `SendMessageTimeout` (a hung peer can
+  no longer block a launch forever), and zombie recovery — an unresponsive
+  previous instance is terminated and the new launch takes over, with every
+  step logged. Clicking the shortcut while the app sits in the tray now
+  reliably brings the window back.
+- **Startup failures are visible.** The process stderr handle is pointed at
+  `startup.log` (runtime panic traces are persisted), and a boot watchdog
+  dumps all goroutine stacks to `logs/hang-<pid>.txt` plus a dialog if the
+  window has not come up within 20 s — a stall can never again be silent.
+
+## v1.1.0 - installable, self-updating
+
 - **NSIS installer as the primary distribution (#28).** Releases now ship
   `NeuroRift-<version>-windows-x64-setup.exe`: installs into Program Files
   with Start Menu + Desktop shortcuts and an Add/Remove Programs entry,

@@ -47,7 +47,15 @@ func New(log *slog.Logger) *Bus {
 
 // Subscribe registers h for topic until ctx is done. Returns a cancel func
 // for manual removal.
+//
+// ISSUE #32: a nil ctx here used to spawn a goroutine calling Done() on a
+// nil interface — an unrecovered goroutine panic that killed the whole
+// process silently (invisible in -H windowsgui builds). The bus now refuses
+// to panic: nil or already-dead contexts degrade to context.Background().
 func (b *Bus) Subscribe(ctx context.Context, topic string, h Handler) func() {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	sub := &subscription{handler: h, ctx: ctx}
@@ -78,13 +86,16 @@ func (b *Bus) remove(topic string, sub *subscription) {
 }
 
 // Emit delivers payload to every live subscriber of topic.
+//
+// ISSUE #32: subscribers created before the runtime context existed (nil)
+// are skipped defensively instead of dereferencing nil.
 func (b *Bus) Emit(topic string, payload any) {
 	b.mu.RLock()
 	list := b.subs[topic]
 	// Copy the slice: handlers may (un)subscribe while we iterate.
 	handlers := make([]Handler, 0, len(list))
 	for _, s := range list {
-		if s.ctx.Err() == nil {
+		if s.ctx != nil && s.ctx.Err() == nil {
 			handlers = append(handlers, s.handler)
 		}
 	}

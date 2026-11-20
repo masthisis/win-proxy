@@ -25,6 +25,7 @@ import (
 	"github.com/neurorift/neurorift/internal/engine"
 	"github.com/neurorift/neurorift/internal/nr"
 	"github.com/neurorift/neurorift/internal/platform"
+	"github.com/neurorift/neurorift/internal/singleinstance"
 )
 
 //go:embed all:frontend/dist
@@ -38,10 +39,11 @@ var trayIconOff []byte
 
 // lifecycle implements the Wails service hooks for the whole container.
 type lifecycle struct {
-	c      *Container
-	cl     *crashLog
-	stopBG func()
-	app    *application.App
+	c          *Container
+	cl         *crashLog
+	stopBG     func()
+	app        *application.App
+	showWindow func()
 }
 
 func (l *lifecycle) ServiceStartup(ctx context.Context) error {
@@ -49,10 +51,17 @@ func (l *lifecycle) ServiceStartup(ctx context.Context) error {
 	l.stopBG = l.c.StartBackground(ctx)
 	forwardEvents(l.c, l.app)
 	installBridges(l.app)
+	// Single-instance event window (issue #32): a TOP-LEVEL hidden window
+	// second instances can actually FindWindow + SendMessageTimeout, with a
+	// zombie-killing takeover path. Wails' built-in option is disabled —
+	// its notify never finds its own message-only window and its blocking
+	// SendMessage hangs forever against a hung instance.
+	go singleinstance.ListenOnMainThread(l.c.Log, l.showWindow)
 
 	// Boot telemetry (#27): the webview is alive and executing JS —
 	// this is the moment the app is "open". Record it once and emit
 	// the summary to both log sinks.
+	bootCompleted.Store(true)
 	boot.finishWebviewReady()
 	l.cl.Printf("%s", boot.summary())
 	l.c.Log.Info(boot.summary())
@@ -63,6 +72,7 @@ func (l *lifecycle) ServiceShutdown() error {
 	if l.stopBG != nil {
 		l.stopBG()
 	}
+	singleinstance.Release()
 	// Restore OS proxy so the machine stays usable after we exit.
 	if st, err := platform.GetSystemProxy(); err == nil && st.Enabled {
 		_ = platform.SetSystemProxy(false, "", "")
@@ -96,6 +106,21 @@ func main() {
 	}
 	boot.mark("webview2_check")
 
+	// Issue #32: own single-instance guard with zombie recovery, BEFORE any
+	// Wails machinery. When a healthy instance is already running it is
+	// woken (it will show its window) and we exit; when the holder is
+	// unresponsive it is terminated and we take over. Never silently, and
+	// never forever.
+	if err := singleinstance.Acquire(); err != nil {
+		if errors.Is(err, singleinstance.ErrAlreadyRunning) {
+			cl.Printf("NeuroRift is already running; asked it to show its window — exiting")
+			return
+		}
+		startupFatal(cl, nil, fmt.Errorf("single-instance: %w", err))
+	}
+	boot.mark("single_instance")
+	armBootWatchdog(cl)
+
 	container, err := NewContainer()
 	if err != nil {
 		startupFatal(cl, nil, fmt.Errorf("startup failed: %w", err))
@@ -103,7 +128,6 @@ func main() {
 	boot.mark("container")
 
 	lc := &lifecycle{c: container, cl: cl}
-
 	app := application.New(application.Options{
 		Name:        nr.AppName,
 		Description: "A fast, modern proxy cockpit powered by mihomo",
@@ -130,12 +154,9 @@ func main() {
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
 		},
-		SingleInstance: &application.SingleInstanceOptions{
-			UniqueID: nr.AppIdentifier,
-			OnSecondInstanceLaunch: func(application.SecondInstanceData) {
-				application.Get().Show()
-			},
-		},
+		// SingleInstance is INTENTIONALLY not set (issue #32): Wails' Windows
+		// implementation cannot notify its own message-only window and blocks
+		// forever against a hung instance. internal/singleinstance replaces it.
 	})
 	lc.app = app
 	boot.mark("wails_init")
@@ -159,6 +180,14 @@ func main() {
 		window.Hide()
 		e.Cancel()
 	})
+
+	// Used by the single-instance listener (issue #32): when a second
+	// launch arrives while we are running (possibly hidden in tray),
+	// restore and focus the main window.
+	lc.showWindow = func() {
+		window.Show()
+		window.Focus()
+	}
 
 	buildTray(app, container, window)
 
@@ -276,7 +305,16 @@ func buildTray(app *application.App, c *Container, window *application.WebviewWi
 	})
 
 	// Reflect engine state on the tray icon.
-	c.Bus.Subscribe(c.ctx, nr.EventCoreStatus, func(_ string, payload any) {
+	//
+	// ISSUE #32: this subscription MUST NOT use c.ctx — buildTray runs
+	// before app.Run(), while c.ctx is only assigned inside
+	// lifecycle.ServiceStartup. The nil ctx used to spawn a goroutine
+	// calling Done() on a nil interface, killing the whole process
+	// silently right after Wails logged "Platform Info" (invisible in
+	// -H windowsgui builds — no window, no dialog, no crash log).
+	// The tray lives for the whole process lifetime, so an
+	// app-lifetime context is the correct scope here anyway.
+	c.Bus.Subscribe(context.Background(), nr.EventCoreStatus, func(_ string, payload any) {
 		if st, ok := payload.(engine.Status); ok {
 			if st.State == nr.CoreRunning {
 				tray.SetIcon(trayIcon)

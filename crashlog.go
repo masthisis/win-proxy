@@ -57,7 +57,16 @@ func initCrashLog() *crashLog {
 	}
 	var w io.Writer = os.Stderr
 	if cl.file != nil {
-		w = io.MultiWriter(cl.file, os.Stderr)
+		// Issue #32: route the process stderr handle into the same
+		// file so RUNTIME panics (goroutine crashes bypass every
+		// recover) are persisted even in -H windowsgui builds.
+		if redirectStderrToFile(cl.file) {
+			// stderr now points at the file — mirroring would
+			// duplicate every line.
+			w = cl.file
+		} else {
+			w = io.MultiWriter(cl.file, os.Stderr)
+		}
 	}
 	log.SetOutput(w)
 	cl.Printf("=== NeuroRift %s starting (pid %d, %s/%s) ===",

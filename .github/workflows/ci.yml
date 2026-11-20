@@ -42,7 +42,11 @@ jobs:
 
       - name: Vet (Windows target, includes test files)
         run: |
-          GOOS=windows CGO_ENABLED=0 go vet ./...
+          # -unsafeptr=false: internal/singleinstance's WndProc receives
+          # LPARAM/WM_COPYDATA pointers as uintptr from the OS — converting
+          # them back in the callback is the canonical Win32 pattern (Wails'
+          # own w32 package does the same); vet cannot prove those safe.
+          GOOS=windows CGO_ENABLED=0 go vet -unsafeptr=false ./...
 
       - name: Unit tests
         run: |
