@@ -24,6 +24,8 @@ import (
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
+
+	"github.com/neurorift/neurorift/internal/platform"
 )
 
 // uninstKey mirrors UNINST_KEY_NAME in build/windows/nsis/project.nsi.
@@ -70,7 +72,10 @@ func defaultIsInstalled() bool {
 func runInstaller(setupPath string) error {
 	// 1. Direct launch — succeeds when the current process is elevated
 	//    (e.g. TUN mode) or the installer is per-user.
-	if err := exec.Command(setupPath, "/S", "/update").Start(); err == nil {
+	cmd := exec.Command(setupPath, "/S", "/update")
+	// Issue #38: never flash a console for the installer hand-off.
+	platform.HideWindow(cmd)
+	if err := cmd.Start(); err == nil {
 		return nil
 	}
 
