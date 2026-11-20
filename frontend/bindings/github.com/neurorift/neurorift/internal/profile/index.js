@@ -6,5 +6,6 @@ export {
     Kind,
     Profile,
     SubscriptionInfo,
-    Summary
+    Summary,
+    UpdateSummary
 } from "./models.js";

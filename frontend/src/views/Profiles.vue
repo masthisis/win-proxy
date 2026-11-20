@@ -121,6 +121,25 @@ async function activate(p: ProfileSummary): Promise<void> {
   }
 }
 
+const updatingAll = ref(false);
+
+async function updateAll(): Promise<void> {
+  if (updatingAll.value) return;
+  updatingAll.value = true;
+  try {
+    const sum = await Profile.UpdateAll();
+    if (sum?.failed) {
+      toast.error(t("profiles.updateAllSome", { ok: sum.updated ?? 0, fail: sum.failed }));
+    } else {
+      toast.success(t("profiles.updateAllDone", { n: sum?.updated ?? 0 }));
+    }
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    updatingAll.value = false;
+  }
+}
+
 async function updateNow(p: ProfileSummary): Promise<void> {
   if (updatingId.value) return;
   updatingId.value = p.id;
@@ -187,6 +206,16 @@ async function removeProfile(p: ProfileSummary): Promise<void> {
 }
 
 const kindBadge = (p: ProfileSummary): string => (p.kind === "clash" ? "violet" : p.kind === "local" ? "warn" : "accent");
+
+// Ctrl+U = update all subscriptions (issue #46).
+if (typeof window !== "undefined") {
+  window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "u") {
+      e.preventDefault();
+      void updateAll();
+    }
+  });
+}
 </script>
 
 <template>
@@ -195,6 +224,19 @@ const kindBadge = (p: ProfileSummary): string => (p.kind === "clash" ? "violet" 
     <section class="panel">
       <header class="panel-head">
         <h2>{{ t("profiles.addTitle") }}</h2>
+        <div class="panel-head-actions">
+          <button
+            v-if="store.profiles.length"
+            class="btn sm"
+            :disabled="updatingAll || Object.keys(store.subProgress).length > 0"
+            title="Ctrl+U"
+            @click="updateAll()"
+          >
+            <span v-if="updatingAll" class="spinner" style="width: 11px; height: 11px" />
+            <IconRefresh v-else :size="12" />
+            {{ t("profiles.updateAll") }}
+          </button>
+        </div>
       </header>
       <div class="row" style="align-items: flex-end">
         <div class="field" style="flex: 2; min-width: 220px">
@@ -264,6 +306,10 @@ const kindBadge = (p: ProfileSummary): string => (p.kind === "clash" ? "violet" 
           <span v-if="busyPhase(p.id)" class="badge warn">
             <span class="spinner" style="width: 10px; height: 10px; border-top-color: var(--warn)" />
             {{ t(`profiles.phase.${busyPhase(p.id)}`) }}
+          </span>
+          <span v-else-if="p.lastError" class="badge danger" :title="p.lastError">
+            <IconWarn :size="11" />
+            {{ t("profiles.syncFailed") }}
           </span>
           <div class="panel-head-actions">
             <button

@@ -376,13 +376,11 @@ func (m *Manager) Update(ctx context.Context, id string) (*Summary, error) {
 		m.progress(id, PhaseFetching, p.Source)
 		data, err := os.ReadFile(p.Source)
 		if err != nil {
-			m.progress(id, PhaseError, err.Error())
-			return nil, err
+			return nil, m.updateFailed(id, err)
 		}
 		dec, err = DecodeContent(string(data))
 		if err != nil {
-			m.progress(id, PhaseError, err.Error())
-			return nil, fmt.Errorf("reload %s: %w", p.Name, err)
+			return nil, m.updateFailed(id, fmt.Errorf("reload %s: %w", p.Name, err))
 		}
 		if dec.Parsed.Kind == KindNodes {
 			dec.Parsed.Kind = KindLocal
@@ -392,14 +390,12 @@ func (m *Manager) Update(ctx context.Context, id string) (*Summary, error) {
 		fetcher := m.newFetcher()
 		resp, err := fetcher.Fetch(ctx, p.Source)
 		if err != nil {
-			m.progress(id, PhaseError, err.Error())
-			return nil, err
+			return nil, m.updateFailed(id, err)
 		}
 		m.progress(id, PhaseParsing, "")
 		dec, err = DecodeContent(resp.Body)
 		if err != nil {
-			m.progress(id, PhaseError, err.Error())
-			return nil, fmt.Errorf("update %s: %w", p.Name, err)
+			return nil, m.updateFailed(id, fmt.Errorf("update %s: %w", p.Name, err))
 		}
 		// Keep the original kind if the server switches format on us.
 		if p.Kind == KindClash && dec.Parsed.Kind != KindClash {
@@ -411,8 +407,7 @@ func (m *Manager) Update(ctx context.Context, id string) (*Summary, error) {
 	}
 
 	if err := m.materialize(id, dec.Parsed); err != nil {
-		m.progress(id, PhaseError, err.Error())
-		return nil, err
+		return nil, m.updateFailed(id, err)
 	}
 
 	m.mu.Lock()
@@ -421,6 +416,7 @@ func (m *Manager) Update(ctx context.Context, id string) (*Summary, error) {
 			m.reg.Profiles[i].UpdatedAt = m.now()
 			m.reg.Profiles[i].NodeCount = decNodeCount(dec.Parsed)
 			m.reg.Profiles[i].SubInfo = p.SubInfo
+			m.reg.Profiles[i].LastError = "" // healthy again (#46)
 			m.scheduleNext(&m.reg.Profiles[i])
 			p = m.reg.Profiles[i]
 		}
@@ -439,6 +435,65 @@ func (m *Manager) Update(ctx context.Context, id string) (*Summary, error) {
 		}
 	}
 	return &p, nil
+}
+
+// updateFailed records the failure on the profile (issue #46: a silently
+// failing subscription must be visible on the card) and returns the error.
+func (m *Manager) updateFailed(id string, err error) error {
+	m.progress(id, PhaseError, err.Error())
+	m.mu.Lock()
+	for i := range m.reg.Profiles {
+		if m.reg.Profiles[i].ID == id {
+			m.reg.Profiles[i].LastError = err.Error()
+			break
+		}
+	}
+	_ = m.store.Save(m.reg)
+	m.mu.Unlock()
+	m.emitList()
+	return err
+}
+
+// UpdateSummary is the aggregate outcome of UpdateAll (issue #46).
+type UpdateSummary struct {
+	Updated int               `json:"updated"`
+	Failed  int               `json:"failed"`
+	Skipped int               `json:"skipped"`          // clipboard/static profiles
+	Errors  map[string]string `json:"errors,omitempty"` // profile name -> error
+}
+
+// UpdateAll refreshes every refreshable profile in parallel and returns an
+// aggregate summary (issue #46 — v2rayN-style "Update all").
+func (m *Manager) UpdateAll(ctx context.Context) (*UpdateSummary, error) {
+	profiles := m.List()
+	summary := &UpdateSummary{Errors: map[string]string{}}
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	for _, p := range profiles {
+		if p.Source == "clipboard" {
+			summary.Skipped++
+			continue
+		}
+		wg.Add(1)
+		go func(p Summary) {
+			defer wg.Done()
+			if _, err := m.Update(ctx, p.ID); err != nil {
+				mu.Lock()
+				summary.Failed++
+				summary.Errors[p.Name] = err.Error()
+				mu.Unlock()
+			} else {
+				mu.Lock()
+				summary.Updated++
+				mu.Unlock()
+			}
+		}(p)
+	}
+	wg.Wait()
+	if summary.Errors != nil && len(summary.Errors) == 0 {
+		summary.Errors = nil
+	}
+	return summary, nil
 }
 
 // materialize writes provider/clash files for parsed content.

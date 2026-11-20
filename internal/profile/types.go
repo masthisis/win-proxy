@@ -60,6 +60,10 @@ type Profile struct {
 	NextUpdateAt time.Time         `json:"nextUpdateAt"`
 	NodeCount    int               `json:"nodeCount"`
 	SubInfo      *SubscriptionInfo `json:"subInfo,omitempty"`
+	// LastError is the most recent sync failure (issue #46; "" = healthy).
+	// Surfaced on the profile card so a silently-failing subscription is
+	// visible without opening the logs.
+	LastError string `json:"lastError,omitempty"`
 }
 
 // Summary is the API-facing projection of a Profile.
