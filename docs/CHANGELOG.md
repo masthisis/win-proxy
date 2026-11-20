@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.0.3 - operating model + always-green CI
+
+Project-facing release: the repository itself becomes fully issue-driven.
+No application-code changes - the app is unchanged from v1.0.2.
+
+- **Operating contract (`docs/WORKFLOW.md`, new).** Every change now flows
+  `Issue -> Branch -> Pull Request -> CI -> squash merge -> (Release)`, in
+  both directions: agent-driven (request -> fully specified issue -> shipped
+  release) and owner-driven ("fetch issue #N and work on it", optionally
+  "...and release"). Wired into CONTRIBUTING, AI_DEVELOPER_GUIDE, README and
+  ROADMAP (#7).
+- **Always-green CI.** Fixed the wails3 CLI version check that failed every
+  Windows build: `wails3 -v` is not a valid flag in v3.1.0 - the version is
+  the `version` subcommand (#21). Both workflows now use it, and the
+  `Build (Windows x64)` job is green.
+- **Dependency hygiene.** GitHub Actions bumped (checkout 7, setup-go 7,
+  setup-node 7, upload-artifact 7, action-gh-release 3). TypeScript
+  semver-major bumps are ignored in dependabot until vue-tsc/@volar supports
+  TS 7 (the TS 7 bump removed `./lib/tsc`, which vue-tsc probes - analysis
+  in #6, pin in #23).
+- **Branch protection.** `main` now requires both CI jobs (admin-enforced),
+  squash merges only, linear history, and branches auto-delete on merge -
+  matching the operating contract.
+
+
 ## v1.0.2 — install reliability hotfix
 
 Fixes the first-run failure reported on Windows ("error decoding response

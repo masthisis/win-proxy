@@ -39,6 +39,8 @@ released.
 
 ## Non-goals
 
-- Bundling the mihomo binary (licensing + freshness; downloads stay
-  first-run with mirror support).
+- Vendoring mihomo in the repository (source or binaries) — licensing and
+  freshness. The release zip bundles the **official** mihomo binary at build
+  time (`core/mihomo.exe`, see `release.yml`), and end-user installs keep the
+  first-run download path with mirror support.
 - Reinventing the data plane — mihomo is the engine, period.
