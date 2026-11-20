@@ -103,20 +103,32 @@ func (s *Streams) setMemory(v int64) {
 	s.memMu.Unlock()
 }
 
-// memoryLoop polls /memory every 5 s.
+// memoryLoop consumes the STREAMING /memory endpoint. mihomo pushes one
+// JSON line ("{"inuse":N,...}") every second, chunked, forever — it is
+// NOT a one-shot endpoint. Reading it with the one-shot do()/io.ReadAll
+// helper blocked the goroutine forever on an unterminated chunked body
+// (issue #34 goroutine dumps: memoryLoop parked in chunkedReader.Read
+// inside io.ReadAll). The 1 Hz samples are cached; trafficLoop merges the
+// latest value into every EventTraffic tick.
 func (s *Streams) memoryLoop(ctx context.Context) {
 	defer s.wg.Done()
-	t := time.NewTicker(5 * time.Second)
-	defer t.Stop()
 	for {
-		select {
-		case <-ctx.Done():
+		if ctx.Err() != nil {
 			return
-		case <-t.C:
-			if v, err := s.api.Memory(ctx); err == nil {
-				s.setMemory(v)
-			}
 		}
+		err := s.api.StreamLine(ctx, "/memory", func(line []byte) {
+			var m struct {
+				InUse int64 `json:"inuse"`
+			}
+			if json.Unmarshal(line, &m) == nil {
+				s.setMemory(m.InUse)
+			}
+		})
+		if ctx.Err() != nil {
+			return
+		}
+		s.log.Debug("memory stream ended", "err", err)
+		time.Sleep(2 * time.Second)
 	}
 }
 

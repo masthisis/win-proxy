@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+## v1.2.1 - the app actually wires itself up
+
+Hotfix for the reported v1.2.0 failure (#34): the window opened, but the UI
+stayed on "Starting engine" forever, a "startup stalled" dialog appeared
+after 20 s, clipboard/browser bridges answered `runtime bridge not ready`,
+and the log showed the core being restarted over and over — while the
+mihomo engine was in fact running the whole time.
+
+- **Root cause fixed (#34).** Wails v3 discovers service lifecycle hooks
+  through a runtime type assertion; `lifecycle.ServiceStartup` had one
+  parameter too few for the `application.ServiceStartup` interface
+  (`(ctx, options)` vs our `(ctx)`), so the framework *silently never
+  called it* — in every released build. Nothing the hook was responsible
+  for ever ran: the internal-bus → webview event bridge (hence the UI
+  never learned the engine was running), the clipboard/browser/dialog
+  bridges, the background loops (subscription scheduler, failover
+  watchdog, auto-updaters) and single-instance wake-listener
+  registration. The signature is fixed and now guarded by compile-time
+  interface assertions, so a future drift is a build error, not a silent
+  outage.
+- **`/memory` is a stream, not a poll (#34).** `memoryLoop` used the
+  one-shot `do()`/`io.ReadAll` helper against mihomo's `/memory`
+  endpoint, which streams one JSON line per second forever — the goroutine
+  dumps showed it parked permanently inside `chunkedReader.Read`. It now
+  consumes the endpoint with the streaming `StreamLine` path (like
+  `/traffic` and `/logs`), and the hazardous one-shot `API.Memory()`
+  helper is gone. Regression tests pin both behaviors: samples must
+  arrive while the body is still open, and the loop must exit on cancel.
+- **Clearer watchdog dialog.** The boot watchdog's message no longer
+  claims the window could not be created when the failure is that startup
+  services did not finish; with the hook actually running (pre-main-loop,
+  pre-window) the wording now matches reality either way.
+
 ## v1.2.0 - the app opens again
 
 Hotfix for the reported "installed v1.1.0 never opens" failure (#32): every
