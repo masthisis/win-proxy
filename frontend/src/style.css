@@ -969,6 +969,21 @@ table.tbl {
 
 /* ---------- header update chip (issue #41) ---------- */
 
+/* Node search input + sortable table headers (issue #43) */
+.node-search {
+  max-width: 220px;
+}
+
+.tbl th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.tbl th.sortable:hover {
+  color: var(--text);
+}
+
 /* Test Center profile selector (issue #42) */
 .profile-select {
   max-width: 220px;
