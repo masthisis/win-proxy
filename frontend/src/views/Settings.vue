@@ -1,0 +1,414 @@
+<script setup lang="ts">
+/** Settings: full settings document editor with collapsible sections. */
+import { computed, reactive, ref, watch } from "vue";
+import * as SettingsSvc from "../../bindings/github.com/neurorift/neurorift/settingsservice.js";
+import * as Sys from "../../bindings/github.com/neurorift/neurorift/sysservice.js";
+import type { Settings as SettingsDoc } from "../../bindings/github.com/neurorift/neurorift/internal/settings/models.js";
+import { store } from "../store";
+import { t, setLang, type Lang } from "../lib/i18n";
+import { toast, errMsg } from "../lib/toast";
+import { IconChevron, IconFolder, IconWarn, IconCheck } from "../components/Icons";
+
+const form = ref<SettingsDoc | null>(null);
+const saving = ref(false);
+const autostart = ref(false);
+
+async function loadAutostart() {
+  try {
+    autostart.value = await Sys.GetAutostart();
+  } catch {
+    autostart.value = false;
+  }
+}
+
+async function onAutostart(ev: Event) {
+  const target = ev.target as HTMLInputElement;
+  const next = target.checked;
+  try {
+    await Sys.SetAutostart(next);
+    autostart.value = next;
+    toast.success(next ? t("settings.autostartOn") : t("settings.autostartOff"));
+  } catch (e) {
+    target.checked = !next;
+    toast.error(errMsg(e));
+  }
+}
+loadAutostart();
+
+const open = reactive<Record<string, boolean>>({
+  general: true,
+  ports: false,
+  testing: false,
+  failover: false,
+  core: false,
+  dns: false,
+  tun: false,
+  subscriptions: false,
+});
+
+const SECTIONS = [
+  { id: "general", label: "settings.secGeneral" },
+  { id: "ports", label: "settings.secPorts" },
+  { id: "testing", label: "settings.secTesting" },
+  { id: "failover", label: "settings.secFailover" },
+  { id: "core", label: "settings.secCore" },
+  { id: "dns", label: "settings.secDns" },
+  { id: "tun", label: "settings.secTun" },
+  { id: "subscriptions", label: "settings.secSubscriptions" },
+] as const;
+
+function clone<T>(v: T): T {
+  return JSON.parse(JSON.stringify(v)) as T;
+}
+
+watch(
+  () => store.settings,
+  (s) => {
+    if (!s) return;
+    if (!form.value || !isDirty()) form.value = clone(s);
+  },
+  { immediate: true, deep: false },
+);
+
+const dirty = computed(() => !!form.value && !!store.settings && JSON.stringify(form.value) !== JSON.stringify(store.settings));
+
+function isDirty(): boolean {
+  return !!form.value && !!store.settings && JSON.stringify(form.value) !== JSON.stringify(store.settings);
+}
+
+const dnsText = computed<string>({
+  get: () => (form.value?.dns?.nameservers ?? []).join("\n"),
+  set: (v: string) => {
+    if (!form.value) return;
+    form.value.dns.nameservers = v
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  },
+});
+
+function onLanguage(e: Event): void {
+  const lang = (e.target as HTMLSelectElement).value as Lang;
+  if (!form.value) return;
+  form.value.language = lang;
+  setLang(lang); // instant feedback; persisted with Save
+}
+
+async function save(): Promise<void> {
+  if (!form.value || saving.value) return;
+  saving.value = true;
+  try {
+    const saved = await SettingsSvc.Save(clone(form.value));
+    store.settings = saved;
+    toast.success(t("settings.saved"));
+  } catch (e) {
+    toast.error(`${t("settings.saveFailed")}: ${errMsg(e)}`);
+  } finally {
+    saving.value = false;
+  }
+}
+
+function reset(): void {
+  if (store.settings) form.value = clone(store.settings);
+}
+
+async function openFolder(which: "config" | "core" | "logs"): Promise<void> {
+  try {
+    await Sys.OpenFolder(which);
+  } catch (e) {
+    toast.error(errMsg(e));
+  }
+}
+</script>
+
+<template>
+  <div class="view">
+    <div v-if="!form" class="panel">
+      <div class="empty">
+        <span class="spinner lg" />
+        <div class="e-body">{{ t("common.loading") }}</div>
+      </div>
+    </div>
+
+    <template v-else>
+      <div class="panel">
+        <div class="row" style="justify-content: space-between">
+          <span v-if="dirty" class="badge warn">{{ t("common.save") }}?</span>
+          <span v-else class="badge success"><IconCheck :size="11" /> {{ t("settings.saved") }}</span>
+          <div class="row">
+            <button class="btn" :disabled="!dirty || saving" @click="reset()">{{ t("common.reset") }}</button>
+            <button class="btn primary" :disabled="!dirty || saving" @click="save()">
+              <span v-if="saving" class="spinner" style="border-top-color: var(--accent)" />
+              {{ t("common.save") }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- General -->
+      <section class="panel">
+        <button class="section-head" :aria-expanded="open.general" @click="open.general = !open.general">
+          <IconChevron :size="14" class="chev" :class="{ open: open.general }" />
+          {{ t("settings.secGeneral") }}
+        </button>
+        <div v-if="open.general" class="form-grid" style="margin-top: 12px">
+          <div class="field">
+            <label for="set-lang">{{ t("settings.language") }}</label>
+            <select id="set-lang" :value="form.language" @change="onLanguage">
+              <option value="en">{{ t("settings.langEn") }}</option>
+              <option value="fa">{{ t("settings.langFa") }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="set-mode">{{ t("settings.mode") }}</label>
+            <select id="set-mode" v-model="form.mode">
+              <option value="rule">{{ t("mode.rule") }}</option>
+              <option value="global">{{ t("mode.global") }}</option>
+              <option value="direct">{{ t("mode.direct") }}</option>
+            </select>
+          </div>
+          <label class="checkbox">
+            <input v-model="form.startMinimized" type="checkbox" />
+            <span class="box" />
+            <span>{{ t("settings.startMinimized") }}</span>
+          </label>
+          <label class="checkbox">
+            <input v-model="form.autoConnect" type="checkbox" />
+            <span class="box" />
+            <span>{{ t("settings.autoConnect") }}</span>
+          </label>
+          <label class="checkbox">
+            <input v-model="form.systemProxyOnStart" type="checkbox" />
+            <span class="box" />
+            <span>{{ t("settings.systemProxyOnStart") }}</span>
+          </label>
+          <label class="checkbox">
+            <input v-model="form.allowLan" type="checkbox" />
+            <span class="box" />
+            <span>{{ t("settings.allowLan") }}</span>
+          </label>
+          <label class="checkbox">
+            <input :checked="autostart" type="checkbox" @change="onAutostart" />
+            <span class="box" />
+            <span>{{ t("settings.autostart") }}</span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Ports -->
+      <section class="panel">
+        <button class="section-head" :aria-expanded="open.ports" @click="open.ports = !open.ports">
+          <IconChevron :size="14" class="chev" :class="{ open: open.ports }" />
+          {{ t("settings.secPorts") }}
+        </button>
+        <div v-if="open.ports" class="form-grid" style="margin-top: 12px">
+          <div class="field">
+            <label for="port-mixed">{{ t("settings.portMixed") }}</label>
+            <input id="port-mixed" v-model.number="form.ports.mixed" type="number" min="1" max="65535" />
+          </div>
+          <div class="field">
+            <label for="port-ctrl">{{ t("settings.portController") }}</label>
+            <input id="port-ctrl" v-model.number="form.ports.controller" type="number" min="1" max="65535" />
+          </div>
+          <div class="field">
+            <label for="port-speed">{{ t("settings.portSpeedTest") }}</label>
+            <input id="port-speed" v-model.number="form.ports.speedTest" type="number" min="1" max="65535" />
+          </div>
+        </div>
+      </section>
+
+      <!-- Testing -->
+      <section class="panel">
+        <button class="section-head" :aria-expanded="open.testing" @click="open.testing = !open.testing">
+          <IconChevron :size="14" class="chev" :class="{ open: open.testing }" />
+          {{ t("settings.secTesting") }}
+        </button>
+        <div v-if="open.testing" class="form-grid" style="margin-top: 12px">
+          <div class="field span-all">
+            <label for="t-url">{{ t("settings.testUrl") }}</label>
+            <input id="t-url" v-model="form.test.url" type="text" class="mono" />
+          </div>
+          <div class="field">
+            <label for="t-timeout">{{ t("settings.timeout") }} ({{ t("common.ms") }})</label>
+            <input id="t-timeout" v-model.number="form.test.timeoutMs" type="number" min="100" max="10000" step="100" />
+          </div>
+          <div class="field">
+            <label for="t-streams">{{ t("settings.streams") }} (1–16)</label>
+            <input id="t-streams" v-model.number="form.test.speedStreams" type="number" min="1" max="16" />
+          </div>
+          <div class="field span-all">
+            <label for="t-speedurl">{{ t("settings.speedUrl") }}</label>
+            <input id="t-speedurl" v-model="form.test.speedUrl" type="text" class="mono" />
+          </div>
+          <div class="field span-all">
+            <label for="t-upurl">{{ t("settings.uploadUrl") }}</label>
+            <input id="t-upurl" v-model="form.test.speedUploadUrl" type="text" class="mono" />
+          </div>
+          <div class="field">
+            <label for="t-maxsec">{{ t("settings.maxSeconds") }}</label>
+            <input id="t-maxsec" v-model.number="form.test.speedMaxSeconds" type="number" min="1" max="120" />
+          </div>
+          <div class="field">
+            <label for="t-maxmb">{{ t("settings.maxMb") }} (MB)</label>
+            <input id="t-maxmb" v-model.number="form.test.speedMaxMb" type="number" min="1" max="4096" />
+          </div>
+          <label class="checkbox">
+            <input v-model="form.test.uploadTest" type="checkbox" />
+            <span class="box" />
+            <span>{{ t("settings.uploadTest") }}</span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Failover -->
+      <section class="panel">
+        <button class="section-head" :aria-expanded="open.failover" @click="open.failover = !open.failover">
+          <IconChevron :size="14" class="chev" :class="{ open: open.failover }" />
+          {{ t("settings.secFailover") }}
+        </button>
+        <div v-if="open.failover" class="form-grid" style="margin-top: 12px">
+          <label class="checkbox">
+            <input v-model="form.failover.enable" type="checkbox" />
+            <span class="box" />
+            <span>{{ t("settings.failoverEnable") }}</span>
+          </label>
+          <div class="field">
+            <label for="fo-interval">{{ t("settings.failoverInterval") }} ({{ t("common.seconds") }})</label>
+            <input id="fo-interval" v-model.number="form.failover.intervalSec" type="number" min="15" max="600" />
+          </div>
+          <div class="field">
+            <label for="fo-timeout">{{ t("settings.failoverTimeout") }} ({{ t("common.ms") }})</label>
+            <input id="fo-timeout" v-model.number="form.failover.timeoutMs" type="number" min="200" max="10000" step="100" />
+          </div>
+          <div class="field">
+            <label for="fo-strikes">{{ t("settings.failoverStrikes") }}</label>
+            <input id="fo-strikes" v-model.number="form.failover.strikes" type="number" min="1" max="10" />
+          </div>
+          <div class="field">
+            <label for="fo-cooldown">{{ t("settings.failoverCooldown") }} ({{ t("common.seconds") }})</label>
+            <input id="fo-cooldown" v-model.number="form.failover.cooldownSec" type="number" min="0" max="3600" />
+          </div>
+        </div>
+      </section>
+
+      <!-- Core -->
+      <section class="panel">
+        <button class="section-head" :aria-expanded="open.core" @click="open.core = !open.core">
+          <IconChevron :size="14" class="chev" :class="{ open: open.core }" />
+          {{ t("settings.secCore") }}
+        </button>
+        <div v-if="open.core" class="form-grid" style="margin-top: 12px">
+          <div class="field">
+            <label for="core-channel">{{ t("settings.coreChannel") }}</label>
+            <select id="core-channel" v-model="form.core.channel">
+              <option value="stable">{{ t("settings.channelStable") }}</option>
+              <option value="alpha">{{ t("settings.channelAlpha") }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="core-interval">{{ t("settings.coreUpdateInterval") }} ({{ t("common.hours") }})</label>
+            <input id="core-interval" v-model.number="form.core.updateIntervalH" type="number" min="0" max="720" />
+          </div>
+          <label class="checkbox">
+            <input v-model="form.core.autoUpdate" type="checkbox" />
+            <span class="box" />
+            <span>{{ t("settings.coreAutoUpdate") }}</span>
+          </label>
+          <div class="field span-all">
+            <label for="core-ghproxy">{{ t("settings.ghProxy") }}</label>
+            <input id="core-ghproxy" v-model="form.core.ghProxyPrefix" type="text" class="mono" placeholder="https://gh-proxy.com/" />
+            <span class="hint">{{ t("settings.ghProxyHint") }}</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- DNS -->
+      <section class="panel">
+        <button class="section-head" :aria-expanded="open.dns" @click="open.dns = !open.dns">
+          <IconChevron :size="14" class="chev" :class="{ open: open.dns }" />
+          {{ t("settings.secDns") }}
+        </button>
+        <div v-if="open.dns" style="margin-top: 12px" class="form-grid">
+          <label class="checkbox">
+            <input v-model="form.dns.override" type="checkbox" />
+            <span class="box" />
+            <span>{{ t("settings.dnsOverride") }}</span>
+          </label>
+          <div class="field span-all">
+            <label for="dns-ns">{{ t("settings.dnsNameservers") }}</label>
+            <textarea id="dns-ns" v-model="dnsText" rows="4" :placeholder="'https://dns.google/dns-query\n8.8.8.8'" />
+            <span class="hint">{{ t("settings.dnsHint") }}</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- TUN -->
+      <section class="panel">
+        <button class="section-head" :aria-expanded="open.tun" @click="open.tun = !open.tun">
+          <IconChevron :size="14" class="chev" :class="{ open: open.tun }" />
+          {{ t("settings.secTun") }}
+        </button>
+        <div v-if="open.tun" style="margin-top: 12px" class="form-grid">
+          <label class="checkbox">
+            <input
+              v-model="form.tun.enable"
+              type="checkbox"
+              :disabled="store.elevatedKnown && !store.elevated"
+            />
+            <span class="box" />
+            <span>{{ t("settings.tunEnable") }}</span>
+          </label>
+          <div class="field">
+            <label for="tun-stack">{{ t("settings.tunStack") }}</label>
+            <select id="tun-stack" v-model="form.tun.stack" :disabled="store.elevatedKnown && !store.elevated">
+              <option value="system">system</option>
+              <option value="gvisor">gvisor</option>
+              <option value="mixed">mixed</option>
+            </select>
+          </div>
+          <div v-if="store.elevatedKnown && !store.elevated" class="warn-box span-all">
+            <IconWarn :size="15" />
+            <span>{{ t("settings.tunNeedsAdmin") }}</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Subscriptions -->
+      <section class="panel">
+        <button class="section-head" :aria-expanded="open.subscriptions" @click="open.subscriptions = !open.subscriptions">
+          <IconChevron :size="14" class="chev" :class="{ open: open.subscriptions }" />
+          {{ t("settings.secSubscriptions") }}
+        </button>
+        <div v-if="open.subscriptions" class="form-grid" style="margin-top: 12px">
+          <div class="field">
+            <label for="sub-interval">{{ t("settings.subDefaultInterval") }} ({{ t("common.hours") }})</label>
+            <input id="sub-interval" v-model.number="form.subscription.defaultIntervalH" type="number" min="0" max="720" />
+          </div>
+          <label class="checkbox">
+            <input v-model="form.subscription.updateViaProxy" type="checkbox" />
+            <span class="box" />
+            <span>{{ t("settings.subViaProxy") }}</span>
+          </label>
+        </div>
+      </section>
+
+      <!-- folders -->
+      <div class="panel">
+        <div class="row">
+          <button class="btn" @click="openFolder('config')">
+            <IconFolder :size="14" />
+            {{ t("settings.openConfig") }}
+          </button>
+          <button class="btn" @click="openFolder('core')">
+            <IconFolder :size="14" />
+            {{ t("settings.openCore") }}
+          </button>
+          <button class="btn" @click="openFolder('logs')">
+            <IconFolder :size="14" />
+            {{ t("settings.openLogs") }}
+          </button>
+        </div>
+      </div>
+    </template>
+  </div>
+</template>

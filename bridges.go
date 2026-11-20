@@ -1,0 +1,74 @@
+package main
+
+// bridges.go connects service-layer helpers to the Wails runtime
+// (clipboard, browser, dialogs). The concrete implementations are installed
+// by main() once the application instance exists, keeping services testable
+// without Wails (nil-safe fallbacks below).
+
+import "errors"
+
+var (
+	clipboardTextFn func() (string, bool)
+	openPathFn      func(string) error
+	openURLFn       func(string) error
+	pickFileFn      func() (string, error)
+	autostartOnFn   func(args []string) error
+	autostartOffFn  func() error
+	autostartIsOnFn func() (bool, error)
+)
+
+var errBridgeUnavailable = errors.New("runtime bridge not ready")
+
+// clipboardText reads the system clipboard.
+func clipboardText() (string, bool) {
+	if clipboardTextFn == nil {
+		return "", false
+	}
+	return clipboardTextFn()
+}
+
+// openPath opens a folder in the OS file manager.
+func openPath(p string) error {
+	if openPathFn == nil {
+		return errBridgeUnavailable
+	}
+	return openPathFn(p)
+}
+
+// openURL opens a URL in the default browser.
+func openURL(u string) error {
+	if openURLFn == nil {
+		return errBridgeUnavailable
+	}
+	return openURLFn(u)
+}
+
+// pickFile shows the native open-file dialog (Clash YAML import).
+func pickFile() (string, error) {
+	if pickFileFn == nil {
+		return "", errBridgeUnavailable
+	}
+	return pickFileFn()
+}
+
+// setAutostart registers/unregisters login launch (args e.g. --minimized).
+func setAutostart(enabled bool, args []string) error {
+	if enabled {
+		if autostartOnFn == nil {
+			return errBridgeUnavailable
+		}
+		return autostartOnFn(args)
+	}
+	if autostartOffFn == nil {
+		return errBridgeUnavailable
+	}
+	return autostartOffFn()
+}
+
+// autostartEnabled reports the registration state.
+func autostartEnabled() (bool, error) {
+	if autostartIsOnFn == nil {
+		return false, errBridgeUnavailable
+	}
+	return autostartIsOnFn()
+}

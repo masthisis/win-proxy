@@ -1,0 +1,160 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build & publish (Windows x64)
+    runs-on: windows-latest
+    env:
+      MIHOMO_TAG: v1.19.34
+    steps:
+      - name: Checkout (full history for release notes)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version from tag
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Building version $VERSION"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Stamp version into build/windows/info.json
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("fs");
+            const p = "build/windows/info.json";
+            const j = JSON.parse(fs.readFileSync(p, "utf8"));
+            j.fixed.file_version = process.env.VERSION;
+            j.fixed.product_version = process.env.VERSION;
+            j.info["0409"].FileVersion = process.env.VERSION;
+            j.info["0409"].ProductVersion = process.env.VERSION;
+            fs.writeFileSync(p, JSON.stringify(j, null, 4) + "\n");
+          '
+
+      - name: Type-check and build frontend
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Install wails3 CLI (pinned to the version in go.mod)
+        shell: bash
+        run: |
+          PATH="$(go env GOPATH)/bin:$PATH"
+          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
+          wails3 -v
+
+      - name: Generate Windows resource object (icon, manifest, version info)
+        shell: bash
+        working-directory: build
+        run: |
+          PATH="$(go env GOPATH)/bin:$PATH"
+          wails3 generate syso -arch amd64 -icon windows/icon.ico \
+            -manifest windows/wails.exe.manifest \
+            -info windows/info.json \
+            -out ../wails_windows_amd64.syso
+
+      - name: Build production exe
+        shell: bash
+        run: |
+          go build -tags production -trimpath -buildvcs=false \
+            -ldflags "-w -s -H windowsgui -X github.com/neurorift/neurorift/internal/nr.Version=$VERSION" \
+            -o build/bin/neurorift.exe .
+
+      - name: Download mihomo core ($MIHOMO_TAG, direct release URL — no API)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $url = "https://github.com/MetaCubeX/mihomo/releases/download/$env:MIHOMO_TAG/mihomo-windows-amd64-$env:MIHOMO_TAG.zip"
+          Invoke-WebRequest -Uri $url -OutFile mihomo.zip
+          Expand-Archive -Path mihomo.zip -DestinationPath core_stage
+          Remove-Item mihomo.zip
+
+      - name: Assemble portable distribution
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $root = "release/NeuroRift"
+          New-Item -ItemType Directory -Force -Path "$root/core" | Out-Null
+          Copy-Item build/bin/neurorift.exe "$root/neurorift.exe"
+          Get-ChildItem core_stage -Filter "mihomo-*.exe" | Select-Object -First 1 | ForEach-Object {
+            Copy-Item $_.FullName "$root/core/mihomo.exe"
+          }
+          if (-not (Test-Path "$root/core/mihomo.exe")) { throw "mihomo.exe missing from archive" }
+          Copy-Item README.md, LICENSE, TROUBLESHOOTING.md "$root/"
+          Copy-Item docs/CHANGELOG.md "$root/CHANGELOG.md"
+          & "$root/core/mihomo.exe" -v
+          Write-Host "Staged distribution:"
+          Get-ChildItem -Recurse $root | Select-Object FullName, Length | Format-Table
+
+      - name: Create portable zip
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $zip = "NeuroRift-$env:VERSION-windows-x64.zip"
+          Compress-Archive -Path release/NeuroRift -DestinationPath $zip -CompressionLevel Optimal
+          Get-Item $zip | Select-Object Name, Length
+
+      - name: Compute SHA256 checksums
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $exe = "NeuroRift-$env:VERSION-windows-x64.exe"
+          Copy-Item build/bin/neurorift.exe $exe
+          $files = Get-ChildItem -File | Where-Object { $_.Name -match '^NeuroRift-.*\.(zip|exe)$' }
+          $lines = $files | ForEach-Object {
+            $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$h  $($_.Name)"
+          }
+          $lines | Set-Content checksums-windows-x64.txt
+          Get-Content checksums-windows-x64.txt
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: NeuroRift ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          body: |
+            Portable Windows x64 build of NeuroRift ${{ github.ref_name }}.
+
+            **Download** `NeuroRift-*-windows-x64.zip`, extract anywhere and run
+            `neurorift.exe`. The zip bundles the mihomo core (`core/mihomo.exe`)
+            so the first start works fully offline. SHA256 sums are in
+            `checksums-windows-x64.txt`.
+
+            The exe is unsigned — SmartScreen may ask for confirmation; choose
+            **More info → Run anyway** (see TROUBLESHOOTING.md). Full changes:
+            [CHANGELOG.md](blob/main/docs/CHANGELOG.md).
+          fail_on_unmatched_files: true
+          files: |
+            NeuroRift-*-windows-x64.zip
+            NeuroRift-*-windows-x64.exe
+            checksums-windows-x64.txt

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Troubleshooting guide
+    url: https://github.com/masthisis/win-proxy/blob/main/TROUBLESHOOTING.md
+    about: First-start failures, SmartScreen, WebView2, TUN and core install problems — most issues are already documented there.
+  - name: Documentation
+    url: https://github.com/masthisis/win-proxy/blob/main/docs/AI_DEVELOPER_GUIDE.md
+    about: Architecture, the frontend/backend contract and the developer guide.

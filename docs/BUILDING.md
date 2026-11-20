@@ -1,0 +1,116 @@
+# Building NeuroRift
+
+## Prerequisites
+
+| Tool | Version | Notes |
+| --- | --- | --- |
+| Go | ≥ 1.27 | must satisfy `go.mod` (currently `go 1.27.4`) |
+| Node.js + npm | ≥ 20 / ≥ 10 | frontend build |
+| Wails3 CLI | v3.1.0 | `go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0` |
+
+No cgo, no GTK, no mingw needed: the Windows target is pure Go
+(`CGO_ENABLED=0`) and the Wails CLI can be installed with
+`CGO_ENABLED=0` on headless Linux builders.
+
+## One-shot build (from the repo root)
+
+```bash
+# 1. frontend
+cd frontend && npm install && npm run build && cd ..
+
+# 2. Windows resources (icon, version info, manifest → .syso)
+cd build && wails3 generate syso -arch amd64 -icon windows/icon.ico \
+  -manifest windows/wails.exe.manifest -info windows/info.json \
+  -out ../wails_windows_amd64.syso && cd ..
+
+# 3. windows exe (13 MB, GUI subsystem, frontend + .syso embedded)
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
+  go build -tags production -trimpath -buildvcs=false \
+  -ldflags "-w -s -H windowsgui -X github.com/neurorift/neurorift/internal/nr.Version=1.0.2" \
+  -o bin/neurorift.exe .
+
+rm -f wails_windows_amd64.syso   # optional; go build already consumed it
+```
+
+The `.syso` (step 2) gives the exe its icon, Explorer version info and the
+DPI/`asInvoker` manifest. Skip it for quick test builds — never for shipped
+ones. When bumping the version, update **both** the `-ldflags -X` value and
+`build/windows/info.json`.
+
+## Using the Wails task runner (recommended for development)
+
+```bash
+wails3 task build GOOS=windows   # full pipeline incl. icons/syso
+wails3 dev                       # dev mode (needs a display; use on Windows)
+```
+
+The Taskfile (`Taskfile.yml` + `build/`) came from the official v3 template
+and is already customized (product name NeuroRift, identifier
+`app.neurorift.desktop`, version 1.0.0).
+
+## Regenerating bindings (after any service signature change)
+
+```bash
+wails3 generate bindings -d frontend/bindings -clean
+cd frontend && npm run build
+```
+
+## Build artifacts
+
+- `bin/neurorift.exe` — the whole application (UI + engine manager).
+  The mihomo core is **not bundled**; it is downloaded from the official
+  GitHub releases on first run (respects `Settings → Core → GitHub mirror
+  prefix`, with automatic fallback to the `compatible` build for pre-AVX2
+  CPUs). This keeps the binary small, licensing clean, and the core
+  always updatable from its source of truth.
+
+## Packaging a distribution
+
+`wails3 task package` (NSIS) exists, but the **shipped distribution is the
+portable zip** that CI publishes on every tag — it bundles
+`core/mihomo.exe` next to the exe:
+
+```
+neurorift.exe
+core/mihomo.exe
+README.md
+TROUBLESHOOTING.md
+CHANGELOG.md
+LICENSE
+```
+
+No installer is required (no registry writes besides optional autostart).
+The WebView2 Runtime is preinstalled on Windows 10/11 (Evergreen); on older
+or LTSC builds the app itself detects the missing runtime at startup and
+offers a guided install (see `startup_windows.go`).
+
+Push a tag `vX.Y.Z` to have the same zip built and attached to a GitHub
+Release automatically (see `.github/workflows/release.yml`).
+
+## Verifying a build
+
+1. `file bin/neurorift.exe` → `PE32+ executable for MS Windows 10.00 (GUI)`
+2. Run the integration test on the builder (Linux ok):
+   `go test -tags integration -timeout 10m ./internal/integration`
+3. `GOOS=windows go vet ./...` clean — this type-checks the Windows-only
+   startup guard (`startup_windows.go`), which Linux builds never compile.
+4. On a Windows machine: run the exe, accept the first-run core download,
+   import a subscription, run a latency + speed test, toggle system proxy,
+   verify tray menu actions.
+
+## Startup diagnostics (why a window may not appear)
+
+Release builds have no console. Three mechanisms make failures visible
+(see `crashlog.go` / `startup_windows.go`):
+
+1. `%APPDATA%\NeuroRift\logs\startup.log` — written from the first
+   statement of `main()`; captures early fatals and panics with stacks.
+2. `Options.ErrorHandler` — Wails errors (fatal, and first-occurrence
+   non-fatal) raise a native MessageBox instead of exiting silently.
+3. `ensureWebView2` — pre-flights the WebView2 Evergreen runtime (the usual
+   culprit on Windows 10 LTSC / stripped-down installs) and offers a guided
+   installer instead of a silent exit.
+
+When a user reports "it does not open", ask for both log files:
+`%APPDATA%\NeuroRift\logs\startup.log` and `neurorift.log` — and point
+them at TROUBLESHOOTING.md.

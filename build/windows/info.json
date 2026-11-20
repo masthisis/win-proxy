@@ -1,0 +1,17 @@
+{
+        "fixed": {
+                "file_version": "1.0.2",
+                "product_version": "1.0.2"
+        },
+        "info": {
+                "0409": {
+                        "FileVersion": "1.0.2",
+                        "ProductVersion": "1.0.2",
+                        "CompanyName": "NeuroRift Project",
+                        "FileDescription": "NeuroRift — a fast, modern proxy cockpit powered by mihomo",
+                        "LegalCopyright": "© 2026 NeuroRift Project contributors",
+                        "ProductName": "NeuroRift",
+                        "Comments": "Built with Wails v3 and the mihomo core"
+                }
+        }
+}

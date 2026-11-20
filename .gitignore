@@ -1,0 +1,31 @@
+# build outputs
+bin/
+build/bin/
+frontend/dist/
+*.exe
+*.syso
+
+# deps
+node_modules/
+frontend/node_modules/
+
+# toolchains
+sdk/
+
+# runtime data (dev runs)
+*.log
+.DS_Store
+
+# wails build metadata is tracked; ignore only generated artifacts
+
+# release staging (CI + local packaging)
+release/
+*.zip
+
+# task runner cache
+.task/
+
+# local env / coverage
+.env
+coverage.*
+*.msix

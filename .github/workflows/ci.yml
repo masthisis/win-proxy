@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Type-check and build frontend
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Vet (Windows target, includes test files)
+        run: |
+          GOOS=windows CGO_ENABLED=0 go vet ./...
+
+      - name: Unit tests
+        run: |
+          CGO_ENABLED=0 go test ./internal/... ./build/android/scripts/deps/...
+
+  build:
+    name: Build (Windows x64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Type-check and build frontend
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Install wails3 CLI (pinned to the version in go.mod)
+        shell: bash
+        run: |
+          PATH="$(go env GOPATH)/bin:$PATH"
+          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.1.0
+          wails3 -v
+
+      - name: Generate Windows resource object (icon, manifest, version info)
+        shell: bash
+        working-directory: build
+        run: |
+          PATH="$(go env GOPATH)/bin:$PATH"
+          wails3 generate syso -arch amd64 -icon windows/icon.ico \
+            -manifest windows/wails.exe.manifest \
+            -info windows/info.json \
+            -out ../wails_windows_amd64.syso
+
+      - name: Build production exe
+        shell: bash
+        run: |
+          go build -tags production -trimpath -buildvcs=false \
+            -ldflags "-w -s -H windowsgui -X github.com/neurorift/neurorift/internal/nr.Version=dev-${GITHUB_SHA::7}" \
+            -o build/bin/neurorift.exe .
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: neurorift-windows-x64
+          path: build/bin/neurorift.exe
+          if-no-files-found: error

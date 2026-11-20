@@ -1,0 +1,80 @@
+name: Bug report
+description: Report something that is broken or behaves unexpectedly.
+labels: ['bug', 'triage']
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the problem, including the exact error text if any.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Click …
+        3. …
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: dropdown
+    id: windows-version
+    attributes:
+      label: Windows version
+      options:
+        - Windows 11
+        - Windows 10 (22H2)
+        - Windows 10 (older)
+        - Windows Server
+    validations:
+      required: true
+
+  - type: input
+    id: app-version
+    attributes:
+      label: NeuroRift version
+      description: Shown in About, or the release tag you downloaded.
+      placeholder: v1.0.2
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: mode
+    attributes:
+      label: Which connection mode was active?
+      options:
+        - label: System proxy
+        - label: TUN mode
+        - label: Neither / not connected
+
+  - type: checkboxes
+    id: tun-admin
+    attributes:
+      label: TUN only — how was the app started?
+      options:
+        - label: Elevated (Run as administrator)
+        - label: Normal (no elevation)
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log output
+      description: Attach or paste the newest file from `%APPDATA%\NeuroRift\logs\`. Redact server addresses and credentials.
+      render: shell
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Antivirus in use, VPN software running in parallel, screenshots.
