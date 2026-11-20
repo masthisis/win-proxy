@@ -14,7 +14,7 @@
   --success: #34d399;
   --warn: #f59e0b;
   --danger: #f87171;
-  --radius-panel: 10px;
+  --radius-panel: 12px;
   --radius-ctrl: 8px;
   --font: "Segoe UI", "Inter", system-ui, sans-serif;
   --mono: "Cascadia Mono", "Consolas", "SF Mono", ui-monospace, monospace;
@@ -31,6 +31,7 @@
 html,
 body {
   height: 100%;
+  background: var(--bg);
 }
 
 body {
@@ -154,10 +155,17 @@ a {
 .shell {
   height: 100vh;
   display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(1100px 340px at 18% -8%, rgb(34 211 238 / 0.05), transparent 62%),
+    radial-gradient(900px 300px at 92% -12%, rgb(167 139 250 / 0.045), transparent 60%);
 }
 
-.shell {
-  flex-direction: row;
+/* Body row: sidebar + main (below the custom titlebar, issue #45). */
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
 }
 
 .sidebar {
@@ -241,23 +249,107 @@ a {
   flex-direction: column;
 }
 
-.topbar {
-  height: 48px;
+/* ---------- custom titlebar (issue #45, borderless window) ---------- */
+
+/* Drag region: the bar and its passive children drag the window; the
+   right-hand cluster (traffic widget, buttons, window controls) opts out
+   (Wails v3 checks --wails-draggable on the event TARGET, issue #45). */
+.titlebar,
+.titlebar .tb-left,
+.titlebar .tb-app,
+.titlebar .tb-page,
+.titlebar .tb-sep {
+  --wails-draggable: drag;
+}
+
+.tb-right,
+.tb-right * {
+  --wails-draggable: no-drag;
+}
+
+.titlebar {
+  height: 40px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 0 18px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 0 0 14px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
+  user-select: none;
 }
 
-.topbar .page-title {
-  flex: 1;
+.tb-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
+  color: var(--text);
+}
+
+.tb-app {
+  font-weight: 650;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.tb-app em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.tb-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+}
+
+.tb-page {
+  font-size: 12.5px;
+  color: var(--text-dim);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tb-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 100%;
+}
+
+.tb-controls {
+  display: flex;
+  height: 100%;
+  margin-inline-start: 4px;
+}
+
+.tb-btn {
+  width: 44px;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  transition: background 0.12s, color 0.12s;
+}
+
+.tb-btn:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.tb-btn.tb-close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+.tb-btn svg {
+  pointer-events: none;
 }
 
 .pill-btn {

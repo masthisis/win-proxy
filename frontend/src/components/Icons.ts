@@ -37,6 +37,8 @@ function icon(name: string, children: () => VNode[]) {
 
 const p = (d: string): VNode => h("path", { d });
 const c = (cx: number, cy: number, r: number): VNode => h("circle", { cx, cy, r });
+const rect = (x: number, y: number, w: number, hh: number): VNode =>
+  h("rect", { x, y, width: w, height: hh, rx: 1 });
 
 export const IconDashboard = icon("IconDashboard", () => [
   p("M3 3h8v8H3z"),
@@ -188,3 +190,12 @@ export const IconExternal = icon("IconExternal", () => [
 ]);
 
 export const IconChevron = icon("IconChevron", () => [p("M9 6l6 6-6 6")]);
+
+// Window control glyphs (issue #45 — custom titlebar).
+export const IconWinMin = icon("IconWinMin", () => [p("M5 12h14")]);
+export const IconWinMax = icon("IconWinMax", () => [rect(6.5, 6.5, 11, 11)]);
+export const IconWinRestore = icon("IconWinRestore", () => [
+  p("M8.5 8.5v-2h9v9h-2"),
+  rect(6, 6, 10, 10),
+]);
+export const IconWinClose = icon("IconWinClose", () => [p("M6.5 6.5l11 11"), p("M17.5 6.5l-11 11")]);

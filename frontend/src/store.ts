@@ -555,6 +555,16 @@ function subscribeEvents(): void {
     void refreshSettings();
   });
   Events.On(EV.appUpdate, onAppUpdate);
+
+  // Tray-menu actions (main.go emits these directly on the app event bus);
+  // without them the tray toggles leave the UI stale (found during #45).
+  Events.On("tray:sysproxy", () => {
+    void refreshSysProxy();
+  });
+  Events.On("tray:mode", (ev: WailsEventLike) => {
+    const mode = ev.data as string;
+    if (typeof mode === "string" && mode) store.mode = mode;
+  });
 }
 
 /* ------------------------------------------------------------------ */

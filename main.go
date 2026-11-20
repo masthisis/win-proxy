@@ -210,6 +210,11 @@ func main() {
 		URL:              "/",
 		BackgroundColour: application.NewRGB(10, 12, 18),
 		Hidden:           startMinimized,
+		// Issue #45: borderless Proton-style window — the custom TitleBar
+		// (frontend/src/components/TitleBar.vue) owns the drag region and
+		// window controls; Wails keeps native resize, snap and the Win 11
+		// rounded corners + shadow (DisableFramelessWindowDecorations=false).
+		Frameless: true,
 		Windows: application.WindowsWindow{
 			Theme: application.Dark,
 		},
