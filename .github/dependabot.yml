@@ -18,6 +18,14 @@ updates:
       prefix: chore
     labels:
       - dependencies
+    ignore:
+      # TypeScript 7 removed the ./lib/tsc subpath that vue-tsc probes
+      # (@volar declares peerOptional typescript@"<7"), so the frontend
+      # type-check cannot run against TS 7 yet. See issue #23 and the
+      # closed dependabot PR for the CI evidence. Remove this ignore as
+      # soon as a vue-tsc/@volar release supports TypeScript 7.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
