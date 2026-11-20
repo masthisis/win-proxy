@@ -8,6 +8,7 @@ import * as ProxyService from "./proxyservice.js";
 import * as SettingsService from "./settingsservice.js";
 import * as SysService from "./sysservice.js";
 import * as TestService from "./testservice.js";
+import * as UpdateService from "./updateservice.js";
 export {
     AppService,
     CoreService,
@@ -15,7 +16,8 @@ export {
     ProxyService,
     SettingsService,
     SysService,
-    TestService
+    TestService,
+    UpdateService
 };
 
 export type {

@@ -10,5 +10,6 @@ export type {
     Settings,
     Subscription,
     Test,
-    Tun
+    Tun,
+    Updates
 } from "./models.js";

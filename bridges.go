@@ -15,6 +15,7 @@ var (
 	autostartOnFn   func(args []string) error
 	autostartOffFn  func() error
 	autostartIsOnFn func() (bool, error)
+	quitFn          func()
 )
 
 var errBridgeUnavailable = errors.New("runtime bridge not ready")
@@ -71,4 +72,12 @@ func autostartEnabled() (bool, error) {
 		return false, errBridgeUnavailable
 	}
 	return autostartIsOnFn()
+}
+
+// quitApp exits the whole Wails application (used by the self-updater to
+// hand over to the installer; safe no-op before the app is created).
+func quitApp() {
+	if quitFn != nil {
+		quitFn()
+	}
 }

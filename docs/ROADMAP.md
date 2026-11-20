@@ -20,8 +20,6 @@ released.
   presets (5/25/100 MB).
 - **Latency history sparklines** per node (mihomo delay history is already
   surfaced through `GroupUI`).
-- **App self-update** check (GitHub releases) with one-click download of
-  the installer (core self-update already exists).
 
 ## v2 (bigger)
 

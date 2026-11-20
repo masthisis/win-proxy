@@ -9,15 +9,17 @@ import (
         "runtime"
         "strings"
         "testing"
+
+        "github.com/neurorift/neurorift/internal/ghfetch"
 )
 
 // withIsolatedMirrors disables built-in mirrors and the user prefix so
 // unit tests never touch the network.
 func withIsolatedMirrors(t *testing.T, prefix string) {
         t.Helper()
-        oldMirrors := builtinMirrors
-        builtinMirrors = nil
-        t.Cleanup(func() { builtinMirrors = oldMirrors })
+        oldMirrors := ghfetch.BuiltinMirrors
+        ghfetch.BuiltinMirrors = nil
+        t.Cleanup(func() { ghfetch.BuiltinMirrors = oldMirrors })
 }
 
 func TestGitHubURLs_MirrorChain(t *testing.T) {
@@ -31,7 +33,7 @@ func TestGitHubURLs_MirrorChain(t *testing.T) {
         }
 
         // restore builtins and add a user prefix
-        builtinMirrors = []string{"https://m1.example/", "https://m2.example/"}
+        ghfetch.BuiltinMirrors = []string{"https://m1.example/", "https://m2.example/"}
         c.GhProxyPrefix = func() string { return "https://user.example/" }
         got = c.githubURLs("https://github.com/a/b")
         want := []string{

@@ -12,6 +12,19 @@
   opts in). The bare standalone exe asset is retired; the portable zip stays
   as a secondary artifact and README/BUILDING/TROUBLESHOOTING document the
   new flow.
+- **In-app self-update (#13).** NeuroRift now checks GitHub for its own new
+  releases (background check on launch + daily, consent-gated, mirror-aware,
+  never touching api.github.com — stable via the /releases/latest redirect,
+  prereleases via releases.atom) and can install them in place: download the
+  setup exe with progress, verify its SHA256 against checksums-windows-x64.txt
+  (mismatch discards the download), then run it silently (`/S /update`) —
+  the engine is stopped, the OS proxy restored, the app quits and the
+  installer relaunches the new version. Settings gains an *Application
+  updates* section (auto-check + prerelease toggles, current vs latest,
+  check/download/install buttons, release-notes link); a toast announces a
+  new version exactly once per release. Portable copies degrade gracefully
+  (install refused, releases page offered). The GitHub fetch layer was
+  extracted into internal/ghfetch and shared with the core updater.
 - **Boot-phase telemetry (#27).** Every launch now records how long each
   startup phase took — `crashlog`, `webview2_check`, `container`,
   `wails_init`, `webview_ready` — and writes one summary line

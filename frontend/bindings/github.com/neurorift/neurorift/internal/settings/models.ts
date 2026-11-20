@@ -133,6 +133,7 @@ export interface Settings {
     "tun": Tun;
     "subscription": Subscription;
     "log": Log;
+    "updates": Updates;
 
     /**
      * ControllerSecret authenticates the local mihomo API (auto-generated).
@@ -215,4 +216,20 @@ export interface Tun {
      * system | gvisor | mixed
      */
     "stack": string;
+}
+
+/**
+ * Updates configures the application self-update checker (#13).
+ */
+export interface Updates {
+    /**
+     * AutoCheck enables the background check (launch + daily). It only
+     * checks and notifies — install always needs explicit consent.
+     */
+    "autoCheck": boolean;
+
+    /**
+     * IncludePrerelease also considers -rc/-beta releases.
+     */
+    "includePrerelease": boolean;
 }

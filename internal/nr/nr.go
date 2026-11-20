@@ -15,8 +15,12 @@ const AppName = "NeuroRift"
 // registry keys.
 const AppIdentifier = "app.neurorift.desktop"
 
+// UpdateRepo is the "owner/name" repository the self-updater (#13) queries
+// for new NeuroRift releases.
+const UpdateRepo = "masthisis/win-proxy"
+
 // Version is overridden at build time via -ldflags "-X ...".
-var Version = "1.0.2"
+var Version = "1.1.0"
 
 // Event names emitted on the Wails event bus (backend -> frontend).
 const (
@@ -33,6 +37,7 @@ const (
         EventConnections     = "net:connections"  // payload: engine.ConnectionsSnapshot
         EventLogsCore        = "core:logs"        // payload: []string (batched lines)
         EventSettingsChanged = "settings:changed" // payload: nil (re-fetch via API)
+        EventAppUpdate       = "app:update"       // payload: selfupdate.Status
         // Tray-originated events (emitted directly from main.go, not the bus).
         EventTraySysProxy = "tray:sysproxy" // payload: bool
         EventTrayMode     = "tray:mode"     // payload: string (rule|global|direct)
