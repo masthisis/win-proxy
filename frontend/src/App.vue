@@ -9,6 +9,7 @@ import Toasts from "./components/Toasts.vue";
 import Modal from "./components/Modal.vue";
 import TrafficGraph from "./components/TrafficGraph.vue";
 import StatusPill from "./components/StatusPill.vue";
+import UpdateProgress from "./components/UpdateProgress.vue";
 import Dashboard from "./views/Dashboard.vue";
 import Profiles from "./views/Profiles.vue";
 import Test from "./views/Test.vue";
@@ -92,6 +93,7 @@ onMounted(() => {
       <header class="topbar">
         <h1 class="page-title">{{ title }}</h1>
         <div class="top-status">
+          <UpdateProgress />
           <div class="traffic-widget" :title="t('header.traffic')">
             <TrafficGraph :down="store.trafficDown" :up="store.trafficUp" :width="96" :height="26" />
             <span class="rates">

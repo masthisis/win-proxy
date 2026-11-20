@@ -259,6 +259,10 @@ func forwardEvents(c *Container, app *application.App) {
 		nr.EventSpeedProgress, nr.EventSpeedDone, nr.EventFailover,
 		nr.EventTraffic, nr.EventConnections, nr.EventLogsCore,
 		nr.EventSettingsChanged, nr.EventGroupsRefresh,
+		// Issue #41: these three were missing from the forwarding list —
+		// self-update progress, crash-loop alerts and report state changes
+		// never reached the webview.
+		nr.EventAppUpdate, nr.EventCoreCrashLoop, nr.EventReportsChanged,
 	} {
 		fwd(topic)
 	}

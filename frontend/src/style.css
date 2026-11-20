@@ -963,6 +963,51 @@ table.tbl {
   background: var(--warn);
 }
 
+.progress.thin {
+  height: 4px;
+}
+
+/* ---------- header update chip (issue #41) ---------- */
+
+.update-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(86, 122, 255, 0.08);
+  min-width: 148px;
+}
+
+.update-chip-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.update-chip-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.update-chip .spin-slow {
+  animation: chip-pulse 1.6s ease-in-out infinite;
+  color: var(--accent);
+}
+
+@keyframes chip-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
 /* ---------- spinner ---------- */
 
 .spinner {

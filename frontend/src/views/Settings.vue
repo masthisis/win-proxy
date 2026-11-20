@@ -544,6 +544,17 @@ async function openFolder(which: "config" | "core" | "logs"): Promise<void> {
             </div>
           </div>
 
+          <!-- Issue #41: installing stage with indeterminate bar -->
+          <div v-else-if="upd?.state === 'restarting'" style="margin-top: 10px">
+            <div class="row" style="margin-bottom: 5px; gap: 8px">
+              <span class="spinner" style="border-top-color: var(--accent)" />
+              <span class="dim small">{{ upd.detail || t("update.restarting") }}</span>
+            </div>
+            <div class="progress indeterminate">
+              <div class="bar" style="width: 40%" />
+            </div>
+          </div>
+
           <div v-if="!upd?.installed && upd?.state === 'available'" class="error-box" style="margin-top: 10px">
             <IconWarn :size="15" />
             <span>{{ t("update.portableHint") }}</span>
