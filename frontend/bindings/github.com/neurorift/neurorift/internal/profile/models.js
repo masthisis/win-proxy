@@ -36,6 +36,59 @@ export const Kind = {
 };
 
 /**
+ * LintIssue is one validation finding with a 1-based source position.
+ */
+export class LintIssue {
+    /**
+     * Creates a new LintIssue instance.
+     * @param {Partial<LintIssue>} [$$source = {}] - The source object to create the LintIssue.
+     */
+    constructor($$source = {}) {
+        if (!("line" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["line"] = 0;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {number | undefined}
+             */
+            this["column"] = undefined;
+        }
+        if (!("message" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["message"] = "";
+        }
+        if (!("fatal" in $$source)) {
+            /**
+             * Fatal marks a syntax error — nothing else could be checked.
+             * @member
+             * @type {boolean}
+             */
+            this["fatal"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LintIssue instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LintIssue}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LintIssue(/** @type {Partial<LintIssue>} */($$parsedSource));
+    }
+}
+
+/**
  * Profile is one persisted entry in the profile registry.
  */
 export class Profile {
@@ -144,6 +197,49 @@ export class Profile {
             $$parsedSource["subInfo"] = $$createField8_0($$parsedSource["subInfo"]);
         }
         return new Profile(/** @type {Partial<Profile>} */($$parsedSource));
+    }
+}
+
+/**
+ * RawEditResult is the outcome of an UpdateRaw call: either OK, or the list
+ * of validation issues that blocked the save.
+ */
+export class RawEditResult {
+    /**
+     * Creates a new RawEditResult instance.
+     * @param {Partial<RawEditResult>} [$$source = {}] - The source object to create the RawEditResult.
+     */
+    constructor($$source = {}) {
+        if (!("ok" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["ok"] = false;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {LintIssue[] | undefined}
+             */
+            this["issues"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RawEditResult instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {RawEditResult}
+     */
+    static createFrom($$source = {}) {
+        const $$createField1_0 = $$createType3;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("issues" in $$parsedSource) {
+            $$parsedSource["issues"] = $$createField1_0($$parsedSource["issues"]);
+        }
+        return new RawEditResult(/** @type {Partial<RawEditResult>} */($$parsedSource));
     }
 }
 
@@ -259,7 +355,7 @@ export class UpdateSummary {
      * @returns {UpdateSummary}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType2;
+        const $$createField3_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("errors" in $$parsedSource) {
             $$parsedSource["errors"] = $$createField3_0($$parsedSource["errors"]);
@@ -271,4 +367,6 @@ export class UpdateSummary {
 // Private type creation functions
 const $$createType0 = SubscriptionInfo.createFrom;
 const $$createType1 = $Create.Nullable($$createType0);
-const $$createType2 = $Create.Map($Create.Any, $Create.Any);
+const $$createType2 = LintIssue.createFrom;
+const $$createType3 = $Create.Array($$createType2);
+const $$createType4 = $Create.Map($Create.Any, $Create.Any);

@@ -74,6 +74,16 @@ export function GetNodes(id) {
 }
 
 /**
+ * GetRaw returns the raw YAML of a profile (#49) — editable for
+ * clash/local profiles, a read-only provider export for nodes profiles.
+ * @param {string} id
+ * @returns {$CancellablePromise<string>}
+ */
+export function GetRaw(id) {
+    return $Call.ByID(3656545750, id);
+}
+
+/**
  * ImportFromClipboard reads the clipboard and imports it as a new profile.
  * Returns the created profile or an error describing why the content was
  * rejected.
@@ -165,6 +175,31 @@ export function UpdateAll() {
     }));
 }
 
+/**
+ * UpdateRaw saves edited profile YAML; validation problems come back as
+ * lint issues (result.ok=false) so the editor can show them inline (#49).
+ * @param {string} id
+ * @param {string} content
+ * @returns {$CancellablePromise<profile$0.RawEditResult>}
+ */
+export function UpdateRaw(id, content) {
+    return $Call.ByID(2730273537, id, content).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType6($result);
+    }));
+}
+
+/**
+ * ValidateRaw lints YAML text without saving anything (live validation
+ * for the editor, debounced on the frontend; issue #49).
+ * @param {string} content
+ * @returns {$CancellablePromise<profile$0.LintIssue[]>}
+ */
+export function ValidateRaw(content) {
+    return $Call.ByID(2110768460, content).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType8($result);
+    }));
+}
+
 // Private type creation functions
 const $$createType0 = profile$0.Profile.createFrom;
 const $$createType1 = $Create.Nullable($$createType0);
@@ -172,3 +207,6 @@ const $$createType2 = $Create.Array($Create.Any);
 const $$createType3 = $Create.Array($$createType0);
 const $$createType4 = profile$0.UpdateSummary.createFrom;
 const $$createType5 = $Create.Nullable($$createType4);
+const $$createType6 = profile$0.RawEditResult.createFrom;
+const $$createType7 = profile$0.LintIssue.createFrom;
+const $$createType8 = $Create.Array($$createType7);

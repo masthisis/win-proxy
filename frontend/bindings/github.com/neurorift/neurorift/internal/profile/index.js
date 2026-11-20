@@ -4,7 +4,9 @@
 
 export {
     Kind,
+    LintIssue,
     Profile,
+    RawEditResult,
     SubscriptionInfo,
     Summary,
     UpdateSummary
