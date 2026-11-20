@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -50,7 +51,59 @@ func newMemoryStreamServer(t *testing.T, lines int64) *httptest.Server {
 }
 
 func apiForServer(srv *httptest.Server) *API {
-	return &API{base: srv.URL, secret: "", client: srv.Client()}
+	return &API{base: srv.URL, secret: "", client: srv.Client(), streamClient: srv.Client()}
+}
+
+// TestStreamClientConstruction (issue #39): the one-shot client MUST keep
+// its 30 s Timeout while the streaming client MUST NOT have one —
+// http.Client.Timeout covers body reads, and the /traffic, /memory, /logs
+// bodies never end. This is the structural pin behind the runtime test
+// below; if someone "simplifies" the clients back into one shared instance,
+// this fails before the 30 s bug can ship again.
+func TestStreamClientConstruction(t *testing.T) {
+	api := NewAPI(9097, "secret")
+	if api.client == nil || api.client.Timeout != 30*time.Second {
+		t.Errorf("one-shot client timeout = %v, want 30s", api.client.Timeout)
+	}
+	if api.streamClient == nil {
+		t.Fatal("streamClient is nil — StreamLine would panic")
+	}
+	if api.streamClient.Timeout != 0 {
+		t.Errorf("stream client has overall Timeout %v — never-ending bodies would be cut after that (issue #39)", api.streamClient.Timeout)
+	}
+}
+
+// TestStreamLine_NotCutByClientTimeout (issue #39): a stream must keep
+// delivering samples far beyond what a one-shot client's overall Timeout
+// would allow. The fake server emits one line per 200 ms; the one-shot
+// client here is capped at 600 ms. If StreamLine still used it, samples
+// would stop after ~3 lines.
+func TestStreamLine_NotCutByClientTimeout(t *testing.T) {
+	srv := newMemoryStreamServer(t, -1)
+	api := &API{
+		base:   srv.URL,
+		client: &http.Client{Timeout: 600 * time.Millisecond}, // simulates the old shared client
+		streamClient: &http.Client{Transport: &http.Transport{
+			DialContext:           (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
+			ResponseHeaderTimeout: 10 * time.Second,
+		}},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	var last atomic.Int64
+	_ = api.StreamLine(ctx, "/memory", func(line []byte) {
+		var m struct {
+			InUse int64 `json:"inuse"`
+		}
+		if json.Unmarshal(line, &m) == nil {
+			last.Store(m.InUse)
+		}
+	})
+	// 2 s of 200 ms ticks ≈ 10 samples (100..109). A stream cut at 600 ms
+	// would stall at ≈103.
+	if last.Load() < 106 {
+		t.Fatalf("stream stalled at sample %d — the overall client Timeout is cutting never-ending bodies (issue #39)", last.Load())
+	}
 }
 
 // TestStreamLine_Memory_NeverTerminates proves a chunked /memory stream is
