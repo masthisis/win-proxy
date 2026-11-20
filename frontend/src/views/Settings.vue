@@ -1,8 +1,12 @@
 <script setup lang="ts">
 /** Settings: full settings document editor with collapsible sections. */
-import { computed, reactive, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
+import { Events } from "@wailsio/runtime";
+import { EV } from "../lib/events";
 import * as SettingsSvc from "../../bindings/github.com/neurorift/neurorift/settingsservice.js";
 import * as Sys from "../../bindings/github.com/neurorift/neurorift/sysservice.js";
+import * as ReportSvc from "../../bindings/github.com/neurorift/neurorift/reportservice.js";
+import type { PendingInfo } from "../../bindings/github.com/neurorift/neurorift/models.js";
 import type { Settings as SettingsDoc } from "../../bindings/github.com/neurorift/neurorift/internal/settings/models.js";
 import { store, checkAppUpdate, downloadAppUpdate, installAppUpdate, openUpdateNotes } from "../store";
 import { t, setLang, type Lang } from "../lib/i18n";
@@ -45,6 +49,7 @@ const open = reactive<Record<string, boolean>>({
   tun: false,
   subscriptions: false,
   updates: false,
+  reporting: false,
 });
 
 const SECTIONS = [
@@ -57,12 +62,102 @@ const SECTIONS = [
   { id: "tun", label: "settings.secTun" },
   { id: "subscriptions", label: "settings.secSubscriptions" },
   { id: "updates", label: "settings.secUpdates" },
+  { id: "reporting", label: "settings.secReporting" },
 ] as const;
 
 const upd = computed(() => store.appUpdate);
 const updBusy = computed(
   () => upd.value?.state === "checking" || upd.value?.state === "downloading" || upd.value?.state === "restarting",
 );
+
+// ---- problem reporting (#36) ----
+const pending = ref<PendingInfo[]>([]);
+const reportBusy = ref(false);
+
+async function loadPending(): Promise<void> {
+  try {
+    pending.value = (await ReportSvc.Pending()) ?? [];
+  } catch {
+    pending.value = [];
+  }
+}
+
+function toggleReporting(openIt: boolean): void {
+  open.reporting = openIt;
+  if (openIt) loadPending();
+}
+
+async function sendTestReport(): Promise<void> {
+  if (reportBusy.value) return;
+  reportBusy.value = true;
+  try {
+    await ReportSvc.SendTestReport();
+    toast.success(t("reporting.sentToast"));
+  } catch (e) {
+    toast.error(`${t("reporting.failed")}: ${errMsg(e)}`);
+  } finally {
+    reportBusy.value = false;
+    loadPending();
+  }
+}
+
+async function sendOne(id: string): Promise<void> {
+  if (reportBusy.value) return;
+  reportBusy.value = true;
+  try {
+    await ReportSvc.Send(id);
+    toast.success(t("reporting.sentToast"));
+  } catch (e) {
+    toast.error(`${t("reporting.failed")}: ${errMsg(e)}`);
+  } finally {
+    reportBusy.value = false;
+    loadPending();
+  }
+}
+
+async function sendAllReports(): Promise<void> {
+  if (reportBusy.value) return;
+  reportBusy.value = true;
+  try {
+    const n = await ReportSvc.SendAll();
+    toast.success(t("reporting.sentCountToast", { n }));
+  } catch (e) {
+    toast.error(`${t("reporting.failed")}: ${errMsg(e)}`);
+  } finally {
+    reportBusy.value = false;
+    loadPending();
+  }
+}
+
+async function deleteOne(id: string): Promise<void> {
+  try {
+    await ReportSvc.Delete(id);
+    toast.info(t("reporting.deleteToast"));
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    loadPending();
+  }
+}
+
+async function openReportsFolder(): Promise<void> {
+  try {
+    await ReportSvc.OpenFolder();
+  } catch (e) {
+    toast.error(errMsg(e));
+  }
+}
+
+const tokenHelpURL = "https://github.com/settings/personal-access-tokens/new";
+
+// Live-refresh the pending list while the settings view is mounted (#36).
+let offReports: (() => void) | undefined;
+onMounted(() => {
+  offReports = Events.On(EV.reportsChanged, () => loadPending()) as unknown as () => void;
+});
+onUnmounted(() => {
+  offReports?.();
+});
 
 function clone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T;
@@ -471,6 +566,81 @@ async function openFolder(which: "config" | "core" | "logs"): Promise<void> {
             <button v-if="upd?.latest" class="btn sm" @click="openUpdateNotes()">
               <IconExternal :size="12" />
               {{ t("update.releaseNotes") }}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Problem reporting (#36) -->
+      <section class="panel">
+        <button class="section-head" :aria-expanded="open.reporting" @click="toggleReporting(!open.reporting)">
+          <IconChevron :size="14" class="chev" :class="{ open: open.reporting }" />
+          {{ t("settings.secReporting") }}
+        </button>
+        <div v-if="open.reporting" style="margin-top: 12px">
+          <p class="dim small" style="margin-bottom: 10px">{{ t("reporting.desc") }}</p>
+
+          <div class="form-grid">
+            <label class="checkbox">
+              <input v-model="form.reporting.enable" type="checkbox" />
+              <span class="box" />
+              <span>{{ t("reporting.enable") }}</span>
+            </label>
+          </div>
+
+          <div class="form-grid" style="margin-top: 10px">
+            <label class="field">
+              <span class="label">{{ t("reporting.token") }}</span>
+              <input
+                v-model="form.reporting.githubToken"
+                type="password"
+                :placeholder="t('reporting.tokenPlaceholder')"
+                autocomplete="off"
+                spellcheck="false"
+                class="mono"
+              />
+            </label>
+          </div>
+          <div class="row" style="margin-top: 6px; align-items: center; flex-wrap: wrap">
+            <span class="dim small">{{ t("reporting.tokenHelp") }}</span>
+            <button class="btn sm" @click="Sys.OpenURL(tokenHelpURL)">
+              <IconExternal :size="12" />
+              {{ t("reporting.createToken") }}
+            </button>
+          </div>
+
+          <div v-if="pending.length === 0" class="dim small" style="margin-top: 12px">
+            {{ t("reporting.pendingEmpty") }}
+          </div>
+          <div v-else style="margin-top: 12px">
+            <div class="row" style="justify-content: space-between">
+              <strong class="small">{{ t("reporting.pending") }} ({{ pending.length }})</strong>
+              <button class="btn sm" :disabled="reportBusy" @click="sendAllReports()">
+                <IconRefresh :size="12" />
+                {{ t("reporting.sendAll") }}
+              </button>
+            </div>
+            <div v-for="p in pending" :key="p.id" class="row" style="justify-content: space-between; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 8px">
+              <div style="min-width: 0">
+                <div class="small"><span class="badge warn">{{ p.type }}</span> {{ p.detail }}</div>
+                <div class="dim" style="font-size: 11px">v{{ p.version }} · {{ p.time }} · sig {{ p.signature }}</div>
+              </div>
+              <div class="row" style="flex-shrink: 0">
+                <button class="btn sm primary" :disabled="reportBusy" @click="sendOne(p.id)">{{ t("reporting.send") }}</button>
+                <button class="btn sm" @click="deleteOne(p.id)">{{ t("reporting.delete") }}</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 14px; flex-wrap: wrap">
+            <button class="btn sm" :disabled="reportBusy" @click="sendTestReport()">
+              <span v-if="reportBusy" class="spinner" style="width: 11px; height: 11px" />
+              <IconRefresh v-else :size="12" />
+              {{ reportBusy ? t("reporting.testing") : t("reporting.test") }}
+            </button>
+            <button class="btn sm" @click="openReportsFolder()">
+              <IconFolder :size="12" />
+              {{ t("reporting.openFolder") }}
             </button>
           </div>
         </div>

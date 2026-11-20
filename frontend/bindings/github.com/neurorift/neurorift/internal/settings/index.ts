@@ -7,6 +7,7 @@ export type {
     Failover,
     Log,
     Ports,
+    Reporting,
     Settings,
     Subscription,
     Test,

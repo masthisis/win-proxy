@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strings"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -25,6 +26,7 @@ import (
 	"github.com/neurorift/neurorift/internal/engine"
 	"github.com/neurorift/neurorift/internal/nr"
 	"github.com/neurorift/neurorift/internal/platform"
+	"github.com/neurorift/neurorift/internal/reporting"
 	"github.com/neurorift/neurorift/internal/singleinstance"
 )
 
@@ -118,6 +120,11 @@ func main() {
 	defer func() {
 		if r := recover(); r != nil {
 			cl.writePanic(r)
+			// Issue #36: file a problem report (pending on disk;
+			// drained on the next launch if the process dies now).
+			reporting.Enqueue(reporting.TypePanic,
+				fmt.Sprintf("panic in the main goroutine: %v", r),
+				string(debug.Stack()), nil)
 			notifyError(cl, nil, fmt.Errorf("panic during startup: %v", r), true)
 			os.Exit(1)
 		}
@@ -162,6 +169,13 @@ func main() {
 		// right after), non-fatal ones once per unique message.
 		ErrorHandler: func(err error) {
 			var fe *application.FatalError
+			if errors.As(err, &fe) {
+				// Issue #36: fatal runtime errors are exactly the
+				// "it just died" class that must be reported.
+				reporting.Enqueue(reporting.TypeFatal,
+					fmt.Sprintf("fatal runtime error: %v", err),
+					"", nil)
+			}
 			notifyError(cl, container.Log, err, errors.As(err, &fe))
 		},
 		Services: []application.Service{
@@ -174,6 +188,7 @@ func main() {
 			application.NewService(&TestService{c: container}),
 			application.NewService(&SysService{c: container}),
 			application.NewService(&UpdateService{c: container}),
+			application.NewService(&ReportService{c: container}),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

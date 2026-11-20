@@ -20,6 +20,8 @@ export const EV = {
   coreLogs: "core:logs",
   settingsChanged: "settings:changed",
   appUpdate: "app:update",
+  coreCrashLoop: "core:crashloop", // payload: string detail (issue #36)
+  reportsChanged: "reports:changed", // payload: nil — pending set changed (issue #36)
 } as const;
 
 /** engine.Status (payload of core:status). */

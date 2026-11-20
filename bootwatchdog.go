@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/neurorift/neurorift/internal/appmeta"
+	"github.com/neurorift/neurorift/internal/reporting"
 )
 
 // bootCompleted flips to true when lifecycle.ServiceStartup finishes — the
@@ -54,6 +55,13 @@ func armBootWatchdog(cl *crashLog) {
 			// The stack tail also goes into startup.log for one-file triage.
 			cl.Printf("stack tail:\n%s", tailOf(dump, 4000))
 		}
+		// Issue #36: file a problem report carrying the goroutine dump.
+		// This runs before the Container exists, so Enqueue persists the
+		// bundle to disk; the next successful launch files it on GitHub.
+		reporting.Enqueue(reporting.TypeBootStall,
+			fmt.Sprintf("startup stalled: services did not initialize within %s (window may exist but runtime bridges never came up)", bootWatchdogBudget),
+			string(dump),
+			map[string]string{"watchdog dump file": firstNonEmpty(path, "<unavailable>")})
 		notifyError(cl, nil, fmt.Errorf(
 			"NeuroRift startup stalled: the application services did not\r\n"+
 				"finish initializing within %s.\r\n"+

@@ -20,7 +20,7 @@ const AppIdentifier = "app.neurorift.desktop"
 const UpdateRepo = "masthisis/win-proxy"
 
 // Version is overridden at build time via -ldflags "-X ...".
-var Version = "1.2.1"
+var Version = "1.3.0"
 
 // Event names emitted on the Wails event bus (backend -> frontend).
 const (
@@ -38,6 +38,8 @@ const (
 	EventLogsCore        = "core:logs"        // payload: []string (batched lines)
 	EventSettingsChanged = "settings:changed" // payload: nil (re-fetch via API)
 	EventAppUpdate       = "app:update"       // payload: selfupdate.Status
+	EventCoreCrashLoop   = "core:crashloop"   // payload: string detail (#36)
+	EventReportsChanged  = "reports:changed"  // payload: nil — pending set changed (#36)
 	// Tray-originated events (emitted directly from main.go, not the bus).
 	EventTraySysProxy = "tray:sysproxy" // payload: bool
 	EventTrayMode     = "tray:mode"     // payload: string (rule|global|direct)

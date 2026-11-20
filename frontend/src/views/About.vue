@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from "vue";
 import * as App from "../../bindings/github.com/neurorift/neurorift/appservice.js";
 import * as Core from "../../bindings/github.com/neurorift/neurorift/coreservice.js";
 import * as Sys from "../../bindings/github.com/neurorift/neurorift/sysservice.js";
+import * as ReportSvc from "../../bindings/github.com/neurorift/neurorift/reportservice.js";
 import type { CoreUpdateInfo } from "../../bindings/github.com/neurorift/neurorift/models.js";
 import type { BootReport } from "../../bindings/github.com/neurorift/neurorift/models.js";
 import { store, refreshAppInfo } from "../store";
@@ -24,6 +25,21 @@ const LINKS = [
   { url: "https://github.com/MetaCubeX/mihomo", label: "about.mihomo" },
   { url: "https://github.com/wailsapp/wails", label: "about.wails" },
 ];
+
+const reporting = ref(false);
+
+async function reportProblem(): Promise<void> {
+  if (reporting.value) return;
+  reporting.value = true;
+  try {
+    await ReportSvc.ReportProblem();
+    toast.success(t("reporting.sentToast"));
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    reporting.value = false;
+  }
+}
 
 const checking = ref(false);
 const updating = ref(false);
@@ -200,6 +216,11 @@ onMounted(() => {
         <h2>{{ t("about.links") }}</h2>
       </header>
       <div class="row">
+        <button class="btn primary" :disabled="reporting" @click="reportProblem()">
+          <span v-if="reporting" class="spinner" style="width: 11px; height: 11px" />
+          <IconWarn v-else :size="13" />
+          {{ t("about.reportProblem") }}
+        </button>
         <button v-for="l in LINKS" :key="l.url" class="btn" @click="openURL(l.url)">
           <IconExternal :size="13" />
           {{ t(l.label) }}

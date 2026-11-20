@@ -7,6 +7,7 @@
 //	  profiles.json        profile registry (internal/profile)
 //	  speedhistory.json    persisted speed-test results (internal/nettest)
 //	  logs/neurorift.log   rotating application log
+//	  reports/             captured problem reports (#36): pending/ + sent/
 //	  providers/           materialized mihomo proxy-provider files
 //	  clash/<id>.yaml      raw Clash YAML for "clash" kind profiles
 //	  core/                mihomo binary, config.yaml, cache.db, geodata
@@ -44,6 +45,8 @@ type Paths struct {
 	ClashDir string
 	// CoreDir holds the mihomo binary, runtime config and geodata.
 	CoreDir string
+	// ReportsDir holds captured problem reports (#36): pending/ + sent/.
+	ReportsDir string
 }
 
 func join(root string, parts ...string) string {
@@ -74,12 +77,13 @@ func ResolveAt(root string) *Paths {
 		ProvidersDir: join(root, "providers"),
 		ClashDir:     join(root, "clash"),
 		CoreDir:      join(root, "core"),
+		ReportsDir:   join(root, "reports"),
 	}
 }
 
 // Ensure creates the directory skeleton. Safe to call repeatedly.
 func (p *Paths) Ensure() error {
-	for _, dir := range []string{p.Root, p.LogsDir, p.ProvidersDir, p.ClashDir, p.CoreDir} {
+	for _, dir := range []string{p.Root, p.LogsDir, p.ProvidersDir, p.ClashDir, p.CoreDir, p.ReportsDir} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}

@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+## v1.3.0 - the app reports its own problems
+
+Feature (#36): automatic problem reporting to GitHub. When anything goes
+wrong — a panic, a startup stall, a core crash-loop, a fatal error —
+NeuroRift now captures a complete diagnostics bundle and files it as a
+GitHub issue on masthisis/win-proxy by itself. No more copy-pasting logs
+into chat: "go fix the reported problems" is enough.
+
+- **Capture everywhere, lose nothing.** Every problem is written to
+  `<configDir>/NeuroRift/reports/pending/` *before* any network is
+  touched — the boot watchdog (goroutine dump included), the
+  main-goroutine panic recover, the engine's crash-loop guard
+  (surfaced via the new `core:crashloop` bus event so the engine stays
+  decoupled), fatal Wails runtime errors and `startupFatal`. Even with no
+  GitHub token configured, bundles survive on disk and send later.
+- **Send pipeline.** A minimal GitHub REST client (issues + comments,
+  direct then system-proxy transport like ghfetch) files the issue with
+  `auto-report` labels and a stable signature in the body. Bodies are
+  capped under GitHub's 65,536-char limit; overflow continues as issue
+  comments; everything beyond stays in the local bundle. Anti-spam:
+  6 h cooldown per signature, 10 auto-reports/day; manual and test
+  reports bypass the caps; send failures retry on launch and every
+  10 minutes.
+- **Never leaks secrets.** Every free-text field passes a redaction
+  layer (GitHub PAT shapes, bearer headers, `token=`/`secret=` values,
+  URL credentials) plus exact-match needles for the live GitHub token
+  and the mihomo controller secret; the settings snapshot inside a
+  report contains only non-sensitive keys. Unit-tested: a report whose
+  log tail contains the token never leaks it, on disk or on GitHub.
+- **UI.** Settings → new "Problem reporting" section: enable toggle,
+  token field (fine-grained PAT, Issues: read & write, stored locally
+  only), "Send test report" (files a `type: test` issue and links it),
+  pending list with send/delete, live refresh via `reports:changed`.
+  About page: "Report a problem" button. New `ReportService` bindings.
+- **Bundled regression tests** (`internal/reporting`): redaction table,
+  signature stability, cooldown/daily-cap logic, markdown overflow
+  splitting, and the full send flow against an httptest fake of the
+  GitHub API (success, failure-keeps-pending, enable/disable, token
+  leak scan, pending CRUD).
+
 ## v1.2.1 - the app actually wires itself up
 
 Hotfix for the reported v1.2.0 failure (#34): the window opened, but the UI
