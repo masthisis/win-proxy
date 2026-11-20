@@ -200,10 +200,11 @@ func main() {
 	lc.app = app
 	boot.mark("wails_init")
 
+	geo := restoreWindowGeometry(container)
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            nr.AppName,
-		Width:            1180,
-		Height:           780,
+		Width:            geo.width,
+		Height:           geo.height,
 		MinWidth:         880,
 		MinHeight:        560,
 		URL:              "/",
@@ -213,6 +214,12 @@ func main() {
 			Theme: application.Dark,
 		},
 	})
+	if geo.maximised {
+		window.Maximise()
+	} else if geo.position {
+		window.SetPosition(geo.x, geo.y)
+	}
+	persistWindowGeometry(container, window)
 
 	// Close-to-tray instead of quitting.
 	window.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
