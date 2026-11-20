@@ -33,6 +33,8 @@ import (
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
+
+	"github.com/neurorift/neurorift/internal/platform"
 )
 
 // MessageBox flags (winuser.h) and button ids.
@@ -210,5 +212,9 @@ func installWebView2(cl *crashLog) error {
 	defer os.Remove(exe)
 
 	cl.Printf("running WebView2 installer wizard (approve the UAC prompt if shown)")
-	return exec.Command(exe).Run()
+	cmd := exec.Command(exe)
+	// Issue #38: the bootstrapper is a console-subsystem binary — without
+	// this flag it flashes a CMD window behind its wizard.
+	platform.HideWindow(cmd)
+	return cmd.Run()
 }

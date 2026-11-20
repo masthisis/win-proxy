@@ -8,6 +8,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/neurorift/neurorift/internal/platform"
 )
 
 // Runner supervises the mihomo process.
@@ -72,6 +74,9 @@ func (r *Runner) Start(binary, coreDir, configPath string, extraEnv ...string) e
 	}
 
 	cmd := exec.Command(binary, "-d", coreDir, "-f", configPath)
+	// Issue #38: the core is a console-subsystem binary — without this
+	// flag Windows opens a visible CMD window for its whole lifetime.
+	platform.HideWindow(cmd)
 	cmd.Env = append(os.Environ(), extraEnv...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
