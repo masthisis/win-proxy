@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -32,14 +33,30 @@ type API struct {
 	base   string // http://127.0.0.1:<port>
 	secret string
 	client *http.Client
+	// streamClient serves the never-ending endpoints (/traffic, /memory,
+	// /logs). It has NO overall Timeout: http.Client.Timeout covers the
+	// whole request including body reads and would kill every stream 30 s
+	// in (issue #39). Liveness is bounded by the dialer + TLS handshake
+	// timeouts and the caller's context instead.
+	streamClient *http.Client
 }
 
 // NewAPI builds a client for the local controller.
 func NewAPI(port int, secret string) *API {
+	transport := &http.Transport{
+		// Local core: no keep-alive dance needed, but bound the phases that
+		// could otherwise hang forever on a wedged core.
+		DialContext:           (&net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+		MaxIdleConns:          8,
+		IdleConnTimeout:       90 * time.Second,
+	}
 	return &API{
-		base:   fmt.Sprintf("http://127.0.0.1:%d", port),
-		secret: secret,
-		client: &http.Client{Timeout: 30 * time.Second},
+		base:         fmt.Sprintf("http://127.0.0.1:%d", port),
+		secret:       secret,
+		client:       &http.Client{Timeout: 30 * time.Second, Transport: transport},
+		streamClient: &http.Client{Transport: transport.Clone()}, // no Timeout — see field doc
 	}
 }
 
@@ -329,7 +346,9 @@ func (a *API) StreamLine(ctx context.Context, path string, onLine func(line []by
 	if a.secret != "" {
 		req.Header.Set("Authorization", "Bearer "+a.secret)
 	}
-	resp, err := a.client.Do(req)
+	// streamClient (no client.Timeout) — a.Timeout would cut the body read
+	// after 30 s and looked like "live traffic is dead" (issue #39).
+	resp, err := a.streamClient.Do(req)
 	if err != nil {
 		return err
 	}
