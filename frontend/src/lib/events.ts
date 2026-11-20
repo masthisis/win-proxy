@@ -19,6 +19,7 @@ export const EV = {
   connections: "net:connections",
   coreLogs: "core:logs",
   settingsChanged: "settings:changed",
+  groupsRefresh: "groups:refresh",
   appUpdate: "app:update",
   coreCrashLoop: "core:crashloop", // payload: string detail (issue #36)
   reportsChanged: "reports:changed", // payload: nil — pending set changed (issue #36)

@@ -258,7 +258,7 @@ func forwardEvents(c *Container, app *application.App) {
 		nr.EventProfilesList, nr.EventSubProgress, nr.EventLatencyResults,
 		nr.EventSpeedProgress, nr.EventSpeedDone, nr.EventFailover,
 		nr.EventTraffic, nr.EventConnections, nr.EventLogsCore,
-		nr.EventSettingsChanged,
+		nr.EventSettingsChanged, nr.EventGroupsRefresh,
 	} {
 		fwd(topic)
 	}

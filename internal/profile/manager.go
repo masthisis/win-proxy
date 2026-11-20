@@ -312,6 +312,9 @@ func (m *Manager) commitNew(ctx context.Context, p Summary, dec *DecodeResult) (
 		return nil, err
 	}
 	m.emitList()
+	// Terminate the pre-commit pseudo-id ("new") used during fetch/parsing
+	// so no spinner badge leaks in the UI (issue #40).
+	m.progress("new", PhaseDone, "")
 	m.progress(p.ID, PhaseDone, fmt.Sprintf("%d nodes", p.NodeCount))
 	if activeID == p.ID {
 		if err := m.reapply(ctx, "add-first-profile"); err != nil {
