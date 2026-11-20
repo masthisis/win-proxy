@@ -23,7 +23,17 @@ export const EV = {
   appUpdate: "app:update",
   coreCrashLoop: "core:crashloop", // payload: string detail (issue #36)
   reportsChanged: "reports:changed", // payload: nil — pending set changed (issue #36)
+  proxyGuard: "proxyguard:event", // payload: ProxyGuardStatus (issue #47)
 } as const;
+
+/** proxyguard.Status (payload of proxyguard:event, issue #47). */
+export interface ProxyGuardStatus {
+  armed: boolean;
+  expectedOn: boolean;
+  reappliedToday: number;
+  lastReapply?: string;
+  lastAction?: "reapplied" | "killswitch" | "applied-on-start" | "";
+}
 
 /** engine.Status (payload of core:status). */
 export interface EngineStatusPayload {

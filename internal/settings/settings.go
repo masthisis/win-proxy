@@ -47,6 +47,18 @@ type Test struct {
 	UploadTest bool `json:"uploadTest"`
 }
 
+// ProxyGuard configures the system-proxy watchdog (issue #47).
+type ProxyGuard struct {
+	// Enable re-applies the system proxy when another app tampers with
+	// it while the engine runs (default off).
+	Enable bool `json:"enable"`
+	// IntervalSec is the polling interval (default 10, min 3, max 300).
+	IntervalSec int `json:"intervalSec"`
+	// KillSwitch removes the system proxy when the engine dies while
+	// the proxy is on (default off).
+	KillSwitch bool `json:"killSwitch"`
+}
+
 // RoutingOverride is one user-defined routing rule that takes precedence
 // over the profile's own rules (issue #50 / #10). Pattern semantics depend
 // on Type; Target is a node name, group name, DIRECT or REJECT.
@@ -166,6 +178,7 @@ type Settings struct {
 	// RoutingOverrides are injected as high-priority rules into every
 	// generated runtime config, right after the LAN block (#50).
 	RoutingOverrides []RoutingOverride `json:"routingOverrides"`
+	ProxyGuard       ProxyGuard        `json:"proxyGuard"`
 	Updates          Updates           `json:"updates"`
 	Reporting        Reporting         `json:"reporting"`
 	Window           WindowGeometry    `json:"window"` // main-window geometry (#44)
@@ -219,6 +232,7 @@ func Default() Settings {
 		Subscription:     Subscription{DefaultIntervalH: 24, UpdateViaProxy: false},
 		Log:              Log{AppLevel: "info", CoreLevel: "info"},
 		RoutingOverrides: []RoutingOverride{},
+		ProxyGuard:       ProxyGuard{Enable: false, IntervalSec: 10, KillSwitch: false},
 		Updates:          Updates{AutoCheck: true, IncludePrerelease: false},
 		Reporting:        Reporting{Enable: true, GithubToken: ""},
 		ControllerSecret: "",
@@ -298,6 +312,7 @@ func (s *Settings) validate() {
 		s.Subscription.DefaultIntervalH = d.Subscription.DefaultIntervalH
 	}
 	s.RoutingOverrides = sanitizeRoutingOverrides(s.RoutingOverrides)
+	s.ProxyGuard.IntervalSec = clampInt(s.ProxyGuard.IntervalSec, 3, 300, d.ProxyGuard.IntervalSec)
 }
 
 // sanitizeRoutingOverrides normalizes the override list: trims patterns,

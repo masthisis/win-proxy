@@ -17,7 +17,7 @@ const form = ref<SettingsDoc | null>(null);
 const saving = ref(false);
 const autostart = ref(false);
 
-async function loadAutostart() {
+async function loadAutostart(): Promise<void> {
   try {
     autostart.value = await Sys.GetAutostart();
   } catch {
@@ -402,6 +402,33 @@ async function importOverrides(ev: Event): Promise<void> {
             <span class="box" />
             <span>{{ t("settings.autostart") }}</span>
           </label>
+        </div>
+
+        <!-- system proxy guard (#47) -->
+        <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border)">
+          <div class="form-grid">
+            <label class="checkbox">
+              <input v-model="form.proxyGuard.enable" type="checkbox" />
+              <span class="box" />
+              <span>{{ t("guard.enable") }}</span>
+            </label>
+            <label class="checkbox">
+              <input v-model="form.proxyGuard.killSwitch" type="checkbox" />
+              <span class="box" />
+              <span>{{ t("guard.killSwitch") }}</span>
+            </label>
+            <div class="field" style="max-width: 180px">
+              <label for="guard-interval">{{ t("guard.interval") }}</label>
+              <input id="guard-interval" v-model.number="form.proxyGuard.intervalSec" type="number" min="3" max="300" />
+            </div>
+          </div>
+          <p class="hint" style="margin: 8px 0 0">{{ t("guard.desc") }}</p>
+          <div v-if="store.proxyGuard" class="row" style="margin-top: 8px; gap: 8px">
+            <span v-if="store.proxyGuard.armed" class="badge success">
+              {{ t("guard.activeChip", { n: store.proxyGuard.reappliedToday }) }}
+            </span>
+            <span v-else-if="form.proxyGuard.enable" class="badge">{{ t("guard.idleChip") }}</span>
+          </div>
         </div>
       </section>
 

@@ -259,6 +259,56 @@ export class Ports {
 }
 
 /**
+ * ProxyGuard configures the system-proxy watchdog (issue #47).
+ */
+export class ProxyGuard {
+    /**
+     * Creates a new ProxyGuard instance.
+     * @param {Partial<ProxyGuard>} [$$source = {}] - The source object to create the ProxyGuard.
+     */
+    constructor($$source = {}) {
+        if (!("enable" in $$source)) {
+            /**
+             * Enable re-applies the system proxy when another app tampers with
+             * it while the engine runs (default off).
+             * @member
+             * @type {boolean}
+             */
+            this["enable"] = false;
+        }
+        if (!("intervalSec" in $$source)) {
+            /**
+             * IntervalSec is the polling interval (default 10, min 3, max 300).
+             * @member
+             * @type {number}
+             */
+            this["intervalSec"] = 0;
+        }
+        if (!("killSwitch" in $$source)) {
+            /**
+             * KillSwitch removes the system proxy when the engine dies while
+             * the proxy is on (default off).
+             * @member
+             * @type {boolean}
+             */
+            this["killSwitch"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ProxyGuard instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ProxyGuard}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ProxyGuard(/** @type {Partial<ProxyGuard>} */($$parsedSource));
+    }
+}
+
+/**
  * Reporting configures automatic problem reports to GitHub (#36).
  */
 export class Reporting {
@@ -473,6 +523,13 @@ export class Settings {
              */
             this["routingOverrides"] = [];
         }
+        if (!("proxyGuard" in $$source)) {
+            /**
+             * @member
+             * @type {ProxyGuard}
+             */
+            this["proxyGuard"] = (new ProxyGuard());
+        }
         if (!("updates" in $$source)) {
             /**
              * @member
@@ -533,7 +590,8 @@ export class Settings {
         const $$createField15_0 = $$createType11;
         const $$createField16_0 = $$createType12;
         const $$createField17_0 = $$createType13;
-        const $$createField19_0 = $$createType0;
+        const $$createField18_0 = $$createType14;
+        const $$createField20_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("ports" in $$parsedSource) {
             $$parsedSource["ports"] = $$createField6_0($$parsedSource["ports"]);
@@ -562,17 +620,20 @@ export class Settings {
         if ("routingOverrides" in $$parsedSource) {
             $$parsedSource["routingOverrides"] = $$createField14_0($$parsedSource["routingOverrides"]);
         }
+        if ("proxyGuard" in $$parsedSource) {
+            $$parsedSource["proxyGuard"] = $$createField15_0($$parsedSource["proxyGuard"]);
+        }
         if ("updates" in $$parsedSource) {
-            $$parsedSource["updates"] = $$createField15_0($$parsedSource["updates"]);
+            $$parsedSource["updates"] = $$createField16_0($$parsedSource["updates"]);
         }
         if ("reporting" in $$parsedSource) {
-            $$parsedSource["reporting"] = $$createField16_0($$parsedSource["reporting"]);
+            $$parsedSource["reporting"] = $$createField17_0($$parsedSource["reporting"]);
         }
         if ("window" in $$parsedSource) {
-            $$parsedSource["window"] = $$createField17_0($$parsedSource["window"]);
+            $$parsedSource["window"] = $$createField18_0($$parsedSource["window"]);
         }
         if ("bypassDomains" in $$parsedSource) {
-            $$parsedSource["bypassDomains"] = $$createField19_0($$parsedSource["bypassDomains"]);
+            $$parsedSource["bypassDomains"] = $$createField20_0($$parsedSource["bypassDomains"]);
         }
         return new Settings(/** @type {Partial<Settings>} */($$parsedSource));
     }
@@ -867,6 +928,7 @@ const $$createType7 = Subscription.createFrom;
 const $$createType8 = Log.createFrom;
 const $$createType9 = RoutingOverride.createFrom;
 const $$createType10 = $Create.Array($$createType9);
-const $$createType11 = Updates.createFrom;
-const $$createType12 = Reporting.createFrom;
-const $$createType13 = WindowGeometry.createFrom;
+const $$createType11 = ProxyGuard.createFrom;
+const $$createType12 = Updates.createFrom;
+const $$createType13 = Reporting.createFrom;
+const $$createType14 = WindowGeometry.createFrom;

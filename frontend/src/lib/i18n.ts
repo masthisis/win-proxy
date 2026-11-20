@@ -383,6 +383,16 @@ const en: Record<string, string> = {
   "toast.renamed": "Profile renamed",
   "toast.sysProxyOn": "System proxy enabled",
   "toast.sysProxyOff": "System proxy disabled",
+
+  // ---- system proxy guard (#47) ----
+  "guard.enable": "Proxy guard — re-apply the system proxy if another app overwrites it",
+  "guard.killSwitch": "Kill-switch — remove the system proxy when the engine stops",
+  "guard.interval": "Check interval (seconds)",
+  "guard.desc": "VPN clients, antivirus and setup tools sometimes overwrite the Windows proxy settings; the guard detects the mismatch and restores NeuroRift's proxy while the engine runs. The kill-switch removes the proxy when the engine dies so your connection never breaks silently.",
+  "guard.activeChip": "Guard active — re-applied {n}× today",
+  "guard.idleChip": "Guard armed — watching",
+  "guard.reappliedToast": "System proxy was overwritten by another app and has been restored ({n}× today)",
+  "guard.killswitchToast": "Engine stopped — the system proxy was removed (kill-switch)",
   "toast.sysProxyNeedsEngine": "Start the engine before enabling the system proxy",
 };
 
@@ -760,6 +770,16 @@ const fa: Record<string, string> = {
   "toast.renamed": "نام پروفایل تغییر کرد",
   "toast.sysProxyOn": "پروکسی سیستم فعال شد",
   "toast.sysProxyOff": "پروکسی سیستم غیرفعال شد",
+
+  // ---- system proxy guard (#47) ----
+  "guard.enable": "محافظ پروکسی — در صورت بازنویسی توسط برنامه دیگر، پروکسی سیستم دوباره اعمال می‌شود",
+  "guard.killSwitch": "کلید قطع — با توقف موتور، پروکسی سیستم حذف می‌شود",
+  "guard.interval": "بازه بررسی (ثانیه)",
+  "guard.desc": "برنامه‌هایی مثل VPN، آنتی‌ویروس و ابزارهای نصب گاهی تنظیمات پروکسی ویندوز را بازنویسی می‌کنند؛ محافظ این ناهمخوانی را تشخیص داده و تا زمانی که موتور روشن است پروکسی NeuroRift را بازمی‌گرداند. کلید قطع نیز هنگام مرگ موتور پروکسی را حذف می‌کند تا اتصال شما بی‌صدا قطع نشود.",
+  "guard.activeChip": "محافظ فعال — {n} بار بازگردانی امروز",
+  "guard.idleChip": "محافظ مسلح — در حال پایش",
+  "guard.reappliedToast": "پروکسی سیستم توسط برنامه دیگری بازنویسی شد و بازگردانی شد ({n} بار امروز)",
+  "guard.killswitchToast": "موتور متوقف شد — پروکسی سیستم حذف شد (کلید قطع)",
   "toast.sysProxyNeedsEngine": "پیش از فعال‌سازی پروکسی سیستم، موتور را راه‌اندازی کنید",
 };
 
