@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+## v1.6.0 - routing control, YAML editing, proxy guard
+
+The three plan issues from the v1.5 backlog, each through the full
+issue -> branch -> PR -> CI -> merge workflow (plus a refreshed
+CONTRACT.md that had fallen behind since v1.2).
+
+- **Per-domain routing overrides (#50, closes #10).** Force any domain,
+  keyword or app (process name) through a chosen node, group, DIRECT or
+  REJECT. Overrides are injected as high-priority rules right after the
+  LAN block on EVERY profile shape — generated configs and full Clash
+  documents alike — and unknown targets are skipped so a stale entry can
+  never break the core load. Settings → Routing overrides (add / remove /
+  reorder, target suggestions, YAML import/export) plus a per-connection
+  “Route this host via…” quick-add.
+- **Raw YAML profile editor with live validation (#49, closes #9).**
+  Every Clash/local profile card gains an Edit YAML modal: debounced
+  live linting with line numbers (syntax + the semantics mihomo actually
+  needs — duplicate keys, nameless/typed proxy entries, missing proxy
+  sources), save disabled while invalid, atomic writes and hot-reload of
+  the active profile. Nodes subscriptions get a read-only provider view.
+- **System proxy guard + kill-switch (#47).** While the engine runs, a
+  watchdog re-applies the Windows proxy settings when another app (VPN
+  client, antivirus, setup tool) overwrites them — mismatches only, no
+  write spam. The opt-in kill-switch removes the stale proxy the moment
+  the engine dies. The long-dormant “system proxy on start” setting
+  finally works (applied once per process, never fighting the user
+  afterwards). Status chip + toasts, en/fa.
+
 ## v1.5.0 - union routing, sparklines, test ergonomics
 
 Three backlog issues shipped through the full workflow.
@@ -18,7 +46,7 @@ Three backlog issues shipped through the full workflow.
   200 MB) in the Test Center toolbar and a Cancel button while a
   throughput test runs.
 
-## v1.4.0 - the user-driven quality release - the user-driven quality release
+## v1.4.0 - the user-driven quality release
 
 Nine issues from real daily-driver feedback plus competitor research
 (v2rayN, Clash Verge Rev, FlClash, Hiddify, Proton VPN), each fixed or

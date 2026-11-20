@@ -50,7 +50,12 @@ a bound signature changes.
 | `Remove(id)` | – | removes files; reverts engine if active |
 | `SetActive(id)` | – | hot-applies the profile |
 | `Rename(id, name)` / `SetInterval(id, hours)` | – | 0 hours = manual |
+| `SetUnion(id, on)` | – | joins the subscription's nodes into the active profile's routing groups (#48) |
+| `UpdateAll()` | `UpdateSummary` | `{updated, failed, skipped, errors}` — parallel refresh (#46) |
 | `GetNodes(id)` | `string[]` | node names |
+| `GetRaw(id)` | `string` | raw YAML: editable source for clash/local, generated provider file (read-only) for nodes (#49) |
+| `ValidateRaw(content)` | `LintIssue[]` | `{line, column?, message, fatal}` — live validation, no write (#49) |
+| `UpdateRaw(id, content)` | `RawEditResult` | `{ok, issues?}` — atomic save + hot-reload when active; lint failures return issues, not errors (#49) |
 | `Active()` | `[Profile, bool]` | active profile (tuple) |
 
 ### SettingsService (`settingsservice`)
@@ -68,13 +73,19 @@ a bound signature changes.
 | `SpeedHistory()` | `map[node]SpeedResult` | latest per node |
 | `FailoverStatus()` | `failover.Status` | {enabled, running, activeNode, group, strikes, lastCheck, lastSwitch, lastEvent} |
 | `FailoverTestNow()` | – | force a probe cycle |
+| `LatencyHistory()` | `map[node][]int` | recent latency samples for sparklines (#12) |
+| `TestProfileLatency(profileID)` | `LatencyBatch` | batch-test ANY imported profile, not just the active one (#42) |
+| `TestAllProfilesLatency()` | `LatencyBatch[]` | every profile in one pass (#42) |
+| `SpeedTestProfile(profileID)` | – | sequential throughput tests; progress via `speed:progress`/`speed:done` |
 
 ### SysService (`sysservice`)
 | Method | Returns | Notes |
 | --- | --- | --- |
 | `GetSystemProxy()` | `SysProxyState` | {enabled, server, bypass} |
-| `SetSystemProxy(enabled)` | – | points WinINet at mixed port |
+| `SetSystemProxy(enabled)` | – | points WinINet at mixed port; keeps the proxy guard's expectation in sync (#47) |
+| `GetProxyGuardStatus()` | `proxyguard.Status` | `{armed, expectedOn, reappliedToday, lastReplay, lastAction?}` (#47) |
 | `IsElevated()` | `bool` | TUN requires elevation |
+| `SetAutostart(enabled)` / `GetAutostart()` | `bool` | HKCU Run key; autostarted instances start minimized |
 | `OpenFolder(which)` | – | "config" \| "core" \| "logs" |
 | `OpenURL(url)` | – | external browser |
 
@@ -129,9 +140,11 @@ stays in the local bundle file.
 | `net:connections` | `{items: ConnItem[], downloadTotal, uploadTotal}` (1 Hz) |
 | `core:logs` | `string[]` (batched, ≤500 kept) |
 | `settings:changed` | `null` — re-fetch `SettingsService.Get()` |
+| `groups:refresh` | `string` reason — config hot-reloaded; re-fetch groups + mode (#40) |
 | `app:update` | `selfupdate.Status` — see UpdateService; `notify=true` → toast once per version |
 | `core:crashloop` | `string` detail — crash-loop guard engaged (#36, also drives auto-reporting) |
 | `reports:changed` | `null` — the pending report set changed; re-fetch `ReportService.Pending()` |
+| `proxyguard:event` | `proxyguard.Status` — guard acted: `reapplied` / `killswitch` / `applied-on-start` (#47) |
 | `tray:sysproxy` | `bool` (tray-originated toggle) |
 | `tray:mode` | `string` (tray-originated mode switch) |
 
@@ -149,8 +162,12 @@ dns: {override, nameservers: string[]}
 tun: {enable, stack: "system"|"gvisor"|"mixed"}
 subscription: {defaultIntervalH, updateViaProxy}
 log: {appLevel, coreLevel}
+routingOverrides: [{pattern, type: "domain-suffix"|"domain"|"domain-keyword"|"process-name",
+                    target}] — high-priority rules after the LAN block, ≤200 (#50)
+proxyGuard: {enable (default false), intervalSec (3..300, default 10), killSwitch (default false)} (#47)
 updates: {autoCheck (default true), includePrerelease (default false)}
 reporting: {enable (default true), githubToken} — token stored locally only (#36)
+window: {width, height, x, y, maximised, set} — persisted geometry (#44)
 controllerSecret: string (auto-generated; read-only in practice)
 bypassDomains: string[]
 ```
