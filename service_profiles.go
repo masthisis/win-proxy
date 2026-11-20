@@ -70,6 +70,11 @@ func (s *ProfileService) SetInterval(id string, hours int) error {
 	return s.c.Profiles.SetInterval(id, hours)
 }
 
+// SetUnion toggles a profile's membership in the routing union (#48).
+func (s *ProfileService) SetUnion(id string, on bool) error {
+	return s.c.Profiles.SetUnion(context.Background(), id, on)
+}
+
 // GetNodes lists the node names of a profile.
 func (s *ProfileService) GetNodes(id string) ([]string, error) {
 	return s.c.Profiles.NodeNames(id)

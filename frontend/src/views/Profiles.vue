@@ -153,6 +153,23 @@ async function updateNow(p: ProfileSummary): Promise<void> {
   }
 }
 
+const unionBusyId = ref<string | null>(null);
+
+async function toggleUnion(p: ProfileSummary): Promise<void> {
+  if (unionBusyId.value) return;
+  unionBusyId.value = p.id;
+  const next = !p.union;
+  try {
+    await Profile.SetUnion(p.id, next);
+    p.union = next;
+    toast.success(next ? t("profiles.unionOn", { name: p.name }) : t("profiles.unionOff", { name: p.name }));
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    unionBusyId.value = null;
+  }
+}
+
 async function setIntervalH(p: ProfileSummary, h: number): Promise<void> {
   if (intervalBusyId.value || h === p.intervalH) return;
   intervalBusyId.value = p.id;
@@ -303,6 +320,10 @@ if (typeof window !== "undefined") {
             <IconCheck :size="11" />
             {{ t("common.active") }}
           </span>
+          <span v-if="p.union && !isActive(p)" class="badge accent" :title="t('profiles.unionHint')">
+            <IconLink :size="11" />
+            {{ t("profiles.unionBadge") }}
+          </span>
           <span v-if="busyPhase(p.id)" class="badge warn">
             <span class="spinner" style="width: 10px; height: 10px; border-top-color: var(--warn)" />
             {{ t(`profiles.phase.${busyPhase(p.id)}`) }}
@@ -330,6 +351,17 @@ if (typeof window !== "undefined") {
               <span v-if="updatingId === p.id" class="spinner" style="width: 11px; height: 11px" />
               <IconRefresh v-else :size="12" />
               {{ t("common.update") }}
+            </button>
+            <button
+              class="btn-icon"
+              :class="{ on: p.union }"
+              :aria-label="t('profiles.unionToggle')"
+              :title="t('profiles.unionToggle')"
+              :disabled="unionBusyId === p.id || isActive(p)"
+              @click="toggleUnion(p)"
+            >
+              <span v-if="unionBusyId === p.id" class="spinner" style="width: 11px; height: 11px" />
+              <IconLink v-else :size="14" />
             </button>
             <button class="btn-icon" :aria-label="t('common.rename')" :title="t('common.rename')" @click="startRename(p)">
               <IconEdit :size="14" />

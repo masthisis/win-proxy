@@ -64,6 +64,10 @@ type Profile struct {
 	// Surfaced on the profile card so a silently-failing subscription is
 	// visible without opening the logs.
 	LastError string `json:"lastError,omitempty"`
+	// Union includes this subscription's nodes in the routing groups of
+	// the ACTIVE profile (issue #48 / #8: activate multiple subscriptions
+	// as one provider-union).
+	Union bool `json:"union,omitempty"`
 }
 
 // Summary is the API-facing projection of a Profile.

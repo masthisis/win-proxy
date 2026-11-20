@@ -134,6 +134,16 @@ export function SetInterval(id, hours) {
 }
 
 /**
+ * SetUnion toggles a profile's membership in the routing union (#48).
+ * @param {string} id
+ * @param {boolean} on
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetUnion(id, on) {
+    return $Call.ByID(1727352795, id, on);
+}
+
+/**
  * Update refreshes one profile (network fetch for subscriptions).
  * @param {string} id
  * @returns {$CancellablePromise<profile$0.Summary | null>}
