@@ -119,24 +119,38 @@ type Reporting struct {
 	GithubToken string `json:"githubToken"`
 }
 
+// WindowGeometry persists the main window geometry (issue #44). Written by
+// the debounced window hooks in main.go; read once at startup to restore
+// size, position and maximised state. `Set` distinguishes "never persisted"
+// (use defaults) from a genuine zero geometry.
+type WindowGeometry struct {
+	Width     int  `json:"width"`
+	Height    int  `json:"height"`
+	X         int  `json:"x"`
+	Y         int  `json:"y"`
+	Maximised bool `json:"maximised"`
+	Set       bool `json:"set"`
+}
+
 // Settings is the complete, JSON-serializable settings document.
 type Settings struct {
-	Language           string       `json:"language"` // en | fa
-	StartMinimized     bool         `json:"startMinimized"`
-	AutoConnect        bool         `json:"autoConnect"` // start engine on launch
-	SystemProxyOnStart bool         `json:"systemProxyOnStart"`
-	AllowLan           bool         `json:"allowLan"`
-	Mode               string       `json:"mode"` // rule | global | direct
-	Ports              Ports        `json:"ports"`
-	Test               Test         `json:"test"`
-	Failover           Failover     `json:"failover"`
-	Core               Core         `json:"core"`
-	DNS                DNS          `json:"dns"`
-	Tun                Tun          `json:"tun"`
-	Subscription       Subscription `json:"subscription"`
-	Log                Log          `json:"log"`
-	Updates            Updates      `json:"updates"`
-	Reporting          Reporting    `json:"reporting"`
+	Language           string         `json:"language"` // en | fa
+	StartMinimized     bool           `json:"startMinimized"`
+	AutoConnect        bool           `json:"autoConnect"` // start engine on launch
+	SystemProxyOnStart bool           `json:"systemProxyOnStart"`
+	AllowLan           bool           `json:"allowLan"`
+	Mode               string         `json:"mode"` // rule | global | direct
+	Ports              Ports          `json:"ports"`
+	Test               Test           `json:"test"`
+	Failover           Failover       `json:"failover"`
+	Core               Core           `json:"core"`
+	DNS                DNS            `json:"dns"`
+	Tun                Tun            `json:"tun"`
+	Subscription       Subscription   `json:"subscription"`
+	Log                Log            `json:"log"`
+	Updates            Updates        `json:"updates"`
+	Reporting          Reporting      `json:"reporting"`
+	Window             WindowGeometry `json:"window"` // main-window geometry (#44)
 	// ControllerSecret authenticates the local mihomo API (auto-generated).
 	ControllerSecret string `json:"controllerSecret"`
 	// BypassDomains are appended to the system-proxy bypass list.

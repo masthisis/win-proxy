@@ -13,5 +13,6 @@ export {
     Subscription,
     Test,
     Tun,
-    Updates
+    Updates,
+    WindowGeometry
 } from "./models.js";

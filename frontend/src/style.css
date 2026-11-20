@@ -723,6 +723,9 @@ button.status-pill:hover {
   border-radius: var(--radius-panel);
   overflow: auto;
   background: var(--panel);
+  /* Issue #44: tables scroll internally instead of stretching the page on
+     small windows (min 880×560) — views stay usable without page scroll. */
+  max-height: calc(100vh - 220px);
 }
 
 table.tbl {

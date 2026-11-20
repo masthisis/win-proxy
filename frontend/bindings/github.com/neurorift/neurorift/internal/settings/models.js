@@ -426,6 +426,14 @@ export class Settings {
              */
             this["reporting"] = (new Reporting());
         }
+        if (!("window" in $$source)) {
+            /**
+             * main-window geometry (#44)
+             * @member
+             * @type {WindowGeometry}
+             */
+            this["window"] = (new WindowGeometry());
+        }
         if (!("controllerSecret" in $$source)) {
             /**
              * ControllerSecret authenticates the local mihomo API (auto-generated).
@@ -462,7 +470,8 @@ export class Settings {
         const $$createField13_0 = $$createType8;
         const $$createField14_0 = $$createType9;
         const $$createField15_0 = $$createType10;
-        const $$createField17_0 = $$createType0;
+        const $$createField16_0 = $$createType11;
+        const $$createField18_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("ports" in $$parsedSource) {
             $$parsedSource["ports"] = $$createField6_0($$parsedSource["ports"]);
@@ -494,8 +503,11 @@ export class Settings {
         if ("reporting" in $$parsedSource) {
             $$parsedSource["reporting"] = $$createField15_0($$parsedSource["reporting"]);
         }
+        if ("window" in $$parsedSource) {
+            $$parsedSource["window"] = $$createField16_0($$parsedSource["window"]);
+        }
         if ("bypassDomains" in $$parsedSource) {
-            $$parsedSource["bypassDomains"] = $$createField17_0($$parsedSource["bypassDomains"]);
+            $$parsedSource["bypassDomains"] = $$createField18_0($$parsedSource["bypassDomains"]);
         }
         return new Settings(/** @type {Partial<Settings>} */($$parsedSource));
     }
@@ -709,6 +721,75 @@ export class Updates {
     }
 }
 
+/**
+ * WindowGeometry persists the main window geometry (issue #44). Written by
+ * the debounced window hooks in main.go; read once at startup to restore
+ * size, position and maximised state. `Set` distinguishes "never persisted"
+ * (use defaults) from a genuine zero geometry.
+ */
+export class WindowGeometry {
+    /**
+     * Creates a new WindowGeometry instance.
+     * @param {Partial<WindowGeometry>} [$$source = {}] - The source object to create the WindowGeometry.
+     */
+    constructor($$source = {}) {
+        if (!("width" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["width"] = 0;
+        }
+        if (!("height" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["height"] = 0;
+        }
+        if (!("x" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["x"] = 0;
+        }
+        if (!("y" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["y"] = 0;
+        }
+        if (!("maximised" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["maximised"] = false;
+        }
+        if (!("set" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["set"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new WindowGeometry instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {WindowGeometry}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new WindowGeometry(/** @type {Partial<WindowGeometry>} */($$parsedSource));
+    }
+}
+
 // Private type creation functions
 const $$createType0 = $Create.Array($Create.Any);
 const $$createType1 = Ports.createFrom;
@@ -721,3 +802,4 @@ const $$createType7 = Subscription.createFrom;
 const $$createType8 = Log.createFrom;
 const $$createType9 = Updates.createFrom;
 const $$createType10 = Reporting.createFrom;
+const $$createType11 = WindowGeometry.createFrom;
