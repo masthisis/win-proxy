@@ -69,6 +69,18 @@ export interface NodeUI {
 }
 
 /**
+ * PendingInfo is the UI-facing summary of one pending report.
+ */
+export interface PendingInfo {
+    "id": string;
+    "type": string;
+    "detail": string;
+    "time": string;
+    "version": string;
+    "signature": string;
+}
+
+/**
  * SysProxyState mirrors platform state.
  */
 export interface SysProxyState {

@@ -105,6 +105,25 @@ export interface Ports {
 }
 
 /**
+ * Reporting configures automatic problem reports to GitHub (#36).
+ */
+export interface Reporting {
+    /**
+     * Enable turns on automatic capture+send of problem reports
+     * (panics, boot stalls, crash-loops). Manual and test reports are
+     * always allowed regardless of this flag.
+     */
+    "enable": boolean;
+
+    /**
+     * GithubToken is a fine-grained personal access token with
+     * "Issues: read & write" on the project repository. Stored locally
+     * in settings.json only; never logged, never sent elsewhere.
+     */
+    "githubToken": string;
+}
+
+/**
  * Settings is the complete, JSON-serializable settings document.
  */
 export interface Settings {
@@ -134,6 +153,7 @@ export interface Settings {
     "subscription": Subscription;
     "log": Log;
     "updates": Updates;
+    "reporting": Reporting;
 
     /**
      * ControllerSecret authenticates the local mihomo API (auto-generated).

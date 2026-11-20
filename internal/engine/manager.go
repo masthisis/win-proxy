@@ -101,6 +101,11 @@ func NewManager(s *settings.Manager, p *profile.Manager, b *bus.Bus, coreDir str
 		b.Emit(nr.EventCoreConsole, line)
 		log.Info("core", "line", line)
 	})
+	// Issue #36: surface the crash-loop guard to the problem-reporting
+	// pipeline through the bus (keeps the engine decoupled from reporting).
+	m.Runner.OnCrashLoop(func(detail string) {
+		b.Emit(nr.EventCoreCrashLoop, detail)
+	})
 	m.Gen = &ConfigGen{Settings: s, Profiles: p}
 	m.state = nr.CoreStopped
 	p.SetApply(m.ApplyFromProfiles)

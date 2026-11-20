@@ -32,6 +32,7 @@ import (
 
 	"github.com/neurorift/neurorift/internal/appmeta"
 	"github.com/neurorift/neurorift/internal/nr"
+	"github.com/neurorift/neurorift/internal/reporting"
 )
 
 // crashLog is a tiny lock-protected append-only log used before the Container
@@ -101,8 +102,8 @@ func (c *crashLog) Close() {
 }
 
 // startupFatal reports a fatal startup error everywhere — file log, the given
-// slog logger, and a platform dialog (notifyError) — then exits. It replaces
-// log.Fatalf for all startup paths.
+// slog logger, a problem report (#36), and a platform dialog (notifyError) —
+// then exits. It replaces log.Fatalf for all startup paths.
 func startupFatal(cl *crashLog, lg *slog.Logger, err error) {
 	if err == nil {
 		os.Exit(1)
@@ -111,6 +112,13 @@ func startupFatal(cl *crashLog, lg *slog.Logger, err error) {
 		lg.Error("fatal", "err", err)
 	}
 	cl.Printf("FATAL: %v", err)
+	// Issue #36: persist a report bundle before exiting; if a GitHub token is
+	// configured, a later launch files it automatically.
+	buf := make([]byte, 1<<20)
+	n := runtime.Stack(buf, true)
+	reporting.Enqueue(reporting.TypeFatal,
+		fmt.Sprintf("fatal startup failure: %v", err),
+		string(buf[:n]), nil)
 	notifyError(cl, lg, err, true)
 	os.Exit(1)
 }

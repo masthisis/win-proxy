@@ -107,6 +107,18 @@ type Updates struct {
 	IncludePrerelease bool `json:"includePrerelease"`
 }
 
+// Reporting configures automatic problem reports to GitHub (#36).
+type Reporting struct {
+	// Enable turns on automatic capture+send of problem reports
+	// (panics, boot stalls, crash-loops). Manual and test reports are
+	// always allowed regardless of this flag.
+	Enable bool `json:"enable"`
+	// GithubToken is a fine-grained personal access token with
+	// "Issues: read & write" on the project repository. Stored locally
+	// in settings.json only; never logged, never sent elsewhere.
+	GithubToken string `json:"githubToken"`
+}
+
 // Settings is the complete, JSON-serializable settings document.
 type Settings struct {
 	Language           string       `json:"language"` // en | fa
@@ -124,6 +136,7 @@ type Settings struct {
 	Subscription       Subscription `json:"subscription"`
 	Log                Log          `json:"log"`
 	Updates            Updates      `json:"updates"`
+	Reporting          Reporting    `json:"reporting"`
 	// ControllerSecret authenticates the local mihomo API (auto-generated).
 	ControllerSecret string `json:"controllerSecret"`
 	// BypassDomains are appended to the system-proxy bypass list.
@@ -174,6 +187,7 @@ func Default() Settings {
 		Subscription:     Subscription{DefaultIntervalH: 24, UpdateViaProxy: false},
 		Log:              Log{AppLevel: "info", CoreLevel: "info"},
 		Updates:          Updates{AutoCheck: true, IncludePrerelease: false},
+		Reporting:        Reporting{Enable: true, GithubToken: ""},
 		ControllerSecret: "",
 		BypassDomains: []string{
 			"localhost", "127.*", "10.*", "172.16.*", "172.17.*", "172.18.*",

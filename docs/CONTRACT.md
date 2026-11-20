@@ -91,6 +91,27 @@ States: `idle → checking → available|none → downloading → ready → rest
 `error` (with `detail`) from any state. `notify=true` exactly once per new
 version detected by the background loop (persisted in `updatestate.json`).
 
+### ReportService (`reportservice`) — problem reporting (#36)
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `TokenConfigured()` | `bool` | UI hint: is a GitHub token set |
+| `Pending()` | `PendingInfo[]` | captured-but-unfiled reports `{id, type, detail, time, version, signature}` (oldest first) |
+| `Send(id)` | `string` | files one pending report now; returns the issue URL (opens it in the browser) |
+| `SendAll()` | `int` | files every pending report; returns the count |
+| `Delete(id)` | – | discards a pending report |
+| `SendTestReport()` | `string` | files a `type: test` issue synchronously; error explains what is missing |
+| `ReportProblem()` | `string` | manual capture from the About page; always allowed, works token-less (stays pending) |
+| `OpenFolder()` | – | opens `<configDir>/NeuroRift/reports` |
+
+Capture points (automatic, respect `reporting.enable` + anti-spam caps:
+per-signature 6 h cooldown, 10/day; manual/test bypass): main-goroutine
+panics, boot-watchdog stalls (with goroutine dump), core crash-loop guard
+(`core:crashloop`), `startupFatal` and fatal Wails runtime errors. Bundles
+are redacted (tokens, controller secret, URL credentials) and persisted
+under `reports/pending/` before any network attempt; send failures are
+retried on launch + every 10 min. Overflow beyond two 50k-char comments
+stays in the local bundle file.
+
 ## Events (backend → frontend; payloads arrive as `ev.data`)
 
 | Event | Payload |
@@ -109,6 +130,8 @@ version detected by the background loop (persisted in `updatestate.json`).
 | `core:logs` | `string[]` (batched, ≤500 kept) |
 | `settings:changed` | `null` — re-fetch `SettingsService.Get()` |
 | `app:update` | `selfupdate.Status` — see UpdateService; `notify=true` → toast once per version |
+| `core:crashloop` | `string` detail — crash-loop guard engaged (#36, also drives auto-reporting) |
+| `reports:changed` | `null` — the pending report set changed; re-fetch `ReportService.Pending()` |
 | `tray:sysproxy` | `bool` (tray-originated toggle) |
 | `tray:mode` | `string` (tray-originated mode switch) |
 
@@ -127,6 +150,7 @@ tun: {enable, stack: "system"|"gvisor"|"mixed"}
 subscription: {defaultIntervalH, updateViaProxy}
 log: {appLevel, coreLevel}
 updates: {autoCheck (default true), includePrerelease (default false)}
+reporting: {enable (default true), githubToken} — token stored locally only (#36)
 controllerSecret: string (auto-generated; read-only in practice)
 bypassDomains: string[]
 ```

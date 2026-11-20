@@ -40,6 +40,12 @@ func NewManager(path string, b *bus.Bus, log *slog.Logger) *Manager {
 	if cur.Updates == (Updates{}) {
 		cur.Updates = Default().Updates
 	}
+	// Migration (#36): settings files written before problem reporting have
+	// no reporting block -> zero value would silently disable auto-reports
+	// for existing installs; apply the default instead (opt-out on save).
+	if cur.Reporting == (Reporting{}) {
+		cur.Reporting = Default().Reporting
+	}
 	cur.validate()
 	m.cur = cur
 	return m

@@ -23,7 +23,8 @@ import (
 //   - Stop performs a graceful attempt (SIGTERM) then a hard kill after
 //     3 seconds. Stop is idempotent and waits for the process to be reaped.
 type Runner struct {
-	logLine func(line string)
+	logLine     func(line string)
+	onCrashLoop func(string) // optional; fires when the guard trips (#36)
 
 	mu       sync.Mutex
 	cmd      *exec.Cmd
@@ -45,6 +46,11 @@ func NewRunner(logLine func(string)) *Runner {
 	}
 	return &Runner{logLine: logLine}
 }
+
+// OnCrashLoop registers the callback fired when the crash-loop guard engages
+// (issue #36: the Manager turns this into the core:crashloop bus event so
+// the problem-reporting pipeline can file an issue).
+func (r *Runner) OnCrashLoop(f func(string)) { r.onCrashLoop = f }
 
 // Running reports whether a supervised process is alive.
 func (r *Runner) Running() bool {
@@ -111,9 +117,13 @@ func (r *Runner) Start(binary, coreDir, configPath string, extraEnv ...string) e
 		if wasStopping {
 			return
 		}
-		backoff, giveUp := r.crashBackoff()
+		backoff, starts, giveUp := r.crashBackoff()
 		if giveUp {
+			detail := fmt.Sprintf("mihomo core crash-loop guard engaged: %d starts within 2 minutes; last exit: %v", starts, waitErr)
 			r.logLine(fmt.Sprintf("[neurorift] core exited (%v); crash-loop guard engaged — manual restart required", waitErr))
+			if r.onCrashLoop != nil {
+				go r.onCrashLoop(detail)
+			}
 			return
 		}
 		r.logLine(fmt.Sprintf("[neurorift] core exited unexpectedly (%v); restarting in %s", waitErr, backoff))
@@ -178,19 +188,20 @@ func (r *Runner) recordStart() error {
 	return nil
 }
 
-// crashBackoff computes the next restart delay and whether to give up.
-func (r *Runner) crashBackoff() (time.Duration, bool) {
+// crashBackoff computes the next restart delay, the recent start count and
+// whether to give up.
+func (r *Runner) crashBackoff() (time.Duration, int, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	n := len(r.starts)
 	if n > 5 {
-		return 0, true
+		return 0, n, true
 	}
 	d := time.Second << time.Duration(min(n, 5))
 	if d > 30*time.Second {
 		d = 30 * time.Second
 	}
-	return d, false
+	return d, n, false
 }
 
 func min(a, b int) int {

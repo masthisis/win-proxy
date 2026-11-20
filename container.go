@@ -25,6 +25,7 @@ import (
 	"github.com/neurorift/neurorift/internal/nr"
 	"github.com/neurorift/neurorift/internal/platform"
 	"github.com/neurorift/neurorift/internal/profile"
+	"github.com/neurorift/neurorift/internal/reporting"
 	"github.com/neurorift/neurorift/internal/selfupdate"
 	"github.com/neurorift/neurorift/internal/settings"
 )
@@ -89,6 +90,7 @@ type Container struct {
 	History  *nettest.HistoryStore
 	Watchdog *failover.Watchdog
 	Updates  *selfupdate.Manager
+	Reports  *reporting.Manager
 
 	Log     *slog.Logger
 	ring    *logRing
@@ -153,10 +155,28 @@ func NewContainer() (*Container, error) {
 	}
 	ups.Quit = quitApp
 
+	// Problem reporting (#36): capture → bundle → GitHub issue. Wired before
+	// Configure so early watchers can already hand it work.
+	rpt := reporting.New(nr.UpdateRepo, paths.ReportsDir, set, b, logger)
+	rpt.SetLogTail(ring.tail)
+	rpt.SetCoreInfo(func() (coreVersion, engState string) {
+		st := eng.Status()
+		return st.CoreVersion, string(st.State)
+	})
+	reporting.Configure(rpt)
+	// Redaction needles: the controller secret AND the GitHub token itself
+	// must never appear inside a report bundle.
+	reporting.ConfigureSecrets(set.Get().ControllerSecret, set.Get().Reporting.GithubToken)
+	// Keep the redaction needles in sync when secrets change (settings:changed
+	// is emitted by the settings manager on every Save).
+	b.Subscribe(context.Background(), nr.EventSettingsChanged, func(_ string, _ any) {
+		reporting.ConfigureSecrets(set.Get().ControllerSecret, set.Get().Reporting.GithubToken)
+	})
+
 	return &Container{
 		Paths: paths, Bus: b, Settings: set, Profiles: profs,
 		Engine: eng, NetTest: nt, History: hist, Watchdog: wd,
-		Updates: ups,
+		Updates: ups, Reports: rpt,
 		Log: logger, ring: ring, logFile: logFile,
 	}, nil
 }
@@ -180,6 +200,7 @@ func (c *Container) StartBackground(parent context.Context) context.CancelFunc {
 	go c.Watchdog.Run(ctx)
 	go c.Engine.AutoUpdateLoop(ctx)
 	go c.Updates.Run(ctx)
+	go c.Reports.Run(ctx)
 
 	// Auto-connect: start the engine with the last active profile.
 	if c.Settings.Get().AutoConnect {

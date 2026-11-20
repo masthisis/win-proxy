@@ -5,6 +5,7 @@ import * as AppService from "./appservice.js";
 import * as CoreService from "./coreservice.js";
 import * as ProfileService from "./profileservice.js";
 import * as ProxyService from "./proxyservice.js";
+import * as ReportService from "./reportservice.js";
 import * as SettingsService from "./settingsservice.js";
 import * as SysService from "./sysservice.js";
 import * as TestService from "./testservice.js";
@@ -14,6 +15,7 @@ export {
     CoreService,
     ProfileService,
     ProxyService,
+    ReportService,
     SettingsService,
     SysService,
     TestService,
@@ -27,5 +29,6 @@ export type {
     CoreUpdateInfo,
     GroupUI,
     NodeUI,
+    PendingInfo,
     SysProxyState
 } from "./models.js";
