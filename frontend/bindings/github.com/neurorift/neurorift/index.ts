@@ -20,6 +20,8 @@ export {
 
 export type {
     AppInfo,
+    BootPhase,
+    BootReport,
     CoreUpdateInfo,
     GroupUI,
     NodeUI,

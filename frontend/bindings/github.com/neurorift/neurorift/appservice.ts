@@ -15,6 +15,13 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as $models from "./models.js";
 
 /**
+ * BootPhases returns startup timing diagnostics for the About panel (#27).
+ */
+export function BootPhases(): $CancellablePromise<$models.BootReport> {
+    return $Call.ByID(2974162546);
+}
+
+/**
  * Info returns build/runtime metadata.
  */
 export function Info(): $CancellablePromise<$models.AppInfo> {

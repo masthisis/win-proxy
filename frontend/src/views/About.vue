@@ -1,9 +1,11 @@
 <script setup lang="ts">
-/** About: app info, core/engine state, update check, external links. */
+/** About: app info, boot timing, core/engine state, update check, links. */
 import { computed, onMounted, ref } from "vue";
+import * as App from "../../bindings/github.com/neurorift/neurorift/appservice.js";
 import * as Core from "../../bindings/github.com/neurorift/neurorift/coreservice.js";
 import * as Sys from "../../bindings/github.com/neurorift/neurorift/sysservice.js";
 import type { CoreUpdateInfo } from "../../bindings/github.com/neurorift/neurorift/models.js";
+import type { BootReport } from "../../bindings/github.com/neurorift/neurorift/models.js";
 import { store, refreshAppInfo } from "../store";
 import { t } from "../lib/i18n";
 import { toast, errMsg } from "../lib/toast";
@@ -26,6 +28,7 @@ const LINKS = [
 const checking = ref(false);
 const updating = ref(false);
 const updateInfo = ref<CoreUpdateInfo | null>(null);
+const bootReport = ref<BootReport | null>(null);
 
 const engineState = computed(() => store.engineStatus?.state ?? "unknown");
 const coreUpdating = computed(() => engineState.value === "updating");
@@ -69,6 +72,13 @@ async function updateNow(): Promise<void> {
 
 onMounted(() => {
   if (!store.appInfo) void refreshAppInfo();
+  void App.BootPhases()
+    .then((r) => {
+      bootReport.value = r;
+    })
+    .catch(() => {
+      /* diagnostics only — never fatal */
+    });
 });
 </script>
 
@@ -93,6 +103,22 @@ onMounted(() => {
         <span class="k">{{ t("about.configDir") }}</span>
         <span class="v mono" :title="store.appInfo?.configDir">{{ store.appInfo?.configDir ?? "—" }}</span>
       </div>
+    </section>
+
+    <!-- startup timing (#27) -->
+    <section class="panel">
+      <header class="panel-head">
+        <h2>{{ t("about.startup") }}</h2>
+        <span v-if="bootReport" class="dim small mono">{{ t("about.bootTotal") }}: {{ bootReport.totalMs }} ms</span>
+      </header>
+      <p class="dim small">{{ t("about.startupHint") }}</p>
+      <div class="kv">
+        <template v-for="p in bootReport?.phases ?? []" :key="p.name">
+          <span class="k mono">{{ p.name }}</span>
+          <span class="v mono">{{ p.ms }} ms</span>
+        </template>
+      </div>
+      <div v-if="!bootReport" class="dim small">—</div>
     </section>
 
     <!-- engine -->

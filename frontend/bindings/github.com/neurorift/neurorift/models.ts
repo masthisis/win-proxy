@@ -14,6 +14,22 @@ export interface AppInfo {
 }
 
 /**
+ * BootPhase is one measured startup segment (#27).
+ */
+export interface BootPhase {
+    "name": string;
+    "ms": number;
+}
+
+/**
+ * BootReport is the startup-phase breakdown of the current launch (#27).
+ */
+export interface BootReport {
+    "phases": BootPhase[] | null;
+    "totalMs": number;
+}
+
+/**
  * CoreUpdateInfo describes an available core update.
  */
 export interface CoreUpdateInfo {

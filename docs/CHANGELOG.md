@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **Boot-phase telemetry (#27).** Every launch now records how long each
+  startup phase took — `crashlog`, `webview2_check`, `container`,
+  `wails_init`, `webview_ready` — and writes one summary line
+  (`boot phases ms: …`) to both `startup.log` and `neurorift.log`. The
+  About view gained a **Startup timing** panel showing the same table.
+  This is the measurement layer for the reported slow-startup problem: the
+  Go-side path audits as milliseconds-only, so a large gap between
+  double-click and first log line pinpoints the environmental cause
+  (Defender/SmartScreen scans of the unsigned portable exe — see the new
+  *Slow startup* section in TROUBLESHOOTING.md; the structural fix, the
+  NSIS installer, lands separately in #28).
+
 ## v1.0.3 - operating model + always-green CI
 
 Project-facing release: the repository itself becomes fully issue-driven.

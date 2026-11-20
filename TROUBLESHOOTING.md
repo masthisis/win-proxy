@@ -80,7 +80,32 @@ If it still fails: keep the bundled `core/mihomo.exe` next to the app, or
 open **Settings → Core → GitHub mirror prefix** and set a mirror (e.g. a
 ghproxy-style prefix), then retry.
 
-## 7. Where everything lives
+## 7. The app takes a very long time to open
+
+First, quantify it: open **About → Startup timing**. It shows how long each
+launch phase took inside the app (the same `boot phases ms:` line is written
+to both log files on every launch).
+
+- **Small total (under ~2 s) but a long wait before anything appears** —
+  the delay happens *before our code runs*: Windows Defender/SmartScreen
+  heuristic scans of the unsigned exe. This affects the **portable** build
+  most, because a zip downloaded from the browser marks the extracted files
+  with *Mark-of-the-Web* and they live in a user-writable folder.
+  Fixes, in order of effectiveness:
+  1. **Install via the setup exe** (`NeuroRift-<version>-windows-x64-setup.exe`)
+     instead of running the portable build — installed files carry no MOTW
+     and Program Files is a trusted location.
+  2. Portable workaround: right-click the **zip** (before extracting) →
+     **Properties** → check **Unblock** → OK, then extract; or run
+     `Unblock-File NeuroRift-*.zip` in PowerShell.
+  3. Add an antivirus exclusion for the NeuroRift folder (see item 2 above).
+- **Large `webview_ready` value (seconds)** — WebView2 cold start; usually
+  only the first launch after a reboot. Nothing is wrong; later launches
+  are faster.
+- **Large `container` value** — unusually slow disk or profile store.
+  If it exceeds a few hundred milliseconds, file a bug with the phase table.
+
+## 8. Where everything lives
 
 | Path | Content |
 | --- | --- |

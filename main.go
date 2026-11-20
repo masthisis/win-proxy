@@ -39,6 +39,7 @@ var trayIconOff []byte
 // lifecycle implements the Wails service hooks for the whole container.
 type lifecycle struct {
 	c      *Container
+	cl     *crashLog
 	stopBG func()
 	app    *application.App
 }
@@ -48,6 +49,13 @@ func (l *lifecycle) ServiceStartup(ctx context.Context) error {
 	l.stopBG = l.c.StartBackground(ctx)
 	forwardEvents(l.c, l.app)
 	installBridges(l.app)
+
+	// Boot telemetry (#27): the webview is alive and executing JS —
+	// this is the moment the app is "open". Record it once and emit
+	// the summary to both log sinks.
+	boot.finishWebviewReady()
+	l.cl.Printf("%s", boot.summary())
+	l.c.Log.Info(boot.summary())
 	return nil
 }
 
@@ -71,6 +79,7 @@ func main() {
 	// subsystem builds have no console, so log.Fatalf/os.Exit(1) vanish
 	// silently ("it does not open"). See crashlog.go + startup_windows.go.
 	cl := initCrashLog()
+	boot.mark("crashlog")
 	defer cl.Close()
 	defer func() {
 		if r := recover(); r != nil {
@@ -85,13 +94,15 @@ func main() {
 	if !ensureWebView2(cl) {
 		return
 	}
+	boot.mark("webview2_check")
 
 	container, err := NewContainer()
 	if err != nil {
 		startupFatal(cl, nil, fmt.Errorf("startup failed: %w", err))
 	}
+	boot.mark("container")
 
-	lc := &lifecycle{c: container}
+	lc := &lifecycle{c: container, cl: cl}
 
 	app := application.New(application.Options{
 		Name:        nr.AppName,
@@ -126,6 +137,7 @@ func main() {
 		},
 	})
 	lc.app = app
+	boot.mark("wails_init")
 
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            nr.AppName,

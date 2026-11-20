@@ -147,5 +147,20 @@ func (s *AppService) LogTail(n int) []string {
 // Version returns the app version.
 func (s *AppService) Version() string { return nr.Version }
 
+// BootPhase is one measured startup segment (#27).
+type BootPhase struct {
+	Name string `json:"name"`
+	MS   int64  `json:"ms"`
+}
+
+// BootReport is the startup-phase breakdown of the current launch (#27).
+type BootReport struct {
+	Phases  []BootPhase `json:"phases"`
+	TotalMS int64       `json:"totalMs"`
+}
+
+// BootPhases returns startup timing diagnostics for the About panel (#27).
+func (s *AppService) BootPhases() BootReport { return boot.snapshot() }
+
 // PickClashFile opens the native file dialog and returns the chosen path.
 func (s *AppService) PickClashFile() (string, error) { return pickFile() }

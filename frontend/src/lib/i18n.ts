@@ -252,6 +252,9 @@ const en: Record<string, string> = {
   "about.mihomo": "mihomo on GitHub",
   "about.wails": "Wails on GitHub",
   "about.checkFailed": "Update check failed",
+  "about.startup": "Startup timing",
+  "about.startupHint": "Phase timings of this launch. If the app feels slow to open, paste this into a bug report (the total only counts time inside the app — antivirus scans before launch are invisible to it).",
+  "about.bootTotal": "Total",
 
   // ---- toasts ----
   "toast.modeSet": "Mode set to {mode}",
@@ -514,6 +517,9 @@ const fa: Record<string, string> = {
   "about.mihomo": "mihomo در گیت‌هاب",
   "about.wails": "Wails در گیت‌هاب",
   "about.checkFailed": "بررسی به‌روزرسانی ناموفق بود",
+  "about.startup": "زمان راه‌اندازی",
+  "about.startupHint": "زمان‌بندی مراحل همین اجرا. اگر باز شدن برنامه کند به نظر می‌رسد، این مقدار را در گزارش خطا قرار دهید (مجموع فقط زمان داخل برنامه است — اسانتی‌ویروس قبل از اجرا در آن دیده نمی‌شود).",
+  "about.bootTotal": "مجموع",
 
   // ---- toasts ----
   "toast.modeSet": "حالت به {mode} تغییر کرد",
