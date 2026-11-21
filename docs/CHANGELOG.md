@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+## v1.7.0 - portable mode + concurrency hardening
+
+One feature issue and one review finding, both through the full
+issue -> branch -> PR -> CI -> merge workflow.
+
+- **Portable mode (#71, closes #18).** A `portable.flag` next to
+  `neurorift.exe` switches 100% of state — settings, profiles, speed
+  history, subscriptions, core (incl. the selections `cache.db`), logs and
+  reports — to a `data\` folder beside the exe instead of `%APPDATA%`. The
+  mode is decided once at startup before any store opens, and shown in the
+  log header, the About panel and Settings. Migration from an existing
+  install is explicit only (Settings → Portable mode → Import existing
+  data; refuses an already-initialized portable dir, never deletes the
+  source, restart required). The release zip ships the flag pre-placed
+  (extract = portable); the NSIS installer does not — Program Files is not
+  a safe portable location, and a read-only exe dir fails startup with the
+  standard dialog discipline. Self-updates keep degrading gracefully to
+  the releases page (`ErrPortableMode`). Docs: CONTRACT.md, TROUBLESHOOTING
+  §9, README.
+- **logLoop data race fix (#70, closes #69).** The `/logs` consumer ran
+  two goroutines over the same batch/ring slices with no synchronization —
+  the stream callback appended while the 500 ms flush ticker copied and
+  reset. Under contention this lost log lines and could corrupt the slice
+  header (panic risk in release builds). Both sides now take a mutex; the
+  emit happens on the copied slice outside the lock. New
+  `TestLogLoop_ConcurrentStreamAndFlush` fails under `-race` on the old
+  code (verified) and pins the 300-line ring + 500 ms batching contract.
+
 ## v1.6.0 - routing control, YAML editing, proxy guard
 
 The three plan issues from the v1.5 backlog, each through the full
