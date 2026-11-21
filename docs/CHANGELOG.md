@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+## v1.9.0 - TUN service foundation (stage 1 of #14)
+
+The first user-requested v2 feature enters the tree, plus one perf fix —
+each through the full issue -> branch -> PR -> CI -> merge workflow.
+
+- **TUN service foundation (#79, stage 1 of #14).** `neurorift.exe` doubles
+  as the optional **NeuroRiftService** Windows service: `service run` serves
+  `\\.\pipe\neurorift-service` inside the SCM context, `service
+  install`/`service uninstall` are one-time ELEVATED self-relaunches (the
+  only UAC prompt in the whole design). Pipe protocol is versioned,
+  length-prefixed JSON with a 64 KiB frame cap and a DACL of
+  `D:P(A;;GA;;;SY)(A;;GA;;;IU)` (SYSTEM + interactive sessions only).
+  Install type is automatic (delayed) so the service is simply there when
+  the app needs it. Settings > TUN gained the service card (status badge,
+  install/uninstall, bounded result polling; en + fa). Service and GUI
+  coexist as separate processes (subcommands are intercepted before the
+  single-instance lock and crash log). The stage-2 spawn path-pinning
+  contract (only `<install>\core\mihomo.exe` + the app runtime config) is
+  designed and documented in CONTRACT.md now; the core handoff (the actual
+  no-UAC TUN experience) lands in stage 2.
+- **Traffic chart pauses while the window is hidden (#80, closes #76).**
+  `onTraffic` keeps only the live counters when `document.hidden` — the
+  Dashboard chart pipeline no longer recomputes for pixels nobody sees
+  (the CPU waste Clash Verge Rev explicitly fixed). On visible again the
+  chart restarts fresh. The backend `/traffic` stream is untouched —
+  failover and nettest depend on it.
+- **docs/ROADMAP.md (#78).** The standing priority rule (user-reported
+  bugs -> owner-requested features #14 #15 #17 #19 #73 -> agent-filed
+  items) and the per-issue implementation plan now live in the repo.
+
 ## v1.8.0 - sing-box import
 
 One backlog feature, through the full issue -> branch -> PR -> CI ->
