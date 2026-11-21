@@ -25,6 +25,7 @@ import (
 
 	"github.com/neurorift/neurorift/internal/engine"
 	"github.com/neurorift/neurorift/internal/nr"
+	"github.com/neurorift/neurorift/internal/nrservice"
 	"github.com/neurorift/neurorift/internal/platform"
 	"github.com/neurorift/neurorift/internal/reporting"
 	"github.com/neurorift/neurorift/internal/singleinstance"
@@ -109,6 +110,15 @@ func (l *lifecycle) ServiceShutdown() error {
 }
 
 func main() {
+	// Issue #14: the service subcommands NEVER start the GUI. "service run"
+	// blocks inside the SCM context; "service install|uninstall" run as the
+	// one-shot elevated child. This must precede the crash log and the
+	// single-instance lock: the service and the GUI are separate processes
+	// that legitimately run side by side.
+	if nrservice.HandleSubcommand(os.Args) {
+		return
+	}
+
 	startMinimized := hasFlag("--minimized") || hasFlag("-m")
 
 	// From the very first statement, make every failure visible: GUI-
