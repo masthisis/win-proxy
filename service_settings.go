@@ -12,6 +12,7 @@ import (
 	"github.com/neurorift/neurorift/internal/failover"
 	"github.com/neurorift/neurorift/internal/nettest"
 	"github.com/neurorift/neurorift/internal/nr"
+	"github.com/neurorift/neurorift/internal/nrservice"
 	"github.com/neurorift/neurorift/internal/platform"
 	"github.com/neurorift/neurorift/internal/proxyguard"
 	"github.com/neurorift/neurorift/internal/settings"
@@ -156,6 +157,42 @@ func (s *SysService) GetProxyGuardStatus() proxyguard.Status {
 
 // IsElevated reports admin rights (needed for TUN).
 func (s *SysService) IsElevated() bool { return platform.IsElevated() }
+
+// --- TUN service mode (#14) --------------------------------------------------
+
+// TunServiceStatus reports the optional Windows service state for the
+// Settings card: Supported=false hides the card; Installed/Running/Version
+// come from the SCM + one pipe ping.
+func (s *SysService) TunServiceStatus() nrservice.Status {
+	st, err := nrservice.Query()
+	if err != nil {
+		s.c.Log.Warn("tun service query failed", "err", err)
+		return nrservice.Status{Supported: !errors.Is(err, nrservice.ErrUnsupported)}
+	}
+	return st
+}
+
+// TunServiceInstall registers the service. One UAC prompt (self-relaunch
+// with the runas verb); returns immediately, the caller polls
+// TunServiceStatus for the outcome.
+func (s *SysService) TunServiceInstall() error {
+	if err := nrservice.Install(); err != nil {
+		s.c.Log.Warn("tun service install rejected", "err", err)
+		return err
+	}
+	s.c.Log.Info("tun service install requested (elevated child spawning)")
+	return nil
+}
+
+// TunServiceUninstall stops and removes the service (one UAC prompt).
+func (s *SysService) TunServiceUninstall() error {
+	if err := nrservice.Uninstall(); err != nil {
+		s.c.Log.Warn("tun service uninstall rejected", "err", err)
+		return err
+	}
+	s.c.Log.Info("tun service uninstall requested (elevated child spawning)")
+	return nil
+}
 
 // SetAutostart registers/unregisters launching NeuroRift at login
 // (Wails AutostartManager; HKCU Run key on Windows). Autostarted
