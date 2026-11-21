@@ -133,13 +133,42 @@ func (s *Streams) memoryLoop(ctx context.Context) {
 }
 
 // logLoop reads /logs, keeps a 300-line ring and emits batches.
+//
+// CONCURRENCY (issue #69): StreamLine invokes its callback synchronously on
+// the *inner* goroutine below, while the flush ticker runs on *this* one.
+// Both touch ring/batch — append under mu, swap under mu, and only emit
+// the copied slice outside the lock. Without the lock the append and the
+// copy/reset raced (lost lines; slice-header corruption panics possible).
 func (s *Streams) logLoop(ctx context.Context) {
 	defer s.wg.Done()
 	const ringSize = 300
+
+	var mu sync.Mutex
 	ring := make([]string, 0, ringSize)
-	var batch []string
-	flush := time.NewTicker(500 * time.Millisecond)
-	defer flush.Stop()
+	batch := make([]string, 0, 32)
+	appendLine := func(line string) {
+		mu.Lock()
+		defer mu.Unlock()
+		ring = append(ring, line)
+		if len(ring) > ringSize {
+			ring = ring[1:]
+		}
+		batch = append(batch, line)
+	}
+	flush := func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		if len(batch) == 0 {
+			return nil
+		}
+		out := make([]string, len(batch))
+		copy(out, batch)
+		batch = batch[:0]
+		return out
+	}
+
+	flushTicker := time.NewTicker(500 * time.Millisecond)
+	defer flushTicker.Stop()
 
 	done := make(chan struct{})
 	go func() {
@@ -159,11 +188,7 @@ func (s *Streams) logLoop(ctx context.Context) {
 				if entry.Payload == "" {
 					return
 				}
-				ring = append(ring, entry.Payload)
-				if len(ring) > ringSize {
-					ring = ring[1:]
-				}
-				batch = append(batch, entry.Payload)
+				appendLine(entry.Payload)
 			})
 			if ctx.Err() != nil {
 				return
@@ -179,11 +204,8 @@ func (s *Streams) logLoop(ctx context.Context) {
 			return
 		case <-done:
 			return
-		case <-flush.C:
-			if len(batch) > 0 {
-				out := make([]string, len(batch))
-				copy(out, batch)
-				batch = batch[:0]
+		case <-flushTicker.C:
+			if out := flush(); out != nil {
 				s.bus.Emit(nr.EventLogsCore, out)
 			}
 		}

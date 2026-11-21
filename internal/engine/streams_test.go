@@ -9,9 +9,14 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/neurorift/neurorift/internal/bus"
+	"github.com/neurorift/neurorift/internal/nr"
+	"github.com/neurorift/neurorift/internal/settings"
 )
 
 // testLogger discards debug output during tests.
@@ -210,4 +215,61 @@ func TestMemoryLoop_RetriesAfterStreamEnds(t *testing.T) {
 		case <-time.After(20 * time.Millisecond):
 		}
 	}
+}
+
+// TestLogLoop_ConcurrentStreamAndFlush (issue #69): the StreamLine callback
+// runs on the inner stream goroutine while the 500 ms flush ticker runs on
+// the logLoop goroutine. Both touch the batch/ring slices; run the real
+// logLoop against a fast fake /logs endpoint under -race and assert batches
+// are emitted and the loop exits on cancellation. Without the mutex this
+// fails intermittently under `go test -race` (append racing copy/reset).
+func TestLogLoop_ConcurrentStreamAndFlush(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		flusher := w.(http.Flusher)
+		for i := 0; ; i++ {
+			fmt.Fprintf(w, "{\"type\":\"info\",\"payload\":\"line-%d\"}\n", i)
+			flusher.Flush()
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(5 * time.Millisecond):
+			}
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	b := bus.New(testLogger())
+	set := settings.NewManager(filepath.Join(t.TempDir(), "settings.json"), b, testLogger())
+	s := &Streams{api: apiForServer(srv), bus: b, log: testLogger(), mgr: &Manager{Settings: set}}
+
+	var batches atomic.Int64
+	subCtx, stopSub := context.WithCancel(context.Background())
+	defer stopSub()
+	b.Subscribe(subCtx, nr.EventLogsCore, func(_ string, _ any) { batches.Add(1) })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s.wg.Add(1)
+	done := make(chan struct{})
+	go func() {
+		s.logLoop(ctx)
+		close(done)
+	}()
+
+	// Let ~4 flush ticks fire against a steady stream of lines.
+	deadline := time.After(5 * time.Second)
+	for batches.Load() < 3 {
+		select {
+		case <-deadline:
+			t.Fatalf("logLoop emitted only %d batches in 5s", batches.Load())
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("logLoop did not exit within 2s of cancellation")
+	}
+	s.wg.Wait()
 }
