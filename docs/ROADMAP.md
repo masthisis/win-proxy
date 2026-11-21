@@ -1,44 +1,91 @@
-# Roadmap
+# Roadmap — implementation plan for every open issue
 
-Prioritized backlog. Everything here is designed to be picked up by an AI
-agent using the recipes in [AI_DEVELOPER_GUIDE.md](AI_DEVELOPER_GUIDE.md).
+Standing priority rule from the repo owner: **user-reported bugs first (any
+author), then the owner's own requested features (label `user-requested`) in
+the order below, then agent-filed research items.** Every item ships through
+the standard workflow: issue → branch → PR → CI → squash-merge, followed by a
+release train (version bump, changelog, tag). This file is kept in sync
+whenever issues close.
 
-Each item below is **tracked as a GitHub issue** (labels `v1.1` / `v2`) with
-full spec, investigation and acceptance criteria — see
-[WORKFLOW.md](WORKFLOW.md) for how items are fetched, implemented, merged and
-released.
+Released: v1.8.0 (2026-11-21) — routing overrides, YAML editor, proxy guard,
+portable mode, log-loop race fix, sing-box import.
 
-## v1.x (refinement)
+## User-requested queue (in order)
 
-- **Subscription merging**: activate multiple node subscriptions at once
-  into one provider-union with per-source grouping.
-- **Profile editor**: raw YAML editor with validation inside the app.
-- **Rules editor UI** for generated (nodes-kind) profiles: per-domain /
-  per-app routing overrides on top of the default rules.
-- **Cancel/limit quota-aware speed tests**: stop button in the Test Center
-  (backend `CancelSpeedTest` is already exposed) + per-test byte cap
-  presets (5/25/100 MB).
-- **Latency history sparklines** per node (mihomo delay history is already
-  surfaced through `GroupUI`).
+### 1. #14 — TUN service mode (no UAC prompt on every launch)
 
-## v2 (bigger)
+Staged delivery; each stage is a shippable, compiling, tested increment.
 
-- **Service mode for TUN** (Windows service + named-pipe IPC) so TUN works
-  without UAC prompts per launch.
-- **PAC mode** alongside system proxy.
-- **Sing-box config import** (convert sing-box outbound JSON to mihomo
-  proxies).
-- **Scriptable rules**: user JS/expr snippets evaluated per request via
-  mihomo sub-rules.
-- **Cross-platform parity**: Linux (GTK) and macOS builds are already
-  compile-ready (pure Go); needs platform testing + autostart/system-proxy
-  implementations (Wails provides both managers on those platforms).
-- **Portable mode** (config dir next to the exe) for USB-stick usage.
+- **Stage 1 — service foundation.** `neurorift.exe` doubles as a Windows
+  service (`neurorift.exe service run`, x/sys/windows/svc). New
+  `internal/nrservice`: versioned length-prefixed JSON protocol over a local
+  named pipe (`\\.\pipe\neurorift-service`, max 64 KiB frames), pipe DACL
+  `D:P(A;;GA;;;SY)(A;;GA;;;IU)` (SYSTEM + interactive users only), and
+  path-pinning validation (the service will only ever spawn
+  `<install>\core\mihomo.exe` with `<data>\neurorift-runtime.yaml` — no
+  arbitrary command execution, even from a pipe client). Install/uninstall =
+  one-time elevated self-relaunch (`service install|uninstall`), service
+  start type automatic (delayed). GUI: Settings card (status / install /
+  uninstall) + i18n (en/fa). No per-launch UAC exists anymore for anything
+  the service will own.
+- **Stage 2 — core handoff.** The service owns the core lifecycle for TUN
+  mode: `start-core`/`stop-core` ops spawn/supervise mihomo (restart on
+  crash), GUI points its existing REST client at the core unchanged
+  (traffic/logs/streams need no changes). Clean fallback: service absent →
+  current UAC-on-launch behavior. Stop policy: core stops when the pipe
+  client disconnects (GUI exit) — TUN is intentionally torn down on exit.
+- **Stage 3 — hardening.** Crash-loop detection in the service, watchdog
+  reporting over the pipe, NSIS post-install option to pre-register the
+  service, TROUBLESHOOTING section.
+
+### 2. #15 — PAC mode alongside system proxy
+
+Third proxy mode next to Off / System Proxy: the app serves a generated PAC
+file on a loopback-only listener and points WinINet at it via
+`AutoconfigURL` (the existing per-user switch in
+`internal/platform/platform_windows.go`). User-editable PAC with DIRECT
+defaults for LAN/private ranges; port configurable + collision-checked;
+mode switch live without restart; mode enum + event documented in
+CONTRACT.md.
+
+### 3. #17 — Scriptable rules
+
+Tiny user snippets compiled to mihomo sub-rules / AND-OR-NOT logic rules.
+Pick ONE expression engine (goja vs expr-lang — justify on bundle size +
+sandboxing in the PR), validate + compile before apply with line-precise
+errors (same two-layer discipline as the YAML editor), render below
+overrides and above defaults in `configgen.go`. Snippets never touch the
+data plane; no filesystem/network access from snippet evaluation.
+
+### 4. #19 — Linux + macOS parity builds
+
+Feature-by-feature behind the existing `internal/platform` build-tag
+contract, one PR per feature: system proxy (gsettings/GNOME + KDE;
+`networksetup` per service on macOS) → autostart (XDG desktop file;
+LaunchAgent) → TUN (Linux `/dev/net/tun` + pkexec guidance; macOS utun) →
+tray parity; CI build matrix (Ubuntu + macOS artifacts, per-OS test/vet
+smoke). The pure-Go engine core needs zero changes.
+
+### 5. #73 — Android (research track, separate product)
+
+Not implementable inside this Wails v3 desktop codebase. Plan posted on the
+issue: sibling repository (`neurorift-android`), Kotlin app embedding the
+mihomo core via gomobile in front of Android `VpnService`; desktop roadmap
+(#14–#19) first. Interim: any mihomo-based Android client works with the
+same subscriptions.
+
+## Agent-filed backlog (after the user-requested set, or as small
+companion items when a cycle has capacity left)
+
+- **#75 — per-profile User-Agent / custom headers for subscription fetch**
+  (v2rayN parity; unlocks providers that serve format-by-UA, pairs with the
+  sing-box import shipped in v1.8.0). `fetch.go` + profile field + editor UI.
+- **#76 — pause traffic sampling / chart work while the window is hidden**
+  (frontend-only; Clash Verge Rev's CPU fix). Visibility-gated ring-buffer
+  pushes in `store.ts`.
 
 ## Non-goals
 
-- Vendoring mihomo in the repository (source or binaries) — licensing and
-  freshness. The release zip bundles the **official** mihomo binary at build
-  time (`core/mihomo.exe`, see `release.yml`), and end-user installs keep the
-  first-run download path with mirror support.
-- Reinventing the data plane — mihomo is the engine, period.
+- Converting sing-box groups/route rules (nodes only, per #16 decision).
+- Bundling extra cores (Xray/sing-box runtimes) — mihomo covers the schema.
+- Auto-starting the core at boot before the GUI ever ran.
