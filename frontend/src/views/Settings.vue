@@ -6,7 +6,8 @@ import { EV } from "../lib/events";
 import * as SettingsSvc from "../../bindings/github.com/neurorift/neurorift/settingsservice.js";
 import * as Sys from "../../bindings/github.com/neurorift/neurorift/sysservice.js";
 import * as ReportSvc from "../../bindings/github.com/neurorift/neurorift/reportservice.js";
-import type { PendingInfo } from "../../bindings/github.com/neurorift/neurorift/models.js";
+import * as AppSvc from "../../bindings/github.com/neurorift/neurorift/appservice.js";
+import type { PendingInfo, PortableInfo } from "../../bindings/github.com/neurorift/neurorift/models.js";
 import type { Settings as SettingsDoc } from "../../bindings/github.com/neurorift/neurorift/internal/settings/models.js";
 import { store, checkAppUpdate, downloadAppUpdate, installAppUpdate, openUpdateNotes } from "../store";
 import { t, setLang, type Lang } from "../lib/i18n";
@@ -38,6 +39,32 @@ async function onAutostart(ev: Event) {
   }
 }
 loadAutostart();
+
+// ---- portable mode (#18) ----
+const portable = ref<PortableInfo | null>(null);
+const importing = ref(false);
+
+async function loadPortable(): Promise<void> {
+  try {
+    portable.value = await AppSvc.PortableInfo();
+  } catch {
+    portable.value = null;
+  }
+}
+loadPortable();
+
+async function importLegacy(): Promise<void> {
+  if (importing.value) return;
+  importing.value = true;
+  try {
+    portable.value = await AppSvc.PortableImportLegacy();
+    toast.success(t("settings.portable.imported"));
+  } catch (e) {
+    toast.error(`${t("settings.portable.importFailed")}: ${errMsg(e)}`);
+  } finally {
+    importing.value = false;
+  }
+}
 
 const open = reactive<Record<string, boolean>>({
   general: true,
@@ -865,6 +892,41 @@ async function importOverrides(ev: Event): Promise<void> {
           </div>
         </div>
       </section>
+
+      <!-- portable mode (#18) -->
+      <div class="panel" data-testid="portable-panel">
+        <div class="row" style="align-items: flex-start">
+          <div style="flex: 1; min-width: 0">
+            <div class="label">{{ t("settings.portable.title") }}</div>
+            <div v-if="portable?.portable" class="small" style="margin-top: 4px">
+              <span class="badge ok">{{ t("settings.portable.title") }}</span>
+              {{ t("settings.portable.active", { dir: portable.dataDir }) }}
+            </div>
+            <div v-else class="small dim" style="margin-top: 4px">{{ t("settings.portable.standard") }}</div>
+            <div
+              v-if="portable?.portable && portable?.legacyPresent && !portable?.imported"
+              class="small"
+              style="margin-top: 10px"
+            >
+              <IconWarn :size="12" style="vertical-align: -2px" />
+              {{ t("settings.portable.importBanner", { dir: portable?.legacyDir }) }}
+            </div>
+            <div v-if="portable?.imported" class="small" style="margin-top: 10px">
+              <IconCheck :size="12" style="vertical-align: -2px" />
+              {{ t("settings.portable.imported") }}
+            </div>
+          </div>
+          <button
+            v-if="portable?.portable && portable?.legacyPresent && !portable?.imported"
+            class="btn sm primary"
+            :disabled="importing"
+            @click="importLegacy()"
+          >
+            <span v-if="importing" class="spinner" style="width: 11px; height: 11px" />
+            {{ importing ? t("settings.portable.importing") : t("settings.portable.import") }}
+          </button>
+        </div>
+      </div>
 
       <!-- folders -->
       <div class="panel">

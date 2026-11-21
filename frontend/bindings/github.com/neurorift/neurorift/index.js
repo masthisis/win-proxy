@@ -31,5 +31,6 @@ export {
     GroupUI,
     NodeUI,
     PendingInfo,
+    PortableInfo,
     SysProxyState
 } from "./models.js";

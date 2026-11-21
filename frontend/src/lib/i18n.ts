@@ -342,6 +342,14 @@ const en: Record<string, string> = {
   "settings.openConfig": "Open Config Folder",
   "settings.openCore": "Open Core Folder",
   "settings.openLogs": "Open Logs Folder",
+  "settings.portable.title": "Portable mode",
+  "settings.portable.active": "Active — all data lives in {dir}",
+  "settings.portable.standard": "Standard — data lives in the per-user config folder. To run portable, put an empty portable.flag file next to the exe (the zip distribution ships one already).",
+  "settings.portable.importBanner": "Data from an existing install was found in {dir}. Copy it into the portable data folder? This is an explicit action — nothing is imported automatically. Restart NeuroRift afterwards.",
+  "settings.portable.import": "Import existing data",
+  "settings.portable.importing": "Importing…",
+  "settings.portable.imported": "Imported. Restart NeuroRift to load the imported state.",
+  "settings.portable.importFailed": "Import failed",
 
   // ---- about ----
   "about.version": "Version",
@@ -729,6 +737,14 @@ const fa: Record<string, string> = {
   "settings.openConfig": "بازکردن پوشه پیکربندی",
   "settings.openCore": "بازکردن پوشه هسته",
   "settings.openLogs": "بازکردن پوشه گزارش‌ها",
+  "settings.portable.title": "حالت پرتابل",
+  "settings.portable.active": "فعال — همه داده‌ها در {dir} نگه‌داری می‌شوند",
+  "settings.portable.standard": "استاندارد — داده‌ها در پوشه پیکربندی کاربر هستند. برای حالت پرتابل یک فایل خالی portable.flag کنار فایل اجرایی بگذارید (نسخه zip آن را از قبل دارد).",
+  "settings.portable.importBanner": "داده‌های یک نصب قبلی در {dir} پیدا شد. آن‌ها در پوشه داده پرتابل کپی شود؟ این یک اقدام دستی است — هیچ‌چیز خودکار منتقل نمی‌شود. پس از آن NeuroRift را دوباره اجرا کنید.",
+  "settings.portable.import": "درون‌ریزی داده‌های موجود",
+  "settings.portable.importing": "در حال درون‌ریزی…",
+  "settings.portable.imported": "درون‌ریزی شد. برای بارگذاری داده‌ها NeuroRift را دوباره اجرا کنید.",
+  "settings.portable.importFailed": "درون‌ریزی ناموفق بود",
 
   // ---- about ----
   "about.version": "نسخه",

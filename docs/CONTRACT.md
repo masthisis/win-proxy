@@ -10,10 +10,12 @@ a bound signature changes.
 ### AppService (`appservice`)
 | Method | Returns | Notes |
 | --- | --- | --- |
-| `Info()` | `AppInfo` | name, version, goVersion, platform, configDir, coreMeta{version,channel,compatible} |
+| `Info()` | `AppInfo` | name, version, goVersion, platform, configDir, portable, coreMeta{version,channel,compatible} |
 | `LogTail(n)` | `string[]` | last n app log lines (≤500) |
 | `Version()` | `string` | app version |
 | `PickClashFile()` | `string` | native file dialog; returns chosen path |
+| `PortableInfo()` | `PortableInfo` | portable-mode state (#18): {portable, dataDir, legacyDir, legacyPresent, imported} |
+| `PortableImportLegacy()` | `PortableInfo` | explicit one-time migration of the per-user data into the portable dir (#18); refuses on an initialized portable dir; restart required |
 
 ### CoreService (`coreservice`)
 | Method | Returns | Notes |
