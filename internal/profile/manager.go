@@ -344,7 +344,7 @@ func (m *Manager) commitNew(ctx context.Context, p Summary, dec *DecodeResult) (
 	// Terminate the pre-commit pseudo-id ("new") used during fetch/parsing
 	// so no spinner badge leaks in the UI (issue #40).
 	m.progress("new", PhaseDone, "")
-	m.progress(p.ID, PhaseDone, fmt.Sprintf("%d nodes", p.NodeCount))
+	m.progress(p.ID, PhaseDone, doneDetail(p.NodeCount, dec.Warnings))
 	// Issue #42: EVERY nodes profile is declared as a provider in the
 	// runtime config now — adding any profile changes the config, so
 	// always hot-reload (the engine no-ops when not running).
@@ -356,6 +356,17 @@ func (m *Manager) commitNew(ctx context.Context, p Summary, dec *DecodeResult) (
 		return nil, err
 	}
 	return &p, nil
+}
+
+// doneDetail composes the import/update done-phase detail: node count plus
+// a skip count so users see silently-dropped entries (issue #16; warnings
+// were previously produced by DecodeContent but never surfaced).
+func doneDetail(count int, warnings []string) string {
+	s := fmt.Sprintf("%d nodes", count)
+	if len(warnings) > 0 {
+		s += fmt.Sprintf(", %d skipped", len(warnings))
+	}
+	return s
 }
 
 func decNodeCount(pc *ParsedContent) int {
@@ -452,7 +463,7 @@ func (m *Manager) Update(ctx context.Context, id string) (*Summary, error) {
 		return nil, err
 	}
 	m.emitList()
-	m.progress(id, PhaseDone, fmt.Sprintf("%d nodes", p.NodeCount))
+	m.progress(id, PhaseDone, doneDetail(p.NodeCount, dec.Warnings))
 
 	if m.ActiveID() == id {
 		if err := m.reapply(ctx, "profile-updated"); err != nil {
