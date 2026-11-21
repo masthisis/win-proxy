@@ -9,6 +9,7 @@
 //
 // Supported inputs (auto-detected):
 //   - Clash / mihomo YAML (with or without proxy-groups + rules)
+//   - sing-box JSON (outbounds -> nodes; groups/rules not converted, #16)
 //   - Base64-encoded URI lists (vmess/vless/trojan/ss/ssr/hysteria2/tuic/
 //     anytls/socks5/http links), the format used by v2rayN, Happ, Nekobox...
 //

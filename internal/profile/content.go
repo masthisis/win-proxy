@@ -21,8 +21,9 @@ type DecodeResult struct {
 //
 // Detection order:
 //  1. Clash/mihomo YAML (has "proxies:" etc.)       -> nodes or clash kind
-//  2. Plain share-link list ("scheme://...")        -> nodes kind
-//  3. Base64 of (1) or (2)                          -> decode and retry
+//  2. sing-box JSON (has non-empty "outbounds")     -> nodes kind (issue #16)
+//  3. Plain share-link list ("scheme://...")        -> nodes kind
+//  4. Base64 of (1)-(3)                             -> decode and retry
 func DecodeContent(text string) (*DecodeResult, error) {
 	trimmed := strings.TrimSpace(text)
 	if trimmed == "" {
@@ -32,6 +33,9 @@ func DecodeContent(text string) (*DecodeResult, error) {
 	if looksLikeClashYAML(trimmed) {
 		return decodeClash(trimmed)
 	}
+	if looksLikeSingboxJSON(trimmed) {
+		return decodeSingbox(trimmed)
+	}
 	if strings.Contains(trimmed, "://") {
 		return decodeLinkList(trimmed)
 	}
@@ -40,6 +44,9 @@ func DecodeContent(text string) (*DecodeResult, error) {
 			decoded := string(b)
 			if looksLikeClashYAML(decoded) {
 				return decodeClash(decoded)
+			}
+			if looksLikeSingboxJSON(decoded) {
+				return decodeSingbox(decoded)
 			}
 			if strings.Contains(decoded, "://") {
 				return decodeLinkList(decoded)
