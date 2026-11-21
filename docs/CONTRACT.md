@@ -87,9 +87,25 @@ a bound signature changes.
 | `SetSystemProxy(enabled)` | – | points WinINet at mixed port; keeps the proxy guard's expectation in sync (#47) |
 | `GetProxyGuardStatus()` | `proxyguard.Status` | `{armed, expectedOn, reappliedToday, lastReplay, lastAction?}` (#47) |
 | `IsElevated()` | `bool` | TUN requires elevation |
+| `TunServiceStatus()` | `nrservice.Status` | TUN service mode (#14): `{supported, installed, running, version?, pid}`; `supported=false` hides the UI card (non-Windows). Absent service = installed=false, NOT an error |
+| `TunServiceInstall()` | – | one-time registration; self-relaunches elevated (`runas`) — exactly one UAC prompt; returns immediately, poll `TunServiceStatus()` |
+| `TunServiceUninstall()` | – | stops + deletes the service (same one-prompt pattern) |
 | `SetAutostart(enabled)` / `GetAutostart()` | `bool` | HKCU Run key; autostarted instances start minimized |
 | `OpenFolder(which)` | – | "config" \| "core" \| "logs" |
 | `OpenURL(url)` | – | external browser |
+
+#### TUN service pipe protocol (#14)
+
+The optional Windows service (`NeuroRiftService`, `neurorift.exe service run`)
+serves `\\.\pipe\neurorift-service` with a DACL of
+`D:P(A;;GA;;;SY)(A;;GA;;;IU)` (SYSTEM + interactive sessions only). One
+request/response pair per connection: a 4-byte big-endian length prefix
+(frames > 64 KiB rejected) followed by JSON
+`Request{v:1, op, args?}` / `Response{v:1, ok, result?, error?}`. Ops
+(stage 1): `ping` → `{version, pid}`, `status` → `{version, core:"idle"}`;
+stage 2 adds the core-supervision ops. Install type is automatic (delayed);
+`service install|uninstall` are elevated one-shots that exit 0/2/3
+(success / install failed / uninstall failed).
 
 ### UpdateService (`updateservice`) — application self-update (#13)
 | Method | Returns | Notes |
