@@ -13,6 +13,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as nrservice$0 from "./internal/nrservice/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as proxyguard$0 from "./internal/proxyguard/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -97,6 +100,37 @@ export function SetSystemProxy(enabled) {
     return $Call.ByID(1111315939, enabled);
 }
 
+/**
+ * TunServiceInstall registers the service. One UAC prompt (self-relaunch
+ * with the runas verb); returns immediately, the caller polls
+ * TunServiceStatus for the outcome.
+ * @returns {$CancellablePromise<void>}
+ */
+export function TunServiceInstall() {
+    return $Call.ByID(213884037);
+}
+
+/**
+ * TunServiceStatus reports the optional Windows service state for the
+ * Settings card: Supported=false hides the card; Installed/Running/Version
+ * come from the SCM + one pipe ping.
+ * @returns {$CancellablePromise<nrservice$0.Status>}
+ */
+export function TunServiceStatus() {
+    return $Call.ByID(942307840).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType2($result);
+    }));
+}
+
+/**
+ * TunServiceUninstall stops and removes the service (one UAC prompt).
+ * @returns {$CancellablePromise<void>}
+ */
+export function TunServiceUninstall() {
+    return $Call.ByID(3271954296);
+}
+
 // Private type creation functions
 const $$createType0 = proxyguard$0.Status.createFrom;
 const $$createType1 = $models.SysProxyState.createFrom;
+const $$createType2 = nrservice$0.Status.createFrom;

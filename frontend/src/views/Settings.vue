@@ -8,6 +8,7 @@ import * as Sys from "../../bindings/github.com/neurorift/neurorift/sysservice.j
 import * as ReportSvc from "../../bindings/github.com/neurorift/neurorift/reportservice.js";
 import * as AppSvc from "../../bindings/github.com/neurorift/neurorift/appservice.js";
 import type { PendingInfo, PortableInfo } from "../../bindings/github.com/neurorift/neurorift/models.js";
+import type { Status as TunServiceStatus } from "../../bindings/github.com/neurorift/neurorift/internal/nrservice/models.js";
 import type { Settings as SettingsDoc } from "../../bindings/github.com/neurorift/neurorift/internal/settings/models.js";
 import { store, checkAppUpdate, downloadAppUpdate, installAppUpdate, openUpdateNotes } from "../store";
 import { t, setLang, type Lang } from "../lib/i18n";
@@ -79,6 +80,65 @@ const open = reactive<Record<string, boolean>>({
   updates: false,
   reporting: false,
 });
+
+// ---- TUN service mode (#14) ----
+const tunSvc = ref<TunServiceStatus | null>(null);
+const tunSvcBusy = ref(false);
+let tunSvcPoll: ReturnType<typeof setInterval> | null = null;
+
+async function loadTunService(): Promise<void> {
+  try {
+    tunSvc.value = await Sys.TunServiceStatus();
+  } catch {
+    tunSvc.value = null;
+  }
+}
+loadTunService();
+
+// Poll for a bounded window after install/uninstall: the action runs in a
+// detached elevated child, so the result arrives asynchronously.
+function pollTunService(seconds: number): void {
+  if (tunSvcPoll) clearInterval(tunSvcPoll);
+  let left = seconds;
+  tunSvcPoll = setInterval(() => {
+    left -= 1;
+    void loadTunService();
+    if (left <= 0 && tunSvcPoll) {
+      clearInterval(tunSvcPoll);
+      tunSvcPoll = null;
+    }
+  }, 1000);
+}
+
+async function installTunService(): Promise<void> {
+  if (tunSvcBusy.value) return;
+  tunSvcBusy.value = true;
+  try {
+    await Sys.TunServiceInstall();
+    toast.info(t("settings.tunService.installRequested"));
+    pollTunService(20);
+  } catch (e) {
+    toast.error(`${t("settings.tunService.installFailed")}: ${errMsg(e)}`);
+  } finally {
+    tunSvcBusy.value = false;
+    void loadTunService();
+  }
+}
+
+async function uninstallTunService(): Promise<void> {
+  if (tunSvcBusy.value) return;
+  tunSvcBusy.value = true;
+  try {
+    await Sys.TunServiceUninstall();
+    toast.info(t("settings.tunService.uninstallRequested"));
+    pollTunService(20);
+  } catch (e) {
+    toast.error(`${t("settings.tunService.uninstallFailed")}: ${errMsg(e)}`);
+  } finally {
+    tunSvcBusy.value = false;
+    void loadTunService();
+  }
+}
 
 const SECTIONS = [
   { id: "general", label: "settings.secGeneral" },
@@ -186,6 +246,7 @@ onMounted(() => {
 });
 onUnmounted(() => {
   offReports?.();
+  if (tunSvcPoll) clearInterval(tunSvcPoll);
 });
 
 function clone<T>(v: T): T {
@@ -633,6 +694,27 @@ async function importOverrides(ev: Event): Promise<void> {
           <div v-if="store.elevatedKnown && !store.elevated" class="warn-box span-all">
             <IconWarn :size="15" />
             <span>{{ t("settings.tunNeedsAdmin") }}</span>
+          </div>
+
+          <!-- TUN service mode (#14): one UAC prompt at install, never after -->
+          <div v-if="tunSvc?.supported" class="span-all" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border)">
+            <div v-if="tunSvc.installed" class="row" style="gap: 8px; align-items: center; flex-wrap: wrap">
+              <span class="dim small">{{ t("settings.tunService.label") }}</span>
+              <span v-if="tunSvc.running" class="badge success">{{ t("settings.tunService.running") }}</span>
+              <span v-else class="badge">{{ t("settings.tunService.installedStopped") }}</span>
+              <span v-if="tunSvc.version" class="mono dim small">v{{ tunSvc.version }}</span>
+              <button class="btn sm" :disabled="tunSvcBusy" @click="uninstallTunService">
+                {{ t("settings.tunService.uninstall") }}
+              </button>
+            </div>
+            <div v-else class="row" style="gap: 8px; align-items: center">
+              <span class="dim small">{{ t("settings.tunService.label") }}</span>
+              <span class="badge warn">{{ t("settings.tunService.notInstalled") }}</span>
+              <button class="btn sm" :disabled="tunSvcBusy" @click="installTunService">
+                {{ t("settings.tunService.install") }}
+              </button>
+            </div>
+            <p class="hint" style="margin: 8px 0 0">{{ t("settings.tunService.desc") }}</p>
           </div>
         </div>
       </section>
