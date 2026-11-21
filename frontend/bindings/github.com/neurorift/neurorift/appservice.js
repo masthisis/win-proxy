@@ -55,6 +55,31 @@ export function PickClashFile() {
 }
 
 /**
+ * PortableImportLegacy copies the user-authored subset of the per-user
+ * %APPDATA% root into the portable data dir — the EXPLICIT migration action
+ * required by issue #18 (no silent import ever happens at startup). It
+ * refuses on an already-initialized portable dir. A restart is required
+ * afterwards; the UI must tell the user.
+ * @returns {$CancellablePromise<$models.PortableInfo>}
+ */
+export function PortableImportLegacy() {
+    return $Call.ByID(564325259).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
+ * PortableInfo reports the portable-mode state (#18). The mode itself is
+ * decided once at startup in appmeta.Resolve — this only surfaces it.
+ * @returns {$CancellablePromise<$models.PortableInfo>}
+ */
+export function PortableInfo() {
+    return $Call.ByID(3392134549).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
  * Version returns the app version.
  * @returns {$CancellablePromise<string>}
  */
@@ -66,3 +91,4 @@ export function Version() {
 const $$createType0 = $models.BootReport.createFrom;
 const $$createType1 = $models.AppInfo.createFrom;
 const $$createType2 = $Create.Array($Create.Any);
+const $$createType3 = $models.PortableInfo.createFrom;

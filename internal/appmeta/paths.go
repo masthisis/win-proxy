@@ -15,6 +15,15 @@
 // The config dir is %APPDATA% on Windows, ~/Library/Application Support on
 // macOS and $XDG_CONFIG_HOME on Linux, resolved via os.UserConfigDir().
 //
+// PORTABLE MODE (#18): when a portable.flag file exists next to the running
+// executable, ALL state resolves to <exe-dir>/data/... instead of the
+// per-user config dir. The mode is decided once here — before any store
+// opens — so every consumer (settings, profiles, logs, core, reports)
+// switches atomically. Migration from an existing %APPDATA% install is
+// NEVER automatic: the Settings UI offers an explicit import action
+// (ImportLegacyInto), which refuses to touch an already-initialized
+// portable data dir.
+//
 // AI-DEVELOPER NOTES:
 //   - Paths.Resolve is the ONLY place that knows the layout; new artifacts
 //     must be added here and documented in this header.
@@ -26,6 +35,14 @@ import (
 
 	"github.com/neurorift/neurorift/internal/nr"
 )
+
+// PortableFlag is the marker file next to the exe that activates portable
+// mode. Empty (or comment-only) content is fine — presence is what counts.
+const PortableFlag = "portable.flag"
+
+// PortableDataDirName is the directory (next to the exe) that holds every
+// artifact in portable mode.
+const PortableDataDirName = "data"
 
 // Paths is the resolved filesystem layout of the application data.
 type Paths struct {
@@ -47,14 +64,42 @@ type Paths struct {
 	CoreDir string
 	// ReportsDir holds captured problem reports (#36): pending/ + sent/.
 	ReportsDir string
+	// Portable reports whether all state lives under <exe-dir>/data
+	// (portable.flag next to the executable) instead of the per-user
+	// config dir. Decided once at startup, before any store opens (#18).
+	Portable bool
+	// ExeDir is the directory containing the running executable ("" when
+	// os.Executable fails — never expected on Windows). In portable mode
+	// ExeDir is Root's parent.
+	ExeDir string
 }
 
 func join(root string, parts ...string) string {
 	return filepath.Join(append([]string{root}, parts...)...)
 }
 
-// Resolve computes the layout for the default user config directory.
+// Resolve computes the layout for the running executable's environment.
+// Portable mode wins when <exe-dir>/portable.flag exists (#18).
 func Resolve() (*Paths, error) {
+	exeDir := ""
+	if exe, err := os.Executable(); err == nil {
+		exeDir = filepath.Dir(exe)
+	}
+	return ResolveExe(exeDir)
+}
+
+// ResolveExe computes the layout given the directory of the running
+// executable ("" disables portable detection). Split from Resolve so tests
+// can exercise both modes without touching the real executable location.
+func ResolveExe(exeDir string) (*Paths, error) {
+	if exeDir != "" {
+		if _, err := os.Stat(filepath.Join(exeDir, PortableFlag)); err == nil {
+			p := ResolveAt(filepath.Join(exeDir, PortableDataDirName))
+			p.Portable = true
+			p.ExeDir = exeDir
+			return p, nil
+		}
+	}
 	base, err := os.UserConfigDir()
 	if err != nil {
 		base, err = os.UserHomeDir()
@@ -62,8 +107,20 @@ func Resolve() (*Paths, error) {
 			return nil, err
 		}
 	}
-	root := join(base, nr.AppName)
-	return ResolveAt(root), nil
+	p := ResolveAt(join(base, nr.AppName))
+	p.ExeDir = exeDir
+	return p, nil
+}
+
+// LegacyRoot returns the per-user config root (%APPDATA%\NeuroRift on
+// Windows) or "" when the OS does not expose one. Portable mode reads it
+// only through the EXPLICIT Settings import action (#18) — never silently.
+func LegacyRoot() string {
+	base, err := os.UserConfigDir()
+	if err != nil {
+		return ""
+	}
+	return join(base, nr.AppName)
 }
 
 // ResolveAt computes the layout for an explicit root. Useful for tests.

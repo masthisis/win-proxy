@@ -52,7 +52,9 @@ release ships:
   core and WebView2 runtime check
 - `NeuroRift-<version>-windows-x64.zip` — the portable build: the app **with
   the mihomo core bundled** (`core/mihomo.exe`), so the first start needs no
-  internet
+  internet. It ships with a `portable.flag` marker — all state lives in a
+  `data\` folder next to the exe instead of `%APPDATA%` (#18). Migrate an
+  existing install via **Settings → Portable mode → Import existing data**.
 - `checksums-windows-x64.txt` — SHA256 sums to verify the downloads
 
 Build it yourself instead? See [docs/BUILDING.md](docs/BUILDING.md).
@@ -76,7 +78,9 @@ Build it yourself instead? See [docs/BUILDING.md](docs/BUILDING.md).
    fallbacks; the rate-limited GitHub API is never used).
 
 **Portable alternative:** extract `NeuroRift-<version>-windows-x64.zip`
-anywhere and run `neurorift.exe` — keep `core/mihomo.exe` next to it. Note
+anywhere and run `neurorift.exe` — keep `core/mihomo.exe` next to it. All
+data stays in the extracted folder (`data\`), so it moves with the stick or
+folder; delete `portable.flag` to go back to `%APPDATA%`. Note
 that portable exes extracted from a browser-downloaded zip get extra
 antivirus/SmartScreen scrutiny on every launch (no *Unblock* = slower
 startup — see [TROUBLESHOOTING.md](TROUBLESHOOTING.md) §7); the installer

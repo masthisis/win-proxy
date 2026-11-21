@@ -158,6 +158,12 @@ jobs:
             Copy-Item $_.FullName "$root/core/mihomo.exe"
           }
           if (-not (Test-Path "$root/core/mihomo.exe")) { throw "mihomo.exe missing from archive" }
+          # Issue #18: the zip IS the portable distribution — pre-place the
+          # marker so an extracted zip keeps ALL state next to the exe.
+          # The NSIS installer does NOT ship the flag (Program Files is
+          # read-only without elevation; portable mode requires a writable
+          # location).
+          Set-Content -Path "$root/portable.flag" -Value "# NeuroRift portable mode marker (issue #18): all state lives in .\data\ next to neurorift.exe. Delete this file to revert to %APPDATA%\NeuroRift." -Encoding UTF8
           Copy-Item README.md, LICENSE, TROUBLESHOOTING.md "$root/"
           Copy-Item docs/CHANGELOG.md "$root/CHANGELOG.md"
           & "$root/core/mihomo.exe" -v

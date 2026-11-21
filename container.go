@@ -111,7 +111,9 @@ func NewContainer() (*Container, error) {
 		return nil, fmt.Errorf("resolve config dir: %w", err)
 	}
 	if err := paths.Ensure(); err != nil {
-		return nil, fmt.Errorf("create config dir: %w", err)
+		// Portable mode with a read-only exe dir (Program Files) lands here:
+		// the error surfaces through the startup dialog discipline (issue #18).
+		return nil, fmt.Errorf("create config dir (%s): %w", paths.Root, err)
 	}
 
 	// --- logging: file + in-memory ring ---------------------------------
@@ -129,6 +131,9 @@ func NewContainer() (*Container, error) {
 		Level: slog.LevelInfo,
 	}))
 	slog.SetDefault(logger)
+	// Log header carries the mode decision so problem reports immediately
+	// show which layout was active (issue #18).
+	logger.Info("data root", "dir", paths.Root, "portable", paths.Portable)
 
 	// --- subsystems ------------------------------------------------------
 	b := bus.New(logger)
@@ -239,7 +244,10 @@ type AppInfo struct {
 	GoVersion string `json:"goVersion"`
 	Platform  string `json:"platform"`
 	ConfigDir string `json:"configDir"`
-	CoreMeta  struct {
+	// Portable is true when all state lives under <exe-dir>/data
+	// (portable.flag next to the exe) instead of the per-user dir (#18).
+	Portable bool `json:"portable"`
+	CoreMeta struct {
 		Version    string `json:"version"`
 		Channel    string `json:"channel"`
 		Compatible bool   `json:"compatible"`
@@ -252,6 +260,7 @@ func (c *Container) Info() AppInfo {
 		Name: nr.AppName, Version: nr.Version,
 		GoVersion: runtime.Version(), Platform: runtime.GOOS + "/" + runtime.GOARCH,
 		ConfigDir: c.Paths.Root,
+		Portable:  c.Paths.Portable,
 	}
 	meta := c.Engine.Core.LoadMeta()
 	info.CoreMeta.Version = meta.Version

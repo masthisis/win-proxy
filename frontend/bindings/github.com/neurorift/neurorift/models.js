@@ -50,6 +50,15 @@ export class AppInfo {
              */
             this["configDir"] = "";
         }
+        if (!("portable" in $$source)) {
+            /**
+             * Portable is true when all state lives under <exe-dir>/data
+             * (portable.flag next to the exe) instead of the per-user dir (#18).
+             * @member
+             * @type {boolean}
+             */
+            this["portable"] = false;
+        }
         if (!("coreMeta" in $$source)) {
             /**
              * @member
@@ -384,6 +393,73 @@ export class PendingInfo {
     static createFrom($$source = {}) {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new PendingInfo(/** @type {Partial<PendingInfo>} */($$parsedSource));
+    }
+}
+
+/**
+ * PortableInfo describes the portable-mode state for the Settings UI (#18).
+ */
+export class PortableInfo {
+    /**
+     * Creates a new PortableInfo instance.
+     * @param {Partial<PortableInfo>} [$$source = {}] - The source object to create the PortableInfo.
+     */
+    constructor($$source = {}) {
+        if (!("portable" in $$source)) {
+            /**
+             * Portable mirrors AppInfo.portable: portable.flag was found next to
+             * the exe and all state resolves under <exe-dir>\data.
+             * @member
+             * @type {boolean}
+             */
+            this["portable"] = false;
+        }
+        if (!("dataDir" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["dataDir"] = "";
+        }
+        if (!("legacyDir" in $$source)) {
+            /**
+             * LegacyDir is the per-user %APPDATA%\NeuroRift root ("" when the OS
+             * has none). Shown in the import banner so the user knows what would
+             * be copied.
+             * @member
+             * @type {string}
+             */
+            this["legacyDir"] = "";
+        }
+        if (!("legacyPresent" in $$source)) {
+            /**
+             * LegacyPresent is true when the legacy root holds an initialized
+             * settings.json — the banner's condition.
+             * @member
+             * @type {boolean}
+             */
+            this["legacyPresent"] = false;
+        }
+        if (!("imported" in $$source)) {
+            /**
+             * Imported is true once the explicit import succeeded (this session).
+             * @member
+             * @type {boolean}
+             */
+            this["imported"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PortableInfo instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {PortableInfo}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PortableInfo(/** @type {Partial<PortableInfo>} */($$parsedSource));
     }
 }
 

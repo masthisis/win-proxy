@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/neurorift/neurorift/internal/appmeta"
 	"github.com/neurorift/neurorift/internal/failover"
 	"github.com/neurorift/neurorift/internal/nettest"
 	"github.com/neurorift/neurorift/internal/nr"
@@ -183,7 +184,12 @@ func (s *SysService) OpenFolder(which string) error {
 func (s *SysService) OpenURL(url string) error { return openURL(url) }
 
 // AppService exposes app metadata and small utilities.
-type AppService struct{ c *Container }
+type AppService struct {
+	c *Container
+	// portableImported latches "the explicit legacy import already ran"
+	// for the Settings UI within this session (#18).
+	portableImported bool
+}
 
 // Info returns build/runtime metadata.
 func (s *AppService) Info() AppInfo { return s.c.Info() }
@@ -216,3 +222,53 @@ func (s *AppService) BootPhases() BootReport { return boot.snapshot() }
 
 // PickClashFile opens the native file dialog and returns the chosen path.
 func (s *AppService) PickClashFile() (string, error) { return pickFile() }
+
+// PortableInfo describes the portable-mode state for the Settings UI (#18).
+type PortableInfo struct {
+	// Portable mirrors AppInfo.portable: portable.flag was found next to
+	// the exe and all state resolves under <exe-dir>\data.
+	Portable bool   `json:"portable"`
+	DataDir  string `json:"dataDir"`
+	// LegacyDir is the per-user %APPDATA%\NeuroRift root ("" when the OS
+	// has none). Shown in the import banner so the user knows what would
+	// be copied.
+	LegacyDir string `json:"legacyDir"`
+	// LegacyPresent is true when the legacy root holds an initialized
+	// settings.json — the banner's condition.
+	LegacyPresent bool `json:"legacyPresent"`
+	// Imported is true once the explicit import succeeded (this session).
+	Imported bool `json:"imported"`
+}
+
+// PortableInfo reports the portable-mode state (#18). The mode itself is
+// decided once at startup in appmeta.Resolve — this only surfaces it.
+func (s *AppService) PortableInfo() PortableInfo {
+	p := s.c.Paths
+	legacy := appmeta.LegacyRoot()
+	return PortableInfo{
+		Portable:      p.Portable,
+		DataDir:       p.Root,
+		LegacyDir:     legacy,
+		LegacyPresent: appmeta.LegacyStatePresent(legacy),
+		Imported:      s.portableImported,
+	}
+}
+
+// PortableImportLegacy copies the user-authored subset of the per-user
+// %APPDATA% root into the portable data dir — the EXPLICIT migration action
+// required by issue #18 (no silent import ever happens at startup). It
+// refuses on an already-initialized portable dir. A restart is required
+// afterwards; the UI must tell the user.
+func (s *AppService) PortableImportLegacy() (PortableInfo, error) {
+	info := s.PortableInfo()
+	if !info.Portable {
+		return info, fmt.Errorf("portable mode is not active")
+	}
+	if err := appmeta.ImportLegacyInto(s.c.Paths, info.LegacyDir); err != nil {
+		return info, err
+	}
+	s.portableImported = true
+	s.c.Log.Info("portable import completed — restart required to load imported state",
+		"dataDir", s.c.Paths.Root, "from", info.LegacyDir)
+	return s.PortableInfo(), nil
+}

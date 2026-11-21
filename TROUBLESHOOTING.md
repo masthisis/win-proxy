@@ -116,3 +116,28 @@ to both log files on every launch).
 
 Deleting the `%APPDATA%\NeuroRift` folder performs a full reset (profiles and
 settings included).
+
+## 9. Portable mode (#18)
+
+NeuroRift can run fully portable: all state (settings, profiles, speed
+history, logs, core, reports) lives in a `data\` folder **next to
+`neurorift.exe`** instead of `%APPDATA%\NeuroRift`.
+
+- **Activate**: put an empty `portable.flag` file next to `neurorift.exe`.
+  The zip distribution already ships one — extracting the zip gives you a
+  portable install. The NSIS installer does not (Program Files is not a
+  safe portable location — it is read-only without elevation).
+- **Deactivate**: delete `portable.flag`. The next start uses
+  `%APPDATA%\NeuroRift` again; the `data\` folder stays untouched.
+- **Migrating an existing install**: nothing is imported silently. In
+  **Settings → Portable mode**, use **Import existing data** to copy
+  settings, profiles, subscriptions and speed history from
+  `%APPDATA%\NeuroRift` into the portable data folder, then restart the
+  app. The import refuses to overwrite an already-initialized portable
+  data folder.
+- **Self-updates**: portable installs do not auto-update (there is no
+  installer to hand off to). The updater points you at the releases page;
+  download the new zip and replace the folder.
+- If the exe directory is not writable (e.g. Program Files), portable mode
+  fails at startup with a dialog — move the folder somewhere writable
+  (Desktop, USB stick, D:\Tools, ...).
