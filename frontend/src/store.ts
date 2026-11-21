@@ -522,6 +522,14 @@ function onTraffic(ev: WailsEventLike): void {
   store.curDown = p.down ?? 0;
   store.curUp = p.up ?? 0;
   store.curMem = p.memory ?? 0;
+  // Issue #76: while the window is hidden, keep only the live counters and
+  // skip the ring-buffer pushes — pushing into reactive arrays triggers the
+  // Dashboard chart pipeline for pixels nobody sees (the exact CPU waste
+  // Clash Verge Rev fixed). The backend stream keeps running untouched:
+  // failover/nettest depend on it. On visible again the chart restarts
+  // fresh instead of drawing a flat stale window (see visibilitychange
+  // listener at the bottom of this file).
+  if (typeof document !== "undefined" && document.hidden) return;
   store.trafficDown.push(store.curDown);
   store.trafficUp.push(store.curUp);
   if (store.trafficDown.length > TRAFFIC_SAMPLES) store.trafficDown.shift();
@@ -559,6 +567,18 @@ function subscribeEvents(): void {
   Events.On(EV.traffic, onTraffic);
   Events.On(EV.connections, onConnections);
   Events.On(EV.coreLogs, onCoreLogs);
+
+  // Issue #76: on visible again, restart the traffic chart fresh instead of
+  // drawing the flat stale window that accumulated (or partially skipped)
+  // while hidden.
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        store.trafficDown = [];
+        store.trafficUp = [];
+      }
+    });
+  }
   Events.On(EV.profilesChanged, () => {
     void refreshProfiles();
     // Issue #40: an updated active subscription hot-swapped its provider —
