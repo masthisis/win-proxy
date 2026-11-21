@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+## v1.8.0 - sing-box import
+
+One backlog feature, through the full issue -> branch -> PR -> CI ->
+merge workflow.
+
+- **sing-box config import (#74, closes #16).** `DecodeContent` now
+  auto-detects sing-box JSON (a non-empty `outbounds` array), raw or
+  base64-wrapped, and converts outbounds into mihomo nodes that flow
+  through the standard import pipeline (validation, dedupe, provider
+  materialization, hot updates). Mapped: shadowsocks (obfs / v2ray-plugin
+  opts, udp-over-tcp), vmess, vless (REALITY, uTLS fingerprint, ws incl.
+  early-data, grpc, h2/http, httpupgrade, multiplex -> smux), trojan,
+  hysteria2 (up/down, `server_ports` -> port hopping, salamander obfs),
+  tuic, wireguard (reserved normalization, ip/ipv6 split), socks5, http.
+  Groups (`selector`/`urltest`), plumbing outbounds (`direct`/`block`/
+  `dns`) and unmappable transports/plugins are skipped and **counted**;
+  `detour` chains map to mihomo `dialer-proxy`, and chains whose upstream
+  was skipped are dropped with a warning. Groups and route rules are not
+  converted (nodes only). Schema cross-checked against the mihomo wiki;
+  the core-boot integration test remains the schema authority.
+- **Import warnings surfaced (#74).** `DecodeResult.Warnings` existed
+  since the first import release but was never consumed by the manager —
+  skip counts silently vanished. The done-phase detail on the profile
+  card now reads `N nodes, M skipped` (frontend contract unchanged).
+
 ## v1.7.0 - portable mode + concurrency hardening
 
 One feature issue and one review finding, both through the full

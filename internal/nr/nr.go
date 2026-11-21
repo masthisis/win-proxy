@@ -20,7 +20,7 @@ const AppIdentifier = "app.neurorift.desktop"
 const UpdateRepo = "masthisis/win-proxy"
 
 // Version is overridden at build time via -ldflags "-X ...".
-var Version = "1.7.0"
+var Version = "1.8.0"
 
 // Event names emitted on the Wails event bus (backend -> frontend).
 const (
