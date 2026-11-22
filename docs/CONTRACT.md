@@ -84,8 +84,12 @@ a bound signature changes.
 | Method | Returns | Notes |
 | --- | --- | --- |
 | `GetSystemProxy()` | `SysProxyState` | {enabled, server, bypass} |
-| `SetSystemProxy(enabled)` | – | points WinINet at mixed port; keeps the proxy guard's expectation in sync (#47) |
+| `SetSystemProxy(enabled)` | – | LEGACY (#47): points WinINet at mixed port. Superseded by `SetProxyMode` (#15) — the UI no longer calls it; kept for compatibility |
 | `GetProxyGuardStatus()` | `proxyguard.Status` | `{armed, expectedOn, reappliedToday, lastReplay, lastAction?}` (#47) |
+| `GetProxyMode()` | `ProxyModeState` | OS proxy mode (#15): `{mode: "off"\|"system"\|"pac"\|""` (legacy), `pacPort` (actual listener port, 0=idle), `pacUrl` (AutoConfigURL when serving)} |
+| `SetProxyMode(mode)` | – | validates, persists `proxyMode` THEN applies: system → static proxy (+clears AutoConfigURL); pac → loopback PAC listener + AutoConfigURL (+clears ProxyEnable); off → both cleared. Emits `proxy:mode`. Exactly one OS switch is ever active |
+| `GetPACScript()` | `string` | user PAC body; `""` = built-in default (private ranges DIRECT, rest via mixed port) |
+| `SavePACScript(script)` | – | persists + hot-reloads the served PAC file; `""` resets to default; rejects scripts without `FindProxyForURL` and bodies >64 KiB |
 | `IsElevated()` | `bool` | TUN requires elevation |
 | `TunServiceStatus()` | `nrservice.Status` | TUN service mode (#14): `{supported, installed, running, version?, pid}`; `supported=false` hides the UI card (non-Windows). Absent service = installed=false, NOT an error |
 | `TunServiceInstall()` | – | one-time registration; self-relaunches elevated (`runas`) — exactly one UAC prompt; returns immediately, poll `TunServiceStatus()` |
@@ -125,6 +129,23 @@ elevated one-shots that exit 0/2/3 (success / install failed / uninstall
 failed). The engine picks the host per start: TUN enabled + service running
 → service mode, else local child (the fallback the issue requires).
 `engine.Status.host` tells the UI which one is active (`local|service`).
+
+### PAC proxy mode (#15)
+
+Third OS proxy mode next to Off / System Proxy: NeuroRift serves the PAC file
+on a loopback listener (`http://127.0.0.1:<pac.port>/pac`, `application/x-ns-proxy-autoconfig`)
+and points WinINet at it via the per-user `AutoConfigURL` registry value — no elevation.
+Invariants:
+
+- exactly one OS switch active at any time: enabling PAC clears `ProxyEnable`,
+  enabling the static proxy clears `AutoConfigURL`, `off` clears both;
+- the proxy guard only guards system mode; in PAC mode it never applies
+  the static proxy (including the `systemProxyOnStart` restore);
+- a busy configured port falls back to an ephemeral listener port for the
+  session (logged; the configured value is never overwritten);
+- shutdown clears the AutoConfigURL so no request pays the dead-listener
+  timeout after NeuroRift exits; the next launch restores PAC when
+  `proxyMode == "pac"` before the window shows.
 
 ### UpdateService (`updateservice`) — application self-update (#13)
 | Method | Returns | Notes |
@@ -182,7 +203,8 @@ stays in the local bundle file.
 | `core:crashloop` | `string` detail — crash-loop guard engaged (#36, also drives auto-reporting) |
 | `reports:changed` | `null` — the pending report set changed; re-fetch `ReportService.Pending()` |
 | `proxyguard:event` | `proxyguard.Status` — guard acted: `reapplied` / `killswitch` / `applied-on-start` (#47) |
-| `tray:sysproxy` | `bool` (tray-originated toggle) |
+| `proxy:mode` | `ProxyModeState` — OS proxy mode changed (#15); tray radios + Settings card + TitleBar re-sync |
+| `tray:sysproxy` | `bool` (tray-originated toggle; retired by #15 — `proxy:mode` replaces it) |
 | `tray:mode` | `string` (tray-originated mode switch) |
 
 ## Settings document (shape of `Settings`)
@@ -190,6 +212,10 @@ stays in the local bundle file.
 ```
 language: "en"|"fa"        startMinimized, autoConnect, systemProxyOnStart: bool
 allowLan: bool             mode: "rule"|"global"|"direct"
+proxyMode: ""|"off"|"system"|"pac" — OS proxy mode (#15); "" = legacy install,
+           startup behavior derives from systemProxyOnStart only
+pac: {port: 7899, script: string} — PAC listener port + optional user script
+           ("" = built-in default; custom script owns its PROXY line) (#15)
 ports: {mixed: 7897, controller: 9097, speedTest: 19097}
 test: {url, timeoutMs, speedUrl, speedUploadUrl, speedStreams(1..16),
        speedMaxSeconds, speedMaxMb, uploadTest}

@@ -14,7 +14,7 @@ import * as Sys from "../bindings/github.com/neurorift/neurorift/sysservice.js";
 import * as Test from "../bindings/github.com/neurorift/neurorift/testservice.js";
 import * as Update from "../bindings/github.com/neurorift/neurorift/updateservice.js";
 
-import type { AppInfo, GroupUI, SysProxyState } from "../bindings/github.com/neurorift/neurorift/models.js";
+import type { AppInfo, GroupUI, ProxyModeState, SysProxyState } from "../bindings/github.com/neurorift/neurorift/models.js";
 import type { Status as EngineStatus } from "../bindings/github.com/neurorift/neurorift/internal/engine/models.js";
 import type { Settings as SettingsDoc } from "../bindings/github.com/neurorift/neurorift/internal/settings/models.js";
 import type { Profile as ProfileSummary } from "../bindings/github.com/neurorift/neurorift/internal/profile/models.js";
@@ -72,6 +72,10 @@ export interface AppState {
   settings: SettingsDoc | null;
   sysProxy: SysProxyState | null;
   sysProxyBusy: boolean;
+  // OS proxy mode (#15): off | system | pac — the tri-state the TitleBar
+  // button cycles and the Settings card edits.
+  proxyMode: ProxyModeState | null;
+  proxyModeBusy: boolean;
   elevated: boolean;
   elevatedKnown: boolean;
   // TUN service mode (#14): the optional Windows service the core can run
@@ -113,6 +117,8 @@ export const store = reactive<AppState>({
   settings: null,
   sysProxy: null,
   sysProxyBusy: false,
+  proxyMode: null,
+  proxyModeBusy: false,
   elevated: false,
   elevatedKnown: false,
   tunService: null,
@@ -246,6 +252,14 @@ export async function refreshSysProxy(): Promise<void> {
   }
 }
 
+export async function refreshProxyMode(): Promise<void> {
+  try {
+    store.proxyMode = await Sys.GetProxyMode();
+  } catch {
+    /* non-fatal */
+  }
+}
+
 export async function refreshSpeedHistory(): Promise<void> {
   try {
     const hist = await Test.SpeedHistory();
@@ -306,22 +320,44 @@ export async function stopEngine(): Promise<void> {
   }
 }
 
-export async function toggleSysProxy(): Promise<void> {
-  if (!store.sysProxy || store.sysProxyBusy) return;
-  const next = !store.sysProxy.enabled;
-  if (next && !engineRunning()) {
-    toast.info(t("toast.sysProxyNeedsEngine"));
-    return;
-  }
-  store.sysProxyBusy = true;
+export const PROXY_MODES = ["off", "system", "pac"] as const;
+export type ProxyMode = (typeof PROXY_MODES)[number];
+
+/** Apply one OS proxy mode (off | system | pac) — live, no restart (#15). */
+export async function setProxyMode(mode: ProxyMode): Promise<void> {
+  if (store.proxyModeBusy) return;
+  store.proxyModeBusy = true;
   try {
-    await Sys.SetSystemProxy(next);
-    store.sysProxy = await Sys.GetSystemProxy();
-    toast.success(next ? t("toast.sysProxyOn") : t("toast.sysProxyOff"));
+    await Sys.SetProxyMode(mode);
+    store.proxyMode = await Sys.GetProxyMode();
+    toast.success(t("toast.proxyModeSet", { mode: t(`proxyMode.${mode}`) }));
   } catch (e) {
     toast.error(errMsg(e));
   } finally {
-    store.sysProxyBusy = false;
+    store.proxyModeBusy = false;
+  }
+}
+
+/** TitleBar cycle: off -> system -> pac -> off (legacy "" counts as off). */
+export function cycleProxyMode(): void {
+  const cur = store.proxyMode?.mode ?? "off";
+  const idx = PROXY_MODES.indexOf((cur === "" ? "off" : cur) as ProxyMode);
+  const next = PROXY_MODES[(idx + 1) % PROXY_MODES.length];
+  void setProxyMode(next);
+}
+
+/** Persist the user-editable PAC script; empty resets to the default. */
+export async function savePACScript(script: string): Promise<void> {
+  if (store.proxyModeBusy) return;
+  store.proxyModeBusy = true;
+  try {
+    await Sys.SavePACScript(script);
+    toast.success(t("toast.pacSaved"));
+    void refreshProxyMode();
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    store.proxyModeBusy = false;
   }
 }
 
@@ -628,7 +664,11 @@ function subscribeEvents(): void {
 
   // Tray-menu actions (main.go emits these directly on the app event bus);
   // without them the tray toggles leave the UI stale (found during #45).
-  Events.On("tray:sysproxy", () => {
+  Events.On("proxy:mode", (ev: WailsEventLike) => {
+    const st = ev.data as ProxyModeState | undefined;
+    if (st && typeof st === "object" && typeof st.mode === "string") {
+      store.proxyMode = st;
+    }
     void refreshSysProxy();
   });
   Events.On("tray:mode", (ev: WailsEventLike) => {
@@ -652,10 +692,11 @@ export async function bootstrap(): Promise<void> {
     store.now = Date.now();
   }, 1000);
 
-  const [statusR, settingsR, sysR, elevR, infoR] = await Promise.allSettled([
+  const [statusR, settingsR, sysR, modeR, elevR, infoR] = await Promise.allSettled([
     Core.Status(),
     SettingsSvc.Get(),
     Sys.GetSystemProxy(),
+    Sys.GetProxyMode(),
     Sys.IsElevated(),
     App.Info(),
   ]);
@@ -673,6 +714,7 @@ export async function bootstrap(): Promise<void> {
   }
 
   if (sysR.status === "fulfilled") store.sysProxy = sysR.value;
+  if (modeR.status === "fulfilled") store.proxyMode = modeR.value;
   if (elevR.status === "fulfilled") {
     store.elevated = elevR.value;
     store.elevatedKnown = true;

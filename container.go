@@ -23,6 +23,7 @@ import (
 	"github.com/neurorift/neurorift/internal/failover"
 	"github.com/neurorift/neurorift/internal/nettest"
 	"github.com/neurorift/neurorift/internal/nr"
+	"github.com/neurorift/neurorift/internal/pacserve"
 	"github.com/neurorift/neurorift/internal/platform"
 	"github.com/neurorift/neurorift/internal/profile"
 	"github.com/neurorift/neurorift/internal/proxyguard"
@@ -95,6 +96,9 @@ type Container struct {
 	// ProxyGuard re-applies the OS system proxy when another app
 	// tampers with it while the engine runs (#47).
 	ProxyGuard *proxyguard.Guard
+	// PAC serves the loopback PAC file for proxy mode "pac" (#15);
+	// orchestration (registry, mode switching) lives in service_pac.go.
+	PAC *pacserve.Server
 
 	Log     *slog.Logger
 	ring    *logRing
@@ -171,6 +175,11 @@ func NewContainer() (*Container, error) {
 		if st, err := platform.GetSystemProxy(); err == nil && st.Enabled {
 			_ = platform.SetSystemProxy(false, "", "")
 		}
+		// PAC mode must not outlive its listener (#15): a stale
+		// AutoConfigURL would slow every request until it times out.
+		if url, err := platform.GetPACAutoconfig(); err == nil && url != "" {
+			_ = platform.SetPACAutoconfig("")
+		}
 		_ = eng.Stop()
 	}
 	ups.Quit = quitApp
@@ -193,12 +202,22 @@ func NewContainer() (*Container, error) {
 		reporting.ConfigureSecrets(set.Get().ControllerSecret, set.Get().Reporting.GithubToken)
 	})
 
-	return &Container{
+	pacSrv := pacserve.New(logger)
+	c := &Container{
 		Paths: paths, Bus: b, Settings: set, Profiles: profs,
 		Engine: eng, NetTest: nt, History: hist, Watchdog: wd,
-		Updates: ups, Reports: rpt, ProxyGuard: pg,
+		Updates: ups, Reports: rpt, ProxyGuard: pg, PAC: pacSrv,
 		Log: logger, ring: ring, logFile: logFile,
-	}, nil
+	}
+	// PAC restore (#15): the listener + AutoConfigURL must exist before
+	// the window shows, regardless of engine state. System mode keeps the
+	// legacy systemProxyOnStart semantics (guard applies once core is up).
+	if c.Settings.Get().ProxyMode == "pac" {
+		if err := c.applyProxyMode("pac"); err != nil {
+			logger.Warn("pac mode restore failed", "err", err)
+		}
+	}
+	return c, nil
 }
 
 // Close releases resources.

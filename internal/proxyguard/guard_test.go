@@ -172,6 +172,23 @@ func TestGuard_AppliesOnStartOnce(t *testing.T) {
 	}
 }
 
+func TestGuard_SkipsApplyOnStartInPACMode(t *testing.T) {
+	// In PAC mode (#15) the guard must never apply the static proxy on
+	// start — ProxyEnable on top of AutoConfigURL would make WinINet
+	// flip-flop between PAC and static routing.
+	g, fp, _ := newGuardForTest(t, func(s *settings.Settings) {
+		s.SystemProxyOnStart = true
+		s.ProxyMode = "pac"
+	})
+	g.tick(g.settings.Get())
+	if got := fp.callCount(); got != 0 {
+		t.Fatalf("pac mode must suppress apply-on-start, got %d calls", got)
+	}
+	if g.Expected() {
+		t.Fatal("pac mode must not arm the system-proxy expectation")
+	}
+}
+
 func TestGuard_GuardDisabledByDefault(t *testing.T) {
 	g, fp, _ := newGuardForTest(t, nil) // defaults: Enable=false
 	g.SetExpected(true)

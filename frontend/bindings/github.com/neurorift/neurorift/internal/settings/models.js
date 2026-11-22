@@ -211,6 +211,50 @@ export class Log {
 }
 
 /**
+ * PAC configures the PAC proxy mode (issue #15).
+ */
+export class PAC {
+    /**
+     * Creates a new PAC instance.
+     * @param {Partial<PAC>} [$$source = {}] - The source object to create the PAC.
+     */
+    constructor($$source = {}) {
+        if (!("port" in $$source)) {
+            /**
+             * Port is the loopback PAC listener port (default 7899). When the
+             * configured port is taken at enable time an ephemeral port is used
+             * for this session (not persisted; the next enable retries).
+             * @member
+             * @type {number}
+             */
+            this["port"] = 0;
+        }
+        if (!("script" in $$source)) {
+            /**
+             * Script is the user-editable PAC file body ("" = the built-in
+             * default, regenerated from the current mixed port). Custom scripts
+             * own their PROXY line entirely.
+             * @member
+             * @type {string}
+             */
+            this["script"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new PAC instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {PAC}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new PAC(/** @type {Partial<PAC>} */($$parsedSource));
+    }
+}
+
+/**
  * Ports groups the local listening ports managed by the app.
  */
 export class Ports {
@@ -458,6 +502,16 @@ export class Settings {
              */
             this["mode"] = "";
         }
+        if (!("proxyMode" in $$source)) {
+            /**
+             * ProxyMode is the OS proxy mode (#15): off | system | pac. The empty
+             * string means "legacy install" — startup behavior then derives from
+             * SystemProxyOnStart only (pre-#15 documents stay valid as-is).
+             * @member
+             * @type {string}
+             */
+            this["proxyMode"] = "";
+        }
         if (!("ports" in $$source)) {
             /**
              * @member
@@ -513,6 +567,15 @@ export class Settings {
              * @type {Log}
              */
             this["log"] = (new Log());
+        }
+        if (!("pac" in $$source)) {
+            /**
+             * PAC configures the PAC proxy mode (#15): loopback listener port +
+             * the optional user script (empty = built-in default).
+             * @member
+             * @type {PAC}
+             */
+            this["pac"] = (new PAC());
         }
         if (!("routingOverrides" in $$source)) {
             /**
@@ -578,62 +641,66 @@ export class Settings {
      * @returns {Settings}
      */
     static createFrom($$source = {}) {
-        const $$createField6_0 = $$createType1;
-        const $$createField7_0 = $$createType2;
-        const $$createField8_0 = $$createType3;
-        const $$createField9_0 = $$createType4;
-        const $$createField10_0 = $$createType5;
-        const $$createField11_0 = $$createType6;
-        const $$createField12_0 = $$createType7;
-        const $$createField13_0 = $$createType8;
-        const $$createField14_0 = $$createType10;
-        const $$createField15_0 = $$createType11;
-        const $$createField16_0 = $$createType12;
-        const $$createField17_0 = $$createType13;
-        const $$createField18_0 = $$createType14;
-        const $$createField20_0 = $$createType0;
+        const $$createField7_0 = $$createType1;
+        const $$createField8_0 = $$createType2;
+        const $$createField9_0 = $$createType3;
+        const $$createField10_0 = $$createType4;
+        const $$createField11_0 = $$createType5;
+        const $$createField12_0 = $$createType6;
+        const $$createField13_0 = $$createType7;
+        const $$createField14_0 = $$createType8;
+        const $$createField15_0 = $$createType9;
+        const $$createField16_0 = $$createType11;
+        const $$createField17_0 = $$createType12;
+        const $$createField18_0 = $$createType13;
+        const $$createField19_0 = $$createType14;
+        const $$createField20_0 = $$createType15;
+        const $$createField22_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("ports" in $$parsedSource) {
-            $$parsedSource["ports"] = $$createField6_0($$parsedSource["ports"]);
+            $$parsedSource["ports"] = $$createField7_0($$parsedSource["ports"]);
         }
         if ("test" in $$parsedSource) {
-            $$parsedSource["test"] = $$createField7_0($$parsedSource["test"]);
+            $$parsedSource["test"] = $$createField8_0($$parsedSource["test"]);
         }
         if ("failover" in $$parsedSource) {
-            $$parsedSource["failover"] = $$createField8_0($$parsedSource["failover"]);
+            $$parsedSource["failover"] = $$createField9_0($$parsedSource["failover"]);
         }
         if ("core" in $$parsedSource) {
-            $$parsedSource["core"] = $$createField9_0($$parsedSource["core"]);
+            $$parsedSource["core"] = $$createField10_0($$parsedSource["core"]);
         }
         if ("dns" in $$parsedSource) {
-            $$parsedSource["dns"] = $$createField10_0($$parsedSource["dns"]);
+            $$parsedSource["dns"] = $$createField11_0($$parsedSource["dns"]);
         }
         if ("tun" in $$parsedSource) {
-            $$parsedSource["tun"] = $$createField11_0($$parsedSource["tun"]);
+            $$parsedSource["tun"] = $$createField12_0($$parsedSource["tun"]);
         }
         if ("subscription" in $$parsedSource) {
-            $$parsedSource["subscription"] = $$createField12_0($$parsedSource["subscription"]);
+            $$parsedSource["subscription"] = $$createField13_0($$parsedSource["subscription"]);
         }
         if ("log" in $$parsedSource) {
-            $$parsedSource["log"] = $$createField13_0($$parsedSource["log"]);
+            $$parsedSource["log"] = $$createField14_0($$parsedSource["log"]);
+        }
+        if ("pac" in $$parsedSource) {
+            $$parsedSource["pac"] = $$createField15_0($$parsedSource["pac"]);
         }
         if ("routingOverrides" in $$parsedSource) {
-            $$parsedSource["routingOverrides"] = $$createField14_0($$parsedSource["routingOverrides"]);
+            $$parsedSource["routingOverrides"] = $$createField16_0($$parsedSource["routingOverrides"]);
         }
         if ("proxyGuard" in $$parsedSource) {
-            $$parsedSource["proxyGuard"] = $$createField15_0($$parsedSource["proxyGuard"]);
+            $$parsedSource["proxyGuard"] = $$createField17_0($$parsedSource["proxyGuard"]);
         }
         if ("updates" in $$parsedSource) {
-            $$parsedSource["updates"] = $$createField16_0($$parsedSource["updates"]);
+            $$parsedSource["updates"] = $$createField18_0($$parsedSource["updates"]);
         }
         if ("reporting" in $$parsedSource) {
-            $$parsedSource["reporting"] = $$createField17_0($$parsedSource["reporting"]);
+            $$parsedSource["reporting"] = $$createField19_0($$parsedSource["reporting"]);
         }
         if ("window" in $$parsedSource) {
-            $$parsedSource["window"] = $$createField18_0($$parsedSource["window"]);
+            $$parsedSource["window"] = $$createField20_0($$parsedSource["window"]);
         }
         if ("bypassDomains" in $$parsedSource) {
-            $$parsedSource["bypassDomains"] = $$createField20_0($$parsedSource["bypassDomains"]);
+            $$parsedSource["bypassDomains"] = $$createField22_0($$parsedSource["bypassDomains"]);
         }
         return new Settings(/** @type {Partial<Settings>} */($$parsedSource));
     }
@@ -926,9 +993,10 @@ const $$createType5 = DNS.createFrom;
 const $$createType6 = Tun.createFrom;
 const $$createType7 = Subscription.createFrom;
 const $$createType8 = Log.createFrom;
-const $$createType9 = RoutingOverride.createFrom;
-const $$createType10 = $Create.Array($$createType9);
-const $$createType11 = ProxyGuard.createFrom;
-const $$createType12 = Updates.createFrom;
-const $$createType13 = Reporting.createFrom;
-const $$createType14 = WindowGeometry.createFrom;
+const $$createType9 = PAC.createFrom;
+const $$createType10 = RoutingOverride.createFrom;
+const $$createType11 = $Create.Array($$createType10);
+const $$createType12 = ProxyGuard.createFrom;
+const $$createType13 = Updates.createFrom;
+const $$createType14 = Reporting.createFrom;
+const $$createType15 = WindowGeometry.createFrom;

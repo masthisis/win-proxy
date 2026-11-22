@@ -23,6 +23,14 @@ func SetSystemProxy(enabled bool, server, bypass string) error {
 // GetSystemProxy reads the current OS proxy settings.
 func GetSystemProxy() (SysProxyState, error) { return getSystemProxy() }
 
+// SetPACAutoconfig sets (url != "") or clears ("" ) the per-user WinINet
+// AutoConfigURL — the PAC counterpart of SetSystemProxy (issue #15).
+// Per-user registry, no elevation required.
+func SetPACAutoconfig(url string) error { return setPACAutoconfig(url) }
+
+// GetPACAutoconfig reads the current AutoConfigURL ("" when unset).
+func GetPACAutoconfig() (string, error) { return getPACAutoconfig() }
+
 // IsElevated reports whether the process runs with administrator rights
 // (Windows UAC). TUN mode requires elevation.
 func IsElevated() bool { return isElevated() }

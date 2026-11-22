@@ -104,6 +104,10 @@ func (l *lifecycle) ServiceShutdown() error {
 	if st, err := platform.GetSystemProxy(); err == nil && st.Enabled {
 		_ = platform.SetSystemProxy(false, "", "")
 	}
+	// A PAC AutoConfigURL must not outlive its listener (#15).
+	if url, err := platform.GetPACAutoconfig(); err == nil && url != "" {
+		_ = platform.SetPACAutoconfig("")
+	}
 	_ = l.c.Engine.Stop()
 	l.c.Close()
 	return nil
@@ -287,6 +291,8 @@ func forwardEvents(c *Container, app *application.App) {
 		nr.EventAppUpdate, nr.EventCoreCrashLoop, nr.EventReportsChanged,
 		// Issue #47: system-proxy guard actions (re-apply / kill-switch).
 		nr.EventProxyGuard,
+		// Issue #15: proxy mode switches keep tray + Settings in sync.
+		nr.EventProxyMode,
 	} {
 		fwd(topic)
 	}
@@ -330,15 +336,42 @@ func buildTray(app *application.App, c *Container, window *application.WebviewWi
 	})
 
 	menu.AddSeparator()
-	proxyItem := menu.AddCheckbox("System Proxy", false)
-	proxyItem.OnClick(func(*application.Context) {
-		svc := &SysService{c: c}
-		next := !proxyItem.Checked()
-		if err := svc.SetSystemProxy(next); err == nil {
-			proxyItem.SetChecked(next)
-			app.Event.Emit("tray:sysproxy", next)
+	// OS proxy mode (#15): three mutually exclusive states; the radios
+	// re-sync whenever the backend emits proxy:mode (UI and tray stay
+	// consistent no matter who flipped the switch).
+	proxyMenu := menu.AddSubmenu("Proxy")
+	proxyOff := proxyMenu.AddRadio("Off", true)
+	proxySys := proxyMenu.AddRadio("System Proxy", false)
+	proxyPAC := proxyMenu.AddRadio("PAC", false)
+	setProxyMode := func(mode string) func(*application.Context) {
+		return func(*application.Context) {
+			// EventProxyMode is emitted on the bus and forwarded to the
+			// webview; the tray radios re-sync via the subscription below.
+			_ = (&SysService{c: c}).SetProxyMode(mode)
 		}
+	}
+	proxyOff.OnClick(setProxyMode("off"))
+	proxySys.OnClick(setProxyMode("system"))
+	proxyPAC.OnClick(setProxyMode("pac"))
+	c.Bus.Subscribe(context.Background(), nr.EventProxyMode, func(_ string, payload any) {
+		ps, ok := payload.(ProxyModeState)
+		if !ok {
+			return
+		}
+		proxyOff.SetChecked(ps.Mode == "off" || ps.Mode == "")
+		proxySys.SetChecked(ps.Mode == "system")
+		proxyPAC.SetChecked(ps.Mode == "pac")
 	})
+	// The startup PAC restore (#15) emits proxy:mode before the tray
+	// exists — sync the radios from settings once here.
+	switch c.Settings.Get().ProxyMode {
+	case "pac":
+		proxyPAC.SetChecked(true)
+		proxyOff.SetChecked(false)
+	case "system":
+		proxySys.SetChecked(true)
+		proxyOff.SetChecked(false)
+	}
 
 	modeMenu := menu.AddSubmenu("Mode")
 	ruleItem := modeMenu.AddRadio("Rule", true)

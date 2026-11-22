@@ -166,7 +166,9 @@ func (g *Guard) tick(s settings.Settings) {
 	// Honor systemProxyOnStart exactly once per process: apply the proxy
 	// when the engine is first observed running with the setting on. A
 	// user who then turns the proxy off is never fought over again.
-	if !g.Expected() && s.SystemProxyOnStart && !g.startAppliedOnce() {
+	// PAC mode (#15) wins when set — applying the static proxy on top of
+	// AutoConfigURL would make WinINet flip-flop between the two.
+	if !g.Expected() && s.SystemProxyOnStart && s.ProxyMode != "pac" && !g.startAppliedOnce() {
 		if err := g.apply(true, g.server(s), g.bypass(s)); err != nil {
 			g.log.Warn("proxy guard: apply-on-start failed", "err", err)
 			return

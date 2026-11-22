@@ -9,6 +9,7 @@
 package platform
 
 import (
+	"errors"
 	"fmt"
 	"syscall"
 
@@ -61,6 +62,39 @@ func getSystemProxy() (SysProxyState, error) {
 	server, _, _ := k.GetStringValue("ProxyServer")
 	bypass, _, _ := k.GetStringValue("ProxyOverride")
 	return SysProxyState{Enabled: enable == 1, Server: server, Bypass: bypass}, nil
+}
+
+// setPACAutoconfig writes or deletes the per-user AutoConfigURL. Windows
+// honors it immediately after a WinINet refresh; PAC and static proxy are
+// mutually exclusive — callers clear one before enabling the other (#15).
+func setPACAutoconfig(url string) error {
+	k, err := registry.OpenKey(registry.CURRENT_USER, internetSettingsPath, registry.SET_VALUE|registry.QUERY_VALUE)
+	if err != nil {
+		return fmt.Errorf("open internet settings: %w", err)
+	}
+	defer k.Close()
+	if url == "" {
+		if err := k.DeleteValue("AutoConfigURL"); err != nil &&
+			!errors.Is(err, registry.ErrNotExist) && !errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
+			return err
+		}
+	} else if err := k.SetStringValue("AutoConfigURL", url); err != nil {
+		return err
+	}
+	return notifyWinINet()
+}
+
+func getPACAutoconfig() (string, error) {
+	k, err := registry.OpenKey(registry.CURRENT_USER, internetSettingsPath, registry.QUERY_VALUE)
+	if err != nil {
+		return "", err
+	}
+	defer k.Close()
+	url, _, err := k.GetStringValue("AutoConfigURL")
+	if err != nil {
+		return "", nil // absent value = no PAC configured
+	}
+	return url, nil
 }
 
 // notifyWinINet pokes WinINet so the proxy change takes effect immediately.

@@ -7,9 +7,9 @@
  * toggles maximize). Interactive children (buttons) explicitly reset the
  * property so they stay clickable.
  */
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { Window, Events } from "@wailsio/runtime";
-import { store, toggleSysProxy, engineRunning } from "../store";
+import { store, cycleProxyMode } from "../store";
 import { t } from "../lib/i18n";
 import { fmtRate } from "../lib/format";
 import TrafficGraph from "./TrafficGraph.vue";
@@ -65,7 +65,15 @@ async function hideToTray(): Promise<void> {
 }
 
 const engineState = store.engineStatus?.state ?? "unknown";
-const sysProxyOn = store.sysProxy?.enabled ?? false;
+// OS proxy mode (#15): the button cycles off -> system -> pac -> off.
+// legacy "" (pre-#15 install) displays as off until first cycle.
+const proxyMode = computed(() => store.proxyMode?.mode ?? "");
+const proxyOn = computed(() => proxyMode.value === "system" || proxyMode.value === "pac");
+const proxyTitle = computed(() =>
+  proxyMode.value === "pac" ? t("header.proxyPac")
+    : proxyMode.value === "system" ? t("header.proxySystem")
+    : t("header.proxyOff"),
+);
 
 onMounted(() => {
   void syncMaximised();
@@ -103,12 +111,12 @@ onBeforeUnmount(() => unresize?.());
       </div>
       <button
         class="btn-icon"
-        :class="{ on: sysProxyOn }"
-        :disabled="!sysProxyOn && !engineRunning"
-        :aria-pressed="sysProxyOn"
-        :aria-label="t('header.sysProxy')"
-        :title="sysProxyOn ? t('header.sysProxyOn') : t('header.sysProxyOff')"
-        @click="toggleSysProxy()"
+        :class="{ on: proxyOn }"
+        :disabled="store.proxyModeBusy"
+        :aria-pressed="proxyOn"
+        :aria-label="proxyTitle"
+        :title="proxyTitle"
+        @click="cycleProxyMode()"
       >
         <IconGlobe :size="15" />
       </button>
