@@ -252,6 +252,15 @@ export class Status {
              */
             this["detail"] = undefined;
         }
+        if (!("host" in $$source)) {
+            /**
+             * Host tells where the core runs: "local" (GUI child) or "service"
+             * (inside the NeuroRiftService, TUN without UAC — issue #14 stage 2).
+             * @member
+             * @type {string}
+             */
+            this["host"] = "";
+        }
 
         Object.assign(this, $$source);
     }

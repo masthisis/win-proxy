@@ -19,6 +19,7 @@ import type { Status as EngineStatus } from "../bindings/github.com/neurorift/ne
 import type { Settings as SettingsDoc } from "../bindings/github.com/neurorift/neurorift/internal/settings/models.js";
 import type { Profile as ProfileSummary } from "../bindings/github.com/neurorift/neurorift/internal/profile/models.js";
 import type { Status as FailoverStatus } from "../bindings/github.com/neurorift/neurorift/internal/failover/models.js";
+import type { Status as TunServiceStatus } from "../bindings/github.com/neurorift/neurorift/internal/nrservice/models.js";
 
 import { EV } from "./lib/events";
 import type {
@@ -73,6 +74,9 @@ export interface AppState {
   sysProxyBusy: boolean;
   elevated: boolean;
   elevatedKnown: boolean;
+  // TUN service mode (#14): the optional Windows service the core can run
+  // inside (TUN without any UAC prompt).
+  tunService: TunServiceStatus | null;
   groups: GroupUI[];
   groupsBusy: boolean;
   groupsError: string | null;
@@ -111,6 +115,7 @@ export const store = reactive<AppState>({
   sysProxyBusy: false,
   elevated: false,
   elevatedKnown: false,
+  tunService: null,
   groups: [],
   groupsBusy: false,
   groupsError: null,
@@ -556,6 +561,15 @@ function onAppUpdate(ev: WailsEventLike): void {
   }
 }
 
+// TUN service mode (#14): refresh the service install/run state.
+async function refreshTunService(): Promise<void> {
+  try {
+    store.tunService = await Sys.TunServiceStatus();
+  } catch {
+    store.tunService = null;
+  }
+}
+
 function subscribeEvents(): void {
   Events.On(EV.coreStatus, onCoreStatus);
   Events.On(EV.coreDownload, onCoreDownload);
@@ -592,6 +606,9 @@ function subscribeEvents(): void {
   });
   Events.On(EV.settingsChanged, () => {
     void refreshSettings();
+    // The TUN service card/install state is only actionable here; re-poll
+    // when settings change (install/uninstall happen through Settings).
+    void refreshTunService();
   });
   Events.On(EV.appUpdate, onAppUpdate);
 
@@ -661,6 +678,10 @@ export async function bootstrap(): Promise<void> {
     store.elevatedKnown = true;
   }
   if (infoR.status === "fulfilled") store.appInfo = infoR.value;
+
+  // TUN service mode (#14): whether the optional service is installed/running
+  // decides if TUN is usable without elevation.
+  void refreshTunService();
 
   void refreshProfiles();
   void refreshAppInfo();

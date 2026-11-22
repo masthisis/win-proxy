@@ -10,6 +10,7 @@ import (
 
 	"github.com/neurorift/neurorift/internal/bus"
 	"github.com/neurorift/neurorift/internal/nr"
+	"github.com/neurorift/neurorift/internal/nrservice"
 	"github.com/neurorift/neurorift/internal/profile"
 	"github.com/neurorift/neurorift/internal/settings"
 )
@@ -22,6 +23,9 @@ type Status struct {
 	ActiveName    string       `json:"activeName"`    // profile name
 	UptimeSec     int64        `json:"uptimeSec"`
 	Detail        string       `json:"detail,omitempty"`
+	// Host tells where the core runs: "local" (GUI child) or "service"
+	// (inside the NeuroRiftService, TUN without UAC — issue #14 stage 2).
+	Host string `json:"host"`
 }
 
 // DownloadProgress is emitted while the core binary downloads.
@@ -68,6 +72,10 @@ type Manager struct {
 	Core   *CoreManager
 	Runner *Runner
 	Gen    *ConfigGen
+	// host is where the core process lives: the local Runner or, in TUN
+	// service mode, the NeuroRiftService (issue #14 stage 2). Chosen per
+	// engine start; see pickHost.
+	host coreHost
 	// API is rebuilt when the controller port/secret changes.
 	api     *API
 	streams *Streams
@@ -106,6 +114,7 @@ func NewManager(s *settings.Manager, p *profile.Manager, b *bus.Bus, coreDir str
 	m.Runner.OnCrashLoop(func(detail string) {
 		b.Emit(nr.EventCoreCrashLoop, detail)
 	})
+	m.host = m.Runner // local until Start() picks (service mode for TUN)
 	m.Gen = &ConfigGen{Settings: s, Profiles: p}
 	m.state = nr.CoreStopped
 	p.SetApply(m.ApplyFromProfiles)
@@ -131,10 +140,38 @@ func (m *Manager) Status() Status {
 	if m.state == nr.CoreRunning && !m.startedAt.IsZero() {
 		uptime = int64(time.Since(m.startedAt).Seconds())
 	}
+	hostKind := "local"
+	if _, ok := m.host.(*serviceHost); ok {
+		hostKind = "service"
+	}
 	return Status{
 		State: m.state, CoreVersion: m.version, ActiveProfile: activeID,
-		ActiveName: name, UptimeSec: uptime, Detail: m.detail,
+		ActiveName: name, UptimeSec: uptime, Detail: m.detail, Host: hostKind,
 	}
+}
+
+// pickHost chooses where the core runs: inside the NeuroRiftService
+// (LocalSystem → TUN without any UAC prompt) when TUN is enabled and the
+// service is installed AND running, or as a local child otherwise — the
+// exact fallback issue #14 requires. The choice happens per engine start;
+// settings changes that need a core restart re-evaluate it (#14 stage 2).
+func (m *Manager) pickHost(s settings.Settings) coreHost {
+	if s.Tun.Enable {
+		st, err := nrservice.Query()
+		if err == nil && st.Supported && st.Installed && st.Running {
+			m.Log.Info("core will run inside the NeuroRiftService (TUN service mode)")
+			return newServiceHost(
+				func(line string) {
+					m.Bus.Emit(nr.EventCoreConsole, line)
+					m.Log.Info("core", "line", line)
+				},
+				func(detail string) { m.Bus.Emit(nr.EventCoreCrashLoop, detail) },
+			)
+		}
+		m.Log.Warn("tun enabled but the service is unavailable; falling back to the local core (elevation required)",
+			"serviceErr", err)
+	}
+	return m.Runner
 }
 
 func (m *Manager) setState(state nr.CoreState, detail string) {
@@ -156,7 +193,7 @@ func (m *Manager) setState(state nr.CoreState, detail string) {
 // Start ensures the core binary, generates the config, launches the core,
 // waits for the API to become healthy and starts the stream consumers.
 func (m *Manager) Start(ctx context.Context) error {
-	if m.Runner.Running() {
+	if m.host.Running() {
 		return nil
 	}
 	m.setState(nr.CoreStarting, "ensuring core binary")
@@ -177,7 +214,13 @@ func (m *Manager) Start(ctx context.Context) error {
 	// SAFE_PATHS whitelists our provider/clash directories which live
 	// outside the core home dir (mihomo otherwise rejects provider paths).
 	safePaths := "SAFE_PATHS=" + filepath.Dir(m.Core.CoreDir)
-	if err := m.Runner.Start(binary, m.Core.CoreDir, cfgPath, safePaths); err != nil {
+	// Issue #14 stage 2: pick where the core runs (local child vs the
+	// NeuroRiftService). Safe swap point: nothing is running here.
+	host := m.pickHost(s)
+	m.mu.Lock()
+	m.host = host
+	m.mu.Unlock()
+	if err := m.host.Start(binary, m.Core.CoreDir, cfgPath, safePaths); err != nil {
 		m.setState(nr.CoreFailed, err.Error())
 		return err
 	}
@@ -209,13 +252,16 @@ func (m *Manager) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop halts streams and the core process.
+// Stop halts streams and the core process (wherever it runs).
 func (m *Manager) Stop() error {
 	if m.streams != nil {
 		m.streams.Stop()
 		m.streams = nil
 	}
-	m.Runner.Stop()
+	m.mu.Lock()
+	host := m.host
+	m.mu.Unlock()
+	host.Stop()
 	m.setState(nr.CoreStopped, "")
 	return nil
 }
@@ -230,7 +276,7 @@ func (m *Manager) Restart(ctx context.Context) error {
 func (m *Manager) waitHealthy(ctx context.Context) error {
 	deadline := time.Now().Add(15 * time.Second)
 	for {
-		if !m.Runner.Running() {
+		if !m.host.Running() {
 			return fmt.Errorf("core exited during startup")
 		}
 		if _, err := m.api.Version(ctx); err == nil {
@@ -265,7 +311,7 @@ func (m *Manager) ApplyFromProfiles(ctx context.Context, reason string) error {
 	defer m.applyMu.Unlock()
 
 	s := m.Settings.Get()
-	if !m.Runner.Running() {
+	if !m.host.Running() {
 		return nil // config regenerates on next Start
 	}
 
@@ -312,7 +358,7 @@ func (m *Manager) ApplyFromProfiles(ctx context.Context, reason string) error {
 
 // ReapplyForSettings is called when settings changed.
 func (m *Manager) ReapplyForSettings(ctx context.Context, prev, next settings.Settings) {
-	if !m.Runner.Running() {
+	if !m.host.Running() {
 		return
 	}
 	if settings.NeedsCoreRestart(prev, next) {
