@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+## v1.11.0 — PAC mode (user-requested #15)
+
+The next user-requested feature in priority order: **PAC** is now the third
+proxy mode beside Off / System Proxy. Windows fetches the PAC file from a
+loopback-only listener and applies `FindProxyForURL` per request — private
+and LAN ranges stay DIRECT while everything else goes through the core.
+No elevation: per-user `AutoConfigURL` + WinINet refresh, the exact path
+the static proxy already uses.
+
+- **Tri-state proxy mode (#84, closes #15).** `proxyMode`: off | system | pac
+  (`""` = legacy installs keep deriving startup behavior from
+  `systemProxyOnStart`). Switching is live — no restart — and exactly one OS
+  switch is ever active: enabling PAC clears `ProxyEnable`, enabling the
+  static proxy clears `AutoConfigURL`, off clears both. The tray checkbox
+  became self-syncing Off / System / PAC radios; the TitleBar button now
+  cycles off → system → pac.
+- **Loopback PAC listener (`internal/pacserve`).** Serves only `/pac` with
+  `application/x-ns-proxy-autoconfig` + `Cache-Control: no-store`; content
+  hot-reloads. A busy configured port falls back to an ephemeral port for
+  the session (logged, never persisted). The default script keeps plain
+  hostnames, loopback, RFC1918 and link-local ranges DIRECT and routes
+  everything else to the mixed port — **no DIRECT fallback after the PROXY
+  line**: a dead core fails traffic instead of silently leaking it.
+- **User-editable PAC script.** Settings → Proxy mode: PAC port, script
+  editor with save/reset + dirty marker. Empty = built-in default (recomposed
+  from the current mixed port); custom scripts own their PROXY line.
+  Save rejects scripts without `FindProxyForURL` or bodies > 64 KiB.
+- **Coherent with the guard.** The proxy guard never fights PAC mode: the
+  `systemProxyOnStart` restore is suppressed while PAC is active (regression
+  tested). Shutdown clears the AutoConfigURL so no request pays a
+  dead-listener timeout after exit; the next launch restores PAC before the
+  window shows.
+- **API surface.** `SysService`: `GetProxyMode` / `SetProxyMode` /
+  `GetPACScript` / `SavePACScript`; event `proxy:mode`; settings
+  `proxyMode` + `pac.{port,script}` — all documented in CONTRACT.md.
+
 ## v1.10.0 - TUN without any UAC prompt (service mode, #14 complete)
 
 The flagship user-requested feature is DONE: enable TUN, install the
