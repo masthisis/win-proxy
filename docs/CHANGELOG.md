@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+## v1.10.0 - TUN without any UAC prompt (service mode, #14 complete)
+
+The flagship user-requested feature is DONE: enable TUN, install the
+service once, and never see a UAC prompt again.
+
+- **The service owns the core (#82, closes #14 — stage 2).** When TUN is
+  enabled and the NeuroRiftService is installed and running, the engine
+  hands the core over: the service spawns `<install>\core\mihomo.exe`
+  (path-pinned by `ValidateSpawn` — foreign binaries, traversal paths and
+  non-yaml configs are rejected, unit-tested) as **LocalSystem**, so TUN
+  works while the app runs unelevated. The service supervises the core
+  with the same crash-loop discipline as the local runner (backoff, max
+  5 starts / 2 min, then `core:"failed"` + `last_error`). The `start-core`
+  connection is the **owner session**: if the GUI exits or crashes, the
+  service stops the core after a 5 s grace period — TUN never outlives
+  the app silently. `stop-core` is idempotent.
+- **Clean fallback (issue acceptance).** Service absent/stopped → the core
+  runs locally exactly as before (elevation required). The TUN section now
+  says which path is active: the controls unlock when the service runs
+  ("TUN runs inside the NeuroRiftService — no UAC prompt needed"), and the
+  warning becomes "elevate **or** install the service".
+- **Engine seam.** New `coreHost` interface; `pickHost` chooses per engine
+  start; `serviceHost` proxies start/stop over the pipe, polls at 1 Hz and
+  maps unexpected exits onto the same restart/crash-loop behavior.
+  `engine.Status.host` reports `local|service` (bindings regenerated).
+- **Protocol v1 extended.** Persistent pipe connections (frames until EOF;
+  5 s idle deadline for plain clients, none for the owner session);
+  `start-core`/`stop-core` ops; `status` reports the supervised core.
+  CONTRACT.md documents the whole contract.
+- Stage 3 polish (core console lines over the pipe, NSIS pre-registration
+  option, TROUBLESHOOTING section) is tracked in docs/ROADMAP.md.
+
 ## v1.9.0 - TUN service foundation (stage 1 of #14)
 
 The first user-requested v2 feature enters the tree, plus one perf fix —

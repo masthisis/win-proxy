@@ -28,15 +28,15 @@ Staged delivery; each stage is a shippable, compiling, tested increment.
   start type automatic (delayed). GUI: Settings card (status / install /
   uninstall) + i18n (en/fa). No per-launch UAC exists anymore for anything
   the service will own.
-- **Stage 2 — core handoff.** The service owns the core lifecycle for TUN
-  mode: `start-core`/`stop-core` ops spawn/supervise mihomo (restart on
-  crash), GUI points its existing REST client at the core unchanged
-  (traffic/logs/streams need no changes). Clean fallback: service absent →
-  current UAC-on-launch behavior. Stop policy: core stops when the pipe
-  client disconnects (GUI exit) — TUN is intentionally torn down on exit.
-- **Stage 3 — hardening.** Crash-loop detection in the service, watchdog
-  reporting over the pipe, NSIS post-install option to pre-register the
-  service, TROUBLESHOOTING section.
+- **Stage 2 — core handoff: SHIPPED in v1.10.0 (#82, closes #14).** The
+  service supervises the path-pinned core as LocalSystem with an owner
+  session watchdog (GUI gone → core stopped after 5 s) and crash-loop
+  discipline; the engine picks service mode when TUN is on and the service
+  is alive, with the local runner as fallback.
+- **Stage 3 — hardening (still open, follow-ups).** Ship core console
+  lines over the pipe (service currently discards the child stdout), NSIS
+  post-install option to pre-register the service, TROUBLESHOOTING
+  section, crash-loop reporting piped into the service-side status.
 
 ### 2. #15 — PAC mode alongside system proxy
 
