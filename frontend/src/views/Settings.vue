@@ -9,7 +9,18 @@ import * as ReportSvc from "../../bindings/github.com/neurorift/neurorift/report
 import * as AppSvc from "../../bindings/github.com/neurorift/neurorift/appservice.js";
 import type { PendingInfo, PortableInfo } from "../../bindings/github.com/neurorift/neurorift/models.js";
 import type { Settings as SettingsDoc } from "../../bindings/github.com/neurorift/neurorift/internal/settings/models.js";
-import { store, checkAppUpdate, downloadAppUpdate, installAppUpdate, openUpdateNotes } from "../store";
+import {
+  store,
+  checkAppUpdate,
+  downloadAppUpdate,
+  installAppUpdate,
+  openUpdateNotes,
+  refreshProxyMode,
+  savePACScript,
+  setProxyMode,
+  PROXY_MODES,
+  type ProxyMode,
+} from "../store";
 import { t, setLang, type Lang } from "../lib/i18n";
 import { toast, errMsg } from "../lib/toast";
 import { IconChevron, IconFolder, IconWarn, IconCheck, IconRefresh, IconDownload, IconExternal, IconTrash, IconPlus } from "../components/Icons";
@@ -68,6 +79,7 @@ async function importLegacy(): Promise<void> {
 
 const open = reactive<Record<string, boolean>>({
   general: true,
+  proxy: false,
   ports: false,
   testing: false,
   failover: false,
@@ -85,6 +97,44 @@ const open = reactive<Record<string, boolean>>({
 // Settings keeps the action buttons and the post-action result polling.
 const tunSvc = computed(() => store.tunService);
 const serviceRunning = computed(() => !!store.tunService?.running);
+
+// --- Proxy mode (#15) ------------------------------------------------
+const currentMode = computed<ProxyMode>(() => {
+  const m = store.proxyMode?.mode ?? "";
+  return m === "system" || m === "pac" ? m : "off";
+});
+const pacUrl = computed(() => store.proxyMode?.pacUrl ?? "");
+const pacScript = ref("");
+const pacScriptDirty = ref(false);
+
+async function loadPacScript(): Promise<void> {
+  try {
+    pacScript.value = await Sys.GetPACScript();
+    pacScriptDirty.value = false;
+  } catch {
+    /* non-fatal — the card still works with the default script */
+  }
+}
+
+async function applyMode(m: ProxyMode): Promise<void> {
+  await setProxyMode(m);
+}
+
+async function saveScript(): Promise<void> {
+  await savePACScript(pacScript.value);
+  pacScriptDirty.value = false;
+}
+
+async function resetScript(): Promise<void> {
+  await savePACScript("");
+  pacScript.value = await Sys.GetPACScript();
+  pacScriptDirty.value = false;
+}
+
+function markPacDirty(): void {
+  pacScriptDirty.value = true;
+}
+
 const tunSvcBusy = ref(false);
 let tunSvcPoll: ReturnType<typeof setInterval> | null = null;
 
@@ -245,6 +295,12 @@ const tokenHelpURL = "https://github.com/settings/personal-access-tokens/new";
 let offReports: (() => void) | undefined;
 onMounted(() => {
   offReports = Events.On(EV.reportsChanged, () => loadPending()) as unknown as () => void;
+});
+
+// PAC mode (#15): load the script editor + the current mode snapshot.
+onMounted(() => {
+  void loadPacScript();
+  void refreshProxyMode();
 });
 onUnmounted(() => {
   offReports?.();
@@ -721,6 +777,60 @@ async function importOverrides(ev: Event): Promise<void> {
               </button>
             </div>
             <p class="hint" style="margin: 8px 0 0">{{ t("settings.tunService.desc") }}</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Proxy mode (#15): off / system / PAC -->
+      <section class="panel">
+        <button class="section-head" :aria-expanded="open.proxy" @click="open.proxy = !open.proxy">
+          <IconChevron :size="14" class="chev" :class="{ open: open.proxy }" />
+          {{ t("settings.secProxy") }}
+        </button>
+        <div v-if="open.proxy" style="margin-top: 12px" class="form-grid">
+          <div class="field span-all">
+            <label>{{ t("settings.proxyModeLabel") }}</label>
+            <div class="row" style="gap: 8px; flex-wrap: wrap">
+              <button
+                v-for="m in PROXY_MODES"
+                :key="m"
+                class="btn sm"
+                :class="{ primary: currentMode === m }"
+                :disabled="store.proxyModeBusy"
+                @click="applyMode(m)"
+              >
+                {{ t(`proxyMode.${m}`) }}
+              </button>
+              <span v-if="pacUrl" class="badge success mono">{{ t("settings.pacActive", { url: pacUrl }) }}</span>
+              <span v-else-if="currentMode === 'pac'" class="badge warn">{{ t("settings.pacIdle") }}</span>
+            </div>
+            <p class="hint" style="margin: 8px 0 0">{{ t("settings.proxyModeHint") }}</p>
+          </div>
+          <div class="field">
+            <label for="pac-port">{{ t("settings.pacPort") }}</label>
+            <input id="pac-port" v-model.number="form.pac.port" type="number" min="1024" max="65535" />
+          </div>
+          <p class="hint span-all" style="margin: 0">{{ t("settings.pacPortAppliedNote") }}</p>
+          <div class="field span-all">
+            <label for="pac-script">{{ t("settings.pacScript") }}<span v-if="pacScriptDirty" class="dim"> *</span></label>
+            <textarea
+              id="pac-script"
+              v-model="pacScript"
+              class="mono"
+              rows="10"
+              spellcheck="false"
+              style="width: 100%; resize: vertical"
+              @input="markPacDirty"
+            />
+            <p class="hint">{{ t("settings.pacScriptHint") }}</p>
+            <div class="row" style="gap: 8px; margin-top: 8px">
+              <button class="btn sm" :disabled="store.proxyModeBusy || !pacScriptDirty" @click="saveScript">
+                {{ t("settings.pacSave") }}
+              </button>
+              <button class="btn sm ghost" :disabled="store.proxyModeBusy" @click="resetScript">
+                {{ t("settings.pacReset") }}
+              </button>
+            </div>
           </div>
         </div>
       </section>

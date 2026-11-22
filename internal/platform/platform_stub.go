@@ -14,4 +14,15 @@ func getSystemProxy() (SysProxyState, error) {
 	return SysProxyState{}, nil
 }
 
+func setPACAutoconfig(url string) error {
+	if url == "" {
+		return nil
+	}
+	return errors.New("PAC mode is only supported on Windows in this release")
+}
+
+func getPACAutoconfig() (string, error) {
+	return "", nil
+}
+
 func isElevated() bool { return false }

@@ -464,6 +464,55 @@ export class PortableInfo {
 }
 
 /**
+ * ProxyModeState is the tri-state proxy-mode snapshot for the UI.
+ */
+export class ProxyModeState {
+    /**
+     * Creates a new ProxyModeState instance.
+     * @param {Partial<ProxyModeState>} [$$source = {}] - The source object to create the ProxyModeState.
+     */
+    constructor($$source = {}) {
+        if (!("mode" in $$source)) {
+            /**
+             * Mode is the persisted mode: off | system | pac ("" = legacy install).
+             * @member
+             * @type {string}
+             */
+            this["mode"] = "";
+        }
+        if (!("pacPort" in $$source)) {
+            /**
+             * PACPort is the ACTUAL listener port (0 = not running). May differ
+             * from the configured port when it was taken at enable time.
+             * @member
+             * @type {number}
+             */
+            this["pacPort"] = 0;
+        }
+        if (!("pacUrl" in $$source)) {
+            /**
+             * PACURL is the AutoConfigURL target when the listener is up ("" otherwise).
+             * @member
+             * @type {string}
+             */
+            this["pacUrl"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ProxyModeState instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ProxyModeState}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ProxyModeState(/** @type {Partial<ProxyModeState>} */($$parsedSource));
+    }
+}
+
+/**
  * SysProxyState mirrors platform state.
  */
 export class SysProxyState {

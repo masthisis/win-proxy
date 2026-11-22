@@ -31,6 +31,14 @@ export function GetAutostart() {
 }
 
 /**
+ * GetPACScript returns the user-editable PAC body ("" = built-in default).
+ * @returns {$CancellablePromise<string>}
+ */
+export function GetPACScript() {
+    return $Call.ByID(3106752555);
+}
+
+/**
  * GetProxyGuardStatus reports the system-proxy guard state (#47): armed,
  * re-applies today and the last action.
  * @returns {$CancellablePromise<proxyguard$0.Status>}
@@ -42,12 +50,23 @@ export function GetProxyGuardStatus() {
 }
 
 /**
+ * GetProxyMode reports the effective OS proxy mode for the Settings card
+ * and TitleBar (#15).
+ * @returns {$CancellablePromise<$models.ProxyModeState>}
+ */
+export function GetProxyMode() {
+    return $Call.ByID(1785675883).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
+
+/**
  * GetSystemProxy reads the OS proxy state.
  * @returns {$CancellablePromise<$models.SysProxyState>}
  */
 export function GetSystemProxy() {
     return $Call.ByID(1171326591).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType1($result);
+        return $$createType2($result);
     }));
 }
 
@@ -78,6 +97,17 @@ export function OpenURL(url) {
 }
 
 /**
+ * SavePACScript persists the user PAC script and hot-reloads the listener
+ * content (#15). "" resets to the built-in default. The script must define
+ * FindProxyForURL — a PAC file without it makes the OS ignore every rule.
+ * @param {string} script
+ * @returns {$CancellablePromise<void>}
+ */
+export function SavePACScript(script) {
+    return $Call.ByID(2766468736, script);
+}
+
+/**
  * SetAutostart registers/unregisters launching NeuroRift at login
  * (Wails AutostartManager; HKCU Run key on Windows). Autostarted
  * instances always launch minimized to the tray.
@@ -86,6 +116,17 @@ export function OpenURL(url) {
  */
 export function SetAutostart(enabled) {
     return $Call.ByID(2776955457, enabled);
+}
+
+/**
+ * SetProxyMode validates, persists and applies the OS proxy mode (#15).
+ * Persistence happens first so the mode survives a restart even when the
+ * OS write fails; the emitted proxy:mode event keeps tray + UI in sync.
+ * @param {string} mode
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetProxyMode(mode) {
+    return $Call.ByID(2926555847, mode);
 }
 
 /**
@@ -118,7 +159,7 @@ export function TunServiceInstall() {
  */
 export function TunServiceStatus() {
     return $Call.ByID(942307840).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType2($result);
+        return $$createType3($result);
     }));
 }
 
@@ -132,5 +173,6 @@ export function TunServiceUninstall() {
 
 // Private type creation functions
 const $$createType0 = proxyguard$0.Status.createFrom;
-const $$createType1 = $models.SysProxyState.createFrom;
-const $$createType2 = nrservice$0.Status.createFrom;
+const $$createType1 = $models.ProxyModeState.createFrom;
+const $$createType2 = $models.SysProxyState.createFrom;
+const $$createType3 = nrservice$0.Status.createFrom;

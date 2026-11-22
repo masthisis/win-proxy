@@ -7,6 +7,7 @@ export {
     DNS,
     Failover,
     Log,
+    PAC,
     Ports,
     ProxyGuard,
     Reporting,

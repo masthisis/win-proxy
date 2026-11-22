@@ -32,5 +32,6 @@ export {
     NodeUI,
     PendingInfo,
     PortableInfo,
+    ProxyModeState,
     SysProxyState
 } from "./models.js";

@@ -37,6 +37,13 @@ func (s *SettingsService) Save(next settings.Settings) (settings.Settings, error
 		return prev, err
 	}
 	s.c.Engine.ReapplyForSettings(context.Background(), prev, saved)
+	// PAC mode (#15): the served script / listener port may have changed
+	// with this save — re-apply so the running listener stays coherent.
+	if saved.ProxyMode == "pac" {
+		if err := s.c.applyProxyMode("pac"); err != nil {
+			s.c.Log.Warn("pac re-apply after settings save failed", "err", err)
+		}
+	}
 	return saved, nil
 }
 

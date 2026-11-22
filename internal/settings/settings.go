@@ -82,6 +82,18 @@ type Failover struct {
 	CooldownSec int  `json:"cooldownSec"` // no re-switch window after a switch
 }
 
+// PAC configures the PAC proxy mode (issue #15).
+type PAC struct {
+	// Port is the loopback PAC listener port (default 7899). When the
+	// configured port is taken at enable time an ephemeral port is used
+	// for this session (not persisted; the next enable retries).
+	Port int `json:"port"`
+	// Script is the user-editable PAC file body ("" = the built-in
+	// default, regenerated from the current mixed port). Custom scripts
+	// own their PROXY line entirely.
+	Script string `json:"script"`
+}
+
 // Core configures mihomo binary management.
 type Core struct {
 	// Channel is "stable" (latest release) or "alpha" (latest prerelease).
@@ -161,20 +173,27 @@ type WindowGeometry struct {
 
 // Settings is the complete, JSON-serializable settings document.
 type Settings struct {
-	Language           string       `json:"language"` // en | fa
-	StartMinimized     bool         `json:"startMinimized"`
-	AutoConnect        bool         `json:"autoConnect"` // start engine on launch
-	SystemProxyOnStart bool         `json:"systemProxyOnStart"`
-	AllowLan           bool         `json:"allowLan"`
-	Mode               string       `json:"mode"` // rule | global | direct
-	Ports              Ports        `json:"ports"`
-	Test               Test         `json:"test"`
-	Failover           Failover     `json:"failover"`
-	Core               Core         `json:"core"`
-	DNS                DNS          `json:"dns"`
-	Tun                Tun          `json:"tun"`
-	Subscription       Subscription `json:"subscription"`
-	Log                Log          `json:"log"`
+	Language           string `json:"language"` // en | fa
+	StartMinimized     bool   `json:"startMinimized"`
+	AutoConnect        bool   `json:"autoConnect"` // start engine on launch
+	SystemProxyOnStart bool   `json:"systemProxyOnStart"`
+	AllowLan           bool   `json:"allowLan"`
+	Mode               string `json:"mode"` // rule | global | direct
+	// ProxyMode is the OS proxy mode (#15): off | system | pac. The empty
+	// string means "legacy install" — startup behavior then derives from
+	// SystemProxyOnStart only (pre-#15 documents stay valid as-is).
+	ProxyMode    string       `json:"proxyMode"`
+	Ports        Ports        `json:"ports"`
+	Test         Test         `json:"test"`
+	Failover     Failover     `json:"failover"`
+	Core         Core         `json:"core"`
+	DNS          DNS          `json:"dns"`
+	Tun          Tun          `json:"tun"`
+	Subscription Subscription `json:"subscription"`
+	Log          Log          `json:"log"`
+	// PAC configures the PAC proxy mode (#15): loopback listener port +
+	// the optional user script (empty = built-in default).
+	PAC PAC `json:"pac"`
 	// RoutingOverrides are injected as high-priority rules into every
 	// generated runtime config, right after the LAN block (#50).
 	RoutingOverrides []RoutingOverride `json:"routingOverrides"`
@@ -197,6 +216,7 @@ func Default() Settings {
 		SystemProxyOnStart: false,
 		AllowLan:           false,
 		Mode:               "rule",
+		ProxyMode:          "", // legacy installs derive startup from systemProxyOnStart
 		Ports:              Ports{Mixed: 7897, Controller: 9097, SpeedTest: 19097},
 		Test: Test{
 			URL:             "https://www.gstatic.com/generate_204",
@@ -231,6 +251,7 @@ func Default() Settings {
 		Tun:              Tun{Enable: false, Stack: "mixed"},
 		Subscription:     Subscription{DefaultIntervalH: 24, UpdateViaProxy: false},
 		Log:              Log{AppLevel: "info", CoreLevel: "info"},
+		PAC:              PAC{Port: 7899, Script: ""},
 		RoutingOverrides: []RoutingOverride{},
 		ProxyGuard:       ProxyGuard{Enable: false, IntervalSec: 10, KillSwitch: false},
 		Updates:          Updates{AutoCheck: true, IncludePrerelease: false},
@@ -290,6 +311,20 @@ func (s *Settings) validate() {
 	default:
 		s.Mode = d.Mode
 	}
+	switch s.ProxyMode {
+	case "off", "system", "pac":
+	case "":
+		// Legacy documents keep deriving startup behavior from
+		// systemProxyOnStart (pre-#15 installs).
+	default:
+		s.ProxyMode = ""
+	}
+	clampPort(&s.PAC.Port, d.PAC.Port)
+	if len(s.PAC.Script) > maxPACScriptBytes {
+		// An oversized script falls back to the built-in default;
+		// saving settings must never fail because of one field.
+		s.PAC.Script = ""
+	}
 	switch s.Language {
 	case "en", "fa":
 	default:
@@ -348,6 +383,10 @@ func clampInt(v, lo, hi, def int) int {
 	}
 	return v
 }
+
+// maxPACScriptBytes caps the user-editable PAC file (64 KiB is far
+// more than any sane FindProxyForURL needs).
+const maxPACScriptBytes = 64 * 1024
 
 // ProbeInterval returns the failover probe cadence.
 func (s Settings) ProbeInterval() time.Duration {
