@@ -40,6 +40,11 @@ Staged delivery; each stage is a shippable, compiling, tested increment.
 
 ### 2. #15 — PAC mode alongside system proxy
 
+> **SHIPPED in v1.11.0 (2026-11-23, PR #84).** `internal/pacserve` listener +
+> `AutoConfigURL` switch, tri-state `proxyMode` (off/system/pac), tray radios,
+> TitleBar cycler, Settings card with PAC script editor. Remaining polish
+> (system-proxy test button, PAC per-profile override) tracked as follow-ups.
+
 Third proxy mode next to Off / System Proxy: the app serves a generated PAC
 file on a loopback-only listener and points WinINet at it via
 `AutoconfigURL` (the existing per-user switch in
