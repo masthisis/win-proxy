@@ -98,14 +98,33 @@ a bound signature changes.
 
 The optional Windows service (`NeuroRiftService`, `neurorift.exe service run`)
 serves `\\.\pipe\neurorift-service` with a DACL of
-`D:P(A;;GA;;;SY)(A;;GA;;;IU)` (SYSTEM + interactive sessions only). One
-request/response pair per connection: a 4-byte big-endian length prefix
-(frames > 64 KiB rejected) followed by JSON
-`Request{v:1, op, args?}` / `Response{v:1, ok, result?, error?}`. Ops
-(stage 1): `ping` → `{version, pid}`, `status` → `{version, core:"idle"}`;
-stage 2 adds the core-supervision ops. Install type is automatic (delayed);
-`service install|uninstall` are elevated one-shots that exit 0/2/3
-(success / install failed / uninstall failed).
+`D:P(A;;GA;;;SY)(A;;GA;;;IU)` (SYSTEM + interactive sessions only).
+Connections are persistent: any number of length-prefixed JSON frames
+(`Request{v:1, op, args?}` / `Response{v:1, ok, result?, error?}`) flow per
+connection until EOF; frames > 64 KiB are rejected; plain clients get a 5 s
+inactivity deadline.
+
+Ops:
+- `ping` → `{version, pid}` — liveness.
+- `status` → `{version, core:{state, pid, last_error?, owned?}}` — service
+  + supervised-core snapshot (`state`: `idle|running|failed`).
+- `start-core` (`core_path`, `config_path`, `env?`) → `{state:"running", pid}`.
+  **Owner session**: the connection that sent it stays open for the engine's
+  lifetime and goes deadline-free. The service validates the spawn —
+  `core_path` is PINNED to `<install>\core\mihomo.exe`, `config_path` must
+  be an existing `.yaml`/`.yml` — so a pipe client can never make the SYSTEM
+  service run an arbitrary binary. The service supervises the child (same
+  crash-loop discipline as the local runner: backoff, max 5 starts / 2 min,
+  then `state:"failed"` + `last_error`). If the owner session drops (GUI
+  exit/crash) the core is stopped after a 5 s grace period — TUN never
+  outlives the app silently.
+- `stop-core` → stops the supervised core (idempotent).
+
+Install type is automatic (delayed); `service install|uninstall` are
+elevated one-shots that exit 0/2/3 (success / install failed / uninstall
+failed). The engine picks the host per start: TUN enabled + service running
+→ service mode, else local child (the fallback the issue requires).
+`engine.Status.host` tells the UI which one is active (`local|service`).
 
 ### UpdateService (`updateservice`) — application self-update (#13)
 | Method | Returns | Notes |

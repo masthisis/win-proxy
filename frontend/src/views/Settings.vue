@@ -8,7 +8,6 @@ import * as Sys from "../../bindings/github.com/neurorift/neurorift/sysservice.j
 import * as ReportSvc from "../../bindings/github.com/neurorift/neurorift/reportservice.js";
 import * as AppSvc from "../../bindings/github.com/neurorift/neurorift/appservice.js";
 import type { PendingInfo, PortableInfo } from "../../bindings/github.com/neurorift/neurorift/models.js";
-import type { Status as TunServiceStatus } from "../../bindings/github.com/neurorift/neurorift/internal/nrservice/models.js";
 import type { Settings as SettingsDoc } from "../../bindings/github.com/neurorift/neurorift/internal/settings/models.js";
 import { store, checkAppUpdate, downloadAppUpdate, installAppUpdate, openUpdateNotes } from "../store";
 import { t, setLang, type Lang } from "../lib/i18n";
@@ -82,18 +81,21 @@ const open = reactive<Record<string, boolean>>({
 });
 
 // ---- TUN service mode (#14) ----
-const tunSvc = ref<TunServiceStatus | null>(null);
+// Service state lives in the store (bootstrap + settings:changed refresh);
+// Settings keeps the action buttons and the post-action result polling.
+const tunSvc = computed(() => store.tunService);
+const serviceRunning = computed(() => !!store.tunService?.running);
 const tunSvcBusy = ref(false);
 let tunSvcPoll: ReturnType<typeof setInterval> | null = null;
 
-async function loadTunService(): Promise<void> {
+async function refreshTunService(): Promise<void> {
   try {
-    tunSvc.value = await Sys.TunServiceStatus();
+    store.tunService = await Sys.TunServiceStatus();
   } catch {
-    tunSvc.value = null;
+    store.tunService = null;
   }
 }
-loadTunService();
+void refreshTunService();
 
 // Poll for a bounded window after install/uninstall: the action runs in a
 // detached elevated child, so the result arrives asynchronously.
@@ -102,7 +104,7 @@ function pollTunService(seconds: number): void {
   let left = seconds;
   tunSvcPoll = setInterval(() => {
     left -= 1;
-    void loadTunService();
+    void refreshTunService();
     if (left <= 0 && tunSvcPoll) {
       clearInterval(tunSvcPoll);
       tunSvcPoll = null;
@@ -121,7 +123,7 @@ async function installTunService(): Promise<void> {
     toast.error(`${t("settings.tunService.installFailed")}: ${errMsg(e)}`);
   } finally {
     tunSvcBusy.value = false;
-    void loadTunService();
+    void refreshTunService();
   }
 }
 
@@ -136,7 +138,7 @@ async function uninstallTunService(): Promise<void> {
     toast.error(`${t("settings.tunService.uninstallFailed")}: ${errMsg(e)}`);
   } finally {
     tunSvcBusy.value = false;
-    void loadTunService();
+    void refreshTunService();
   }
 }
 
@@ -678,22 +680,26 @@ async function importOverrides(ev: Event): Promise<void> {
             <input
               v-model="form.tun.enable"
               type="checkbox"
-              :disabled="store.elevatedKnown && !store.elevated"
+              :disabled="store.elevatedKnown && !store.elevated && !serviceRunning"
             />
             <span class="box" />
             <span>{{ t("settings.tunEnable") }}</span>
           </label>
           <div class="field">
             <label for="tun-stack">{{ t("settings.tunStack") }}</label>
-            <select id="tun-stack" v-model="form.tun.stack" :disabled="store.elevatedKnown && !store.elevated">
+            <select id="tun-stack" v-model="form.tun.stack" :disabled="store.elevatedKnown && !store.elevated && !serviceRunning">
               <option value="system">system</option>
               <option value="gvisor">gvisor</option>
               <option value="mixed">mixed</option>
             </select>
           </div>
-          <div v-if="store.elevatedKnown && !store.elevated" class="warn-box span-all">
+          <div v-if="store.elevatedKnown && !store.elevated && !serviceRunning" class="warn-box span-all">
             <IconWarn :size="15" />
-            <span>{{ t("settings.tunNeedsAdmin") }}</span>
+            <span>{{ t("settings.tunNeedsAdminOrService") }}</span>
+          </div>
+          <div v-else-if="store.elevatedKnown && !store.elevated && serviceRunning" class="hint span-all" style="display: flex; align-items: center; gap: 6px">
+            <IconCheck :size="14" />
+            <span>{{ t("settings.tunViaService") }}</span>
           </div>
 
           <!-- TUN service mode (#14): one UAC prompt at install, never after -->

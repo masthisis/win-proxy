@@ -72,6 +72,119 @@ func pingService() (string, error) {
 	return "", nil
 }
 
+// --- stage-2 client API (GUI side, issue #14) ----------------------------------
+
+// Session is the GUI-side handle of an owner session: the connection that
+// started the core, kept open for the engine's lifetime. If it drops, the
+// service stops the core after a grace period (no orphaned SYSTEM core).
+type Session struct {
+	conn net.Conn
+}
+
+// StartCoreSession asks the service to spawn the core and returns the
+// owner session. The service validates the spawn (path-pinned core binary,
+// existing yaml config) — a rejection means the GUI passes something it
+// must not, which is a bug, not a user error.
+func StartCoreSession(corePath, configPath string, env []string) (*Session, error) {
+	conn, err := dialPipe(3 * time.Second)
+	if err != nil {
+		return nil, err
+	}
+	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
+	err = WriteFrame(conn, Request{V: ProtoVersion, Op: OpStartCore, Args: map[string]any{
+		"core_path":   corePath,
+		"config_path": configPath,
+		"env":         env,
+	}})
+	if err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("send start-core: %w", err)
+	}
+	var resp Response
+	if err := ReadFrame(conn, &resp); err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("read start-core reply: %w", err)
+	}
+	if !resp.OK {
+		_ = conn.Close()
+		return nil, fmt.Errorf("service rejected start-core: %s", resp.Error)
+	}
+	// Session lifetime: no deadline — silence is normal here.
+	_ = conn.SetDeadline(time.Time{})
+	return &Session{conn: conn}, nil
+}
+
+// Close drops the owner session (the service stops the core only after the
+// grace period AND only when no other client has taken ownership).
+func (s *Session) Close() error {
+	if s == nil || s.conn == nil {
+		return nil
+	}
+	return s.conn.Close()
+}
+
+// StopCore asks the service to stop the supervised core (one-shot
+// connection; safe when no core runs).
+func StopCore() error {
+	conn, err := dialPipe(3 * time.Second)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	if err := WriteFrame(conn, Request{V: ProtoVersion, Op: OpStopCore}); err != nil {
+		return fmt.Errorf("send stop-core: %w", err)
+	}
+	var resp Response
+	if err := ReadFrame(conn, &resp); err != nil {
+		return fmt.Errorf("read stop-core reply: %w", err)
+	}
+	if !resp.OK {
+		return fmt.Errorf("stop-core rejected: %s", resp.Error)
+	}
+	return nil
+}
+
+// CoreInfo mirrors the service's view of the supervised core.
+type CoreInfo struct {
+	State     string
+	PID       uint32
+	LastError string
+}
+
+// CoreStatus fetches the supervised-core state (one-shot connection).
+func CoreStatus() (CoreInfo, error) {
+	conn, err := dialPipe(3 * time.Second)
+	if err != nil {
+		return CoreInfo{}, err
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	if err := WriteFrame(conn, Request{V: ProtoVersion, Op: OpStatus}); err != nil {
+		return CoreInfo{}, fmt.Errorf("send status: %w", err)
+	}
+	var resp Response
+	if err := ReadFrame(conn, &resp); err != nil {
+		return CoreInfo{}, fmt.Errorf("read status reply: %w", err)
+	}
+	if !resp.OK {
+		return CoreInfo{}, fmt.Errorf("status rejected: %s", resp.Error)
+	}
+	info := CoreInfo{State: CoreIdle}
+	if core, ok := resp.Result["core"].(map[string]any); ok {
+		if st, ok := core["state"].(string); ok {
+			info.State = st
+		}
+		if pid, ok := core["pid"].(float64); ok {
+			info.PID = uint32(pid)
+		}
+		if le, ok := core["last_error"].(string); ok {
+			info.LastError = le
+		}
+	}
+	return info, nil
+}
+
 // --- service handler ---------------------------------------------------------
 
 // nrService implements svc.Handler: it serves the pipe until SCM stop.
@@ -120,9 +233,11 @@ func (m *nrService) Execute(_ []string, r <-chan svc.ChangeRequest, w chan<- svc
 	}
 }
 
-// serve accepts pipe clients; each connection carries exactly one
-// request/response pair. Serve errors never take the service down — the
-// listener loop keeps accepting (a wedged client must not wedge TUN).
+// serve accepts pipe clients; each connection handles any number of
+// request/response pairs until EOF (stage 2: the StartCore connection
+// doubles as the long-lived owner session). Serve errors never take the
+// service down — the listener loop keeps accepting (a wedged client must
+// not wedge TUN).
 func serve(ctx context.Context, ln net.Listener) {
 	for {
 		conn, err := ln.Accept()
@@ -140,14 +255,29 @@ func serve(ctx context.Context, ln net.Listener) {
 
 func handleConn(_ context.Context, conn net.Conn) {
 	defer conn.Close()
-	// A stuck client holds one goroutine for at most 5 seconds.
-	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
-	var req Request
-	if err := ReadFrame(conn, &req); err != nil {
-		return
+	// Per-request inactivity deadline for plain clients; once a connection
+	// starts the core it becomes the owner session and goes deadline-free
+	// (it may idle for the engine's whole lifetime).
+	session := false
+	for {
+		if !session {
+			_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+		}
+		var req Request
+		if err := ReadFrame(conn, &req); err != nil {
+			sup.releaseSession(conn)
+			return
+		}
+		resp := HandleRequest(req, conn)
+		if req.Op == OpStartCore && resp.OK {
+			session = true
+			_ = conn.SetDeadline(time.Time{})
+		}
+		if err := WriteFrame(conn, resp); err != nil {
+			sup.releaseSession(conn)
+			return
+		}
 	}
-	resp := HandleRequest(req)
-	_ = WriteFrame(conn, resp)
 }
 
 // runService is the `service run` entry point (SCM context only).

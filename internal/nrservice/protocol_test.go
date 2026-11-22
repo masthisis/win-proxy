@@ -2,6 +2,9 @@ package nrservice
 
 import (
 	"bytes"
+	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -59,7 +62,7 @@ func TestWriteFrameRejectsOversize(t *testing.T) {
 // --- dispatch ------------------------------------------------------------------
 
 func TestHandleRequestPing(t *testing.T) {
-	resp := HandleRequest(Request{V: ProtoVersion, Op: OpPing})
+	resp := HandleRequest(Request{V: ProtoVersion, Op: OpPing}, nil)
 	if !resp.OK || resp.Error != "" {
 		t.Fatalf("resp = %+v", resp)
 	}
@@ -72,17 +75,18 @@ func TestHandleRequestPing(t *testing.T) {
 }
 
 func TestHandleRequestStatus(t *testing.T) {
-	resp := HandleRequest(Request{V: ProtoVersion, Op: OpStatus})
+	resp := HandleRequest(Request{V: ProtoVersion, Op: OpStatus}, nil)
 	if !resp.OK {
 		t.Fatalf("resp = %+v", resp)
 	}
-	if resp.Result["core"] != "idle" {
+	core, ok := resp.Result["core"].(map[string]any)
+	if !ok || core["state"] != CoreIdle {
 		t.Fatalf("core state = %v", resp.Result["core"])
 	}
 }
 
 func TestHandleRequestRejectsForeignVersion(t *testing.T) {
-	resp := HandleRequest(Request{V: ProtoVersion + 99, Op: OpPing})
+	resp := HandleRequest(Request{V: ProtoVersion + 99, Op: OpPing}, nil)
 	if resp.OK {
 		t.Fatal("foreign protocol version must be refused")
 	}
@@ -92,9 +96,78 @@ func TestHandleRequestRejectsForeignVersion(t *testing.T) {
 }
 
 func TestHandleRequestUnknownOp(t *testing.T) {
-	resp := HandleRequest(Request{V: ProtoVersion, Op: "format-c-drive"})
+	resp := HandleRequest(Request{V: ProtoVersion, Op: "format-c-drive"}, nil)
 	if resp.OK || !strings.Contains(resp.Error, "unknown op") {
 		t.Fatalf("resp = %+v", resp)
+	}
+}
+
+// --- stage-2 ops (dispatched through the platform hooks) -----------------------
+
+func TestHandleRequestStartCoreRoutesToHook(t *testing.T) {
+	orig := hookStartCore
+	defer func() { hookStartCore = orig }()
+	var gotArgs map[string]any
+	hookStartCore = func(args map[string]any, owner net.Conn) Response {
+		gotArgs = args
+		return Response{V: ProtoVersion, OK: true, Result: map[string]any{"state": CoreRun}}
+	}
+	resp := HandleRequest(Request{V: ProtoVersion, Op: OpStartCore, Args: map[string]any{"core_path": "x"}}, nil)
+	if !resp.OK || gotArgs["core_path"] != "x" {
+		t.Fatalf("resp = %+v args = %v", resp, gotArgs)
+	}
+}
+
+func TestHandleRequestStopCoreRoutesToHook(t *testing.T) {
+	orig := hookStopCore
+	defer func() { hookStopCore = orig }()
+	hookStopCore = func() Response {
+		return Response{V: ProtoVersion, OK: true}
+	}
+	if resp := HandleRequest(Request{V: ProtoVersion, Op: OpStopCore}, nil); !resp.OK {
+		t.Fatalf("resp = %+v", resp)
+	}
+}
+
+// --- spawn validation (security contract) ----------------------------------------
+
+func TestValidateSpawn(t *testing.T) {
+	// Build an "install dir" in t.TempDir so the config exists.
+	install := t.TempDir()
+	coreDir := filepath.Join(install, "core")
+	if err := os.MkdirAll(coreDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	corePath := filepath.Join(coreDir, "mihomo.exe")
+	if err := os.WriteFile(corePath, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(install, "runtime.yaml")
+	if err := os.WriteFile(configPath, []byte("proxies: []"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	exePath := filepath.Join(install, "neurorift.exe")
+
+	if err := ValidateSpawn(corePath, configPath, exePath); err != nil {
+		t.Fatalf("valid spawn rejected: %v", err)
+	}
+	cases := []struct {
+		name               string
+		corePath, confPath string
+		wantSub            string
+	}{
+		{"foreign binary", filepath.Join(install, "evil.exe"), configPath, "core_path is pinned"},
+		{"traversal binary", filepath.Join(install, "..", "other", "mihomo.exe"), configPath, "core_path is pinned"},
+		{"missing config", corePath, filepath.Join(install, "nope.yaml"), "config_path does not exist"},
+		{"non-yaml config", corePath, corePath, "config_path must be a .yaml/.yml"},
+		{"empty core", "", configPath, "missing core_path"},
+		{"empty config", corePath, "", "missing config_path"},
+	}
+	for _, tc := range cases {
+		err := ValidateSpawn(tc.corePath, tc.confPath, exePath)
+		if err == nil || !strings.Contains(err.Error(), tc.wantSub) {
+			t.Errorf("%s: err = %v, want substring %q", tc.name, err, tc.wantSub)
+		}
 	}
 }
 

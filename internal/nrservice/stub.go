@@ -22,3 +22,23 @@ func doUninstall() error { return ErrUnsupported }
 func runService() error { return ErrUnsupported }
 
 func relaunchElevated(string) error { return ErrUnsupported }
+
+// --- stage-2 client API stubs -------------------------------------------------
+
+// Session mirrors the Windows type so callers compile on every platform.
+type Session struct{}
+
+func StartCoreSession(string, string, []string) (*Session, error) { return nil, ErrUnsupported }
+
+func (s *Session) Close() error { return nil }
+
+func StopCore() error { return ErrUnsupported }
+
+// CoreInfo mirrors the Windows type.
+type CoreInfo struct {
+	State     string
+	PID       uint32
+	LastError string
+}
+
+func CoreStatus() (CoreInfo, error) { return CoreInfo{}, ErrUnsupported }
