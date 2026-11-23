@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## v1.12.0 — WireGuard import (owner chat directive 2026-11-23)
+## v1.12.0 — WireGuard import, post-quantum VLESS subscriptions, single-instance recovery
 
 Standard WireGuard `wg-quick` configuration files are now a first-class
 import format. A `.conf` becomes real mihomo `wireguard` proxy nodes — they
@@ -42,6 +42,31 @@ other node (mihomo native outbound, no helper processes).
   failure matrix, duplicate allowed-ips, sanitize full-syntax acceptance) +
   the integration step. `go test ./internal/...` green, Windows build green,
   vue-tsc green.
+
+**Post-quantum VLESS subscriptions work (#90, #75).** Subscriptions using
+Xray's new VLESS encryption (`mlkem768x25519plus.native/xorpub/random.
+1rtt/0rtt.<keys>`) previously imported with the encryption stripped — every
+such node timed out while the identical link worked in v2rayNG (Xray core).
+`parseVLESS` now passes the share-link `encryption` value through verbatim
+(it is the exact mihomo field value; the core has supported it since
+v1.19.27 — verified end-to-end against a real subscription with the bundled
+v1.19.34: FAIL without the field, full round trip with it). The subscription
+fetch User-Agent is now `clash-verge/v2.4.4` by default — panels serve a
+tuned Clash YAML (client-fingerprint / servername / alpn pre-set) to
+clash-family clients, raw v2ray link lists to unknown ones — and every
+subscription can override it: optional field in the add-subscription form
+plus a per-profile editor (EN/FA), `AddFromURL(url, name, userAgent)`,
+`SetUserAgent(id, ua)`, persisted on the profile; CONTRACT updated.
+
+**Single-instance lock recovery (#89).** When the previous holder could not
+be terminated — typically an elevated or cross-session instance, where
+OpenProcess(PROCESS_TERMINATE) is denied — startup died with a fatal report
+after 8s and the user was stranded. It now shows an Abort / Retry / Ignore
+dialog: Retry re-runs the full takeover once the user closes the stuck
+instance, Ignore continues without the lock (a manual report is enqueued;
+wake-ups go to the stuck holder and any port conflict surfaces as its
+normal engine error), Abort keeps the old behavior. The zombie sweep also
+matches renamed `neurorift*` copies and logs every candidate it tries.
 
 ## v1.11.0 — PAC mode (user-requested #15)
 

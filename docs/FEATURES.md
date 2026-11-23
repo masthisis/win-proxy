@@ -10,6 +10,7 @@ Comparison against the tools NeuroRift replaces or borrows from.
 | Clash YAML configs (full passthrough) | ✅ | ❌ | ✅ |
 | VMess | ❌ (classic clash only) | ✅ | ✅ |
 | VLESS + REALITY (pbk/sid, vision flow) | ❌ | ✅ | ✅ |
+| VLESS post-quantum encryption (mlkem768x25519plus) | ❌ | ✅ | ✅ (#90) |
 | Trojan | ✅ | ✅ | ✅ |
 | Shadowsocks (+ obfs / v2ray-plugin) | ✅ | ✅ | ✅ |
 | ShadowsocksR | ✅ | ✅ | ✅ |
@@ -26,6 +27,7 @@ Comparison against the tools NeuroRift replaces or borrows from.
 | Feature | CFW | v2rayN/Happ | NeuroRift |
 | --- | --- | --- | --- |
 | Import from URL | ✅ | ✅ | ✅ |
+| Per-subscription fetch User-Agent | ❌ | 🟡 global only | ✅ (#75) |
 | Import from clipboard | 🟡 | ✅ | ✅ |
 | Import local file (Clash YAML / sing-box JSON / wg-quick .conf) | ✅ | ❌ | ✅ |
 | Auto-detect format (links/base64/clash/sing-box/wg-quick) | ✅ | ✅ | ✅ |
