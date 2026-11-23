@@ -307,10 +307,13 @@ func installBridges(app *application.App) {
 	openURLFn = func(u string) error { return app.Browser.OpenURL(u) }
 	pickFileFn = func() (string, error) {
 		return app.Dialog.OpenFile().
-			SetTitle("Import Clash YAML").
+			SetTitle("Import profile").
 			CanChooseFiles(true).
 			CanChooseDirectories(false).
-			AddFilter("Clash YAML", "*.yaml;*.yml").
+			// Clash/mihomo YAML, sing-box JSON and wg-quick WireGuard
+			// confs are all accepted by the same import pipeline.
+			AddFilter("Profile configs", "*.yaml;*.yml;*.json;*.conf").
+			AddFilter("All files", "*").
 			PromptForSingleSelection()
 	}
 	autostartOnFn = func(args []string) error {
