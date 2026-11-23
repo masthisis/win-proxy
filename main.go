@@ -156,12 +156,25 @@ func main() {
 	// woken (it will show its window) and we exit; when the holder is
 	// unresponsive it is terminated and we take over. Never silently, and
 	// never forever.
+	// Issue #89: when the holder cannot be terminated at all (an elevated
+	// or cross-session instance), the user chooses — retry, continue
+	// without the lock, or abort — instead of a fatal dialog that leaves
+	// them with no app at all.
 	if err := singleinstance.Acquire(); err != nil {
 		if errors.Is(err, singleinstance.ErrAlreadyRunning) {
 			cl.Printf("NeuroRift is already running; asked it to show its window — exiting")
 			return
 		}
-		startupFatal(cl, nil, fmt.Errorf("single-instance: %w", err))
+		if errors.Is(err, singleinstance.ErrLockHeld) {
+			err = recoverSingleInstance(cl, err)
+		}
+		if err != nil {
+			if errors.Is(err, singleinstance.ErrAlreadyRunning) {
+				cl.Printf("NeuroRift is already running; asked it to show its window — exiting")
+				return
+			}
+			startupFatal(cl, nil, fmt.Errorf("single-instance: %w", err))
+		}
 	}
 	boot.mark("single_instance")
 	armBootWatchdog(cl)
