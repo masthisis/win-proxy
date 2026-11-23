@@ -7,8 +7,19 @@ the standard workflow: issue → branch → PR → CI → squash-merge, followed
 release train (version bump, changelog, tag). This file is kept in sync
 whenever issues close.
 
-Released: v1.8.0 (2026-11-21) — routing overrides, YAML editor, proxy guard,
-portable mode, log-loop race fix, sing-box import.
+Released: v1.11.0 (2026-11-22) — PAC mode; v1.10.0 TUN service complete
+(#14 done); v1.9.0 TUN service foundation; v1.8.0 sing-box import.
+
+### 0. WireGuard configuration import (owner chat directive 2026-11-23)
+
+> **LANDED (branch feat/wireguard-import), ships in v1.12.0.** Standard
+> wg-quick `.conf` files import as native mihomo `wireguard` nodes that
+> fully join speed testing, url-test auto-switching, rules and traffic.
+> Single-peer → simplified syntax; multi-peer → full `peers:` syntax;
+> AmneziaWG parameters mapped; schema verified against the mihomo wiki and
+> proven against the real core in the integration suite. **OpenVPN stays a
+> rejected non-goal** (mihomo cannot model it as a node — owner decision
+> 2026-11-23).
 
 ## User-requested queue (in order)
 
