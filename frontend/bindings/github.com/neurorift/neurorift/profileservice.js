@@ -51,13 +51,16 @@ export function AddFromText(text, name) {
 }
 
 /**
- * AddFromURL subscribes to a URL.
+ * AddFromURL subscribes to a URL. userAgent is optional ("" selects the
+ * default, issue #75): panels serve different payload formats per client
+ * User-Agent.
  * @param {string} url
  * @param {string} name
+ * @param {string} userAgent
  * @returns {$CancellablePromise<profile$0.Summary | null>}
  */
-export function AddFromURL(url, name) {
-    return $Call.ByID(1738956852, url, name).then(/** @type {($result: any) => any} */(($result) => {
+export function AddFromURL(url, name, userAgent) {
+    return $Call.ByID(1738956852, url, name, userAgent).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType1($result);
     }));
 }
@@ -151,6 +154,17 @@ export function SetInterval(id, hours) {
  */
 export function SetUnion(id, on) {
     return $Call.ByID(1727352795, id, on);
+}
+
+/**
+ * SetUserAgent changes a subscription's fetch User-Agent override
+ * ("" = default; issue #75).
+ * @param {string} id
+ * @param {string} userAgent
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetUserAgent(id, userAgent) {
+    return $Call.ByID(4104769796, id, userAgent);
 }
 
 /**

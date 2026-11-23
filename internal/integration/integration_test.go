@@ -317,7 +317,7 @@ func TestFullStack(t *testing.T) {
 	list := strings.Join(shareLinks(f.nodeHost), "\n")
 	if sub := os.Getenv("SUB_URL"); sub != "" {
 		t.Logf("using real subscription %s", sub)
-		if _, err := f.profiles.AddFromURL(ctx, sub, "Real Sub"); err != nil {
+		if _, err := f.profiles.AddFromURL(ctx, sub, "Real Sub", ""); err != nil {
 			t.Fatalf("real subscription import failed: %v", err)
 		}
 	} else if _, err := f.profiles.AddFromText(ctx, list, "Mock Sub"); err != nil {

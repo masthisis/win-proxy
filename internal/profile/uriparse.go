@@ -375,6 +375,13 @@ func parseVLESS(raw string) (*Node, error) {
 	if pe := q.Get("packetEncoding"); pe != "" {
 		m.Set("packet-encoding", pe)
 	}
+	// Post-quantum VLESS encryption (Xray's new VLESS encryption, supported
+	// by mihomo >= v1.19.27): the dot-separated share-link value IS the mihomo
+	// field value — panels emit the identical string in the Clash YAML they
+	// serve to meta clients. The legacy "none" default is omitted (issue #90).
+	if enc := q.Get("encryption"); enc != "" && enc != "none" {
+		m.Set("encryption", enc)
+	}
 
 	net := applyNetwork(m, q.Get("type"), q.Get("path"), q.Get("host"), q.Get("serviceName"))
 	if net == "tcp" && q.Get("headerType") == "http" {

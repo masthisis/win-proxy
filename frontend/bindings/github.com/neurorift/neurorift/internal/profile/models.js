@@ -181,6 +181,17 @@ export class Profile {
              */
             this["union"] = undefined;
         }
+        if (/** @type {any} */(false)) {
+            /**
+             * UserAgent overrides the User-Agent sent when fetching this
+             * subscription (issue #75; "" = DefaultUserAgent). Panels negotiate the
+             * payload format per client UA, and some only hand out usable nodes to
+             * a client family they recognize (clash / v2rayNG / …).
+             * @member
+             * @type {string | undefined}
+             */
+            this["userAgent"] = undefined;
+        }
 
         Object.assign(this, $$source);
     }
