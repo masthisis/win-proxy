@@ -93,9 +93,10 @@ same subscriptions.
 ## Agent-filed backlog (after the user-requested set, or as small
 companion items when a cycle has capacity left)
 
-- **#75 — per-profile User-Agent / custom headers for subscription fetch**
-  (v2rayN parity; unlocks providers that serve format-by-UA, pairs with the
-  sing-box import shipped in v1.8.0). `fetch.go` + profile field + editor UI.
+- **#75 — per-profile User-Agent for subscription fetch** — SHIPPED in
+  v1.12.0: `clash-verge/v2.4.4` default (panels serve tuned Clash YAML to
+  clash-family clients) plus a per-subscription override in the Profiles UI.
+  The general "custom headers" half of the issue stays open.
 - **#76 — pause traffic sampling / chart work while the window is hidden**
   (frontend-only; Clash Verge Rev's CPU fix). Visibility-gated ring-buffer
   pushes in `store.ts`.
