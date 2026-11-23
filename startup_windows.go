@@ -18,6 +18,7 @@ package main
 // (same GUID): HKLM/HKCU ...\EdgeUpdate\Clients\{F3017226-...}\pv.
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -35,15 +36,21 @@ import (
 	"golang.org/x/sys/windows/registry"
 
 	"github.com/neurorift/neurorift/internal/platform"
+	"github.com/neurorift/neurorift/internal/reporting"
+	"github.com/neurorift/neurorift/internal/singleinstance"
 )
 
 // MessageBox flags (winuser.h) and button ids.
 const (
-	mbOK          = 0x00000000
-	mbYesNo       = 0x00000004
-	mbIconError   = 0x00000010
-	mbIconWarning = 0x00000030
-	idYes         = 6
+	mbOK               = 0x00000000
+	mbYesNo            = 0x00000004
+	mbAbortRetryIgnore = 0x00000002
+	mbIconError        = 0x00000010
+	mbIconWarning      = 0x00000030
+	idAbort            = 3
+	idRetry            = 4
+	idIgnore           = 5
+	idYes              = 6
 )
 
 var procMessageBoxW = windows.NewLazySystemDLL("user32.dll").NewProc("MessageBoxW")
@@ -70,6 +77,54 @@ func messageBox(text, caption string, flags uintptr) int {
 // notified deduplicates non-fatal error dialogs so a repeated runtime error
 // cannot spam the user. Fatal errors always show.
 var notified sync.Map
+
+// recoverSingleInstance handles singleinstance.ErrLockHeld (issue #89): the
+// previous holder could not be terminated — typically an elevated or
+// other-session instance — so a fatal exit would strand the user with no app
+// at all. Offer the choice instead:
+//
+//   - Retry: the user closes the stuck instance (e.g. Task Manager) and we
+//     re-run the full acquisition;
+//   - Ignore: continue WITHOUT the lock — wake-ups go to the stuck holder,
+//     and any engine port conflict surfaces as its normal, visible error;
+//   - Abort: fatal report, the pre-#89 behavior.
+//
+// Returns nil when startup may continue (lock acquired on retry, or the user
+// chose Ignore); the error when the caller must not continue; and
+// ErrAlreadyRunning when a healthy instance answered on retry (exit quietly).
+func recoverSingleInstance(cl *crashLog, cause error) error {
+	for attempt := 0; attempt < 3; attempt++ {
+		choice := messageBox(
+			"NeuroRift could not take over the single-instance lock:\r\n\r\n"+
+				cause.Error()+
+				"\r\n\r\nThe other instance may be running as administrator."+
+				"\r\nClose it (Task Manager) and press Retry, press Ignore to start"+
+				" anyway (the stuck instance stays), or press Abort to exit.",
+			"NeuroRift", mbAbortRetryIgnore|mbIconWarning)
+		switch choice {
+		case idRetry:
+			err := singleinstance.Acquire()
+			switch {
+			case err == nil:
+				cl.Printf("single-instance: lock acquired on retry")
+				return nil
+			case errors.Is(err, singleinstance.ErrAlreadyRunning):
+				return err
+			default:
+				cause = err
+			}
+		case idIgnore:
+			cl.Printf("single-instance: continuing WITHOUT the lock (user choice, issue #89)")
+			reporting.Enqueue(reporting.TypeManual,
+				"single-instance lock unavailable (holder unkillable); user continued without it",
+				"", map[string]string{"cause": cause.Error()})
+			return nil
+		default: // Abort or dialog dismissed
+			return cause
+		}
+	}
+	return cause
+}
 
 // notifyError reports a Wails/runtime error: always to the logs, and as a
 // dialog when fatal or on first occurrence. (Non-Windows fallback lives in

@@ -39,3 +39,9 @@ import "errors"
 // was notified successfully; the caller should exit immediately (exit code 0)
 // and let the running instance show its window.
 var ErrAlreadyRunning = errors.New("another NeuroRift instance is already running")
+
+// ErrLockHeld is returned by Acquire when the mutex stays held by a process
+// that could not be terminated — typically an instance running elevated or in
+// another session, where OpenProcess(PROCESS_TERMINATE) is denied. The caller
+// should offer the user a recovery choice instead of dying (issue #89).
+var ErrLockHeld = errors.New("single-instance lock held by a process we cannot terminate")
