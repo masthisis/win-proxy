@@ -16,7 +16,8 @@ Comparison against the tools NeuroRift replaces or borrows from.
 | Hysteria2 (incl. port hopping) | ❌ | ✅ | ✅ |
 | TUIC v4/v5 | ❌ | ✅ | ✅ |
 | AnyTLS / SOCKS5 / HTTP(S) nodes | 🟡 | ✅ | ✅ |
-| WireGuard / SSH outbound | ❌ | 🟡 | ✅ (via mihomo config) |
+| WireGuard outbound | ❌ | 🟡 | ✅ native mihomo node + wg-quick .conf import |
+| SSH outbound | ❌ | 🟡 | ❌ (rejected: separate system process, see ROADMAP) |
 | Actively maintained engine | ❌ (dead 2023) | ✅ | ✅ (mihomo) |
 | Core auto-update from upstream | ❌ | 🟡 manual | ✅ stable/alpha channels + mirrors |
 
@@ -26,8 +27,8 @@ Comparison against the tools NeuroRift replaces or borrows from.
 | --- | --- | --- | --- |
 | Import from URL | ✅ | ✅ | ✅ |
 | Import from clipboard | 🟡 | ✅ | ✅ |
-| Import local Clash YAML | ✅ | ❌ | ✅ |
-| Auto-detect format (links/base64/clash) | ✅ | ✅ | ✅ |
+| Import local file (Clash YAML / sing-box JSON / wg-quick .conf) | ✅ | ❌ | ✅ |
+| Auto-detect format (links/base64/clash/sing-box/wg-quick) | ✅ | ✅ | ✅ |
 | Scheduled auto-update | 🟡 | ✅ | ✅ per-profile interval + jitter + backoff |
 | Traffic / expiry panel (Subscription-Userinfo) | ✅ | ✅ | ✅ |
 | Update without dropping connections | ❌ | ❌ | ✅ (provider hot-swap) |
@@ -65,9 +66,19 @@ Comparison against the tools NeuroRift replaces or borrows from.
 | Open source | ❌ | ✅ | ✅ MIT |
 | AI-documented codebase for future development | ❌ | ❌ | ✅ (docs/ suite) |
 
-## Explicit non-goals for v1 (see ROADMAP.md)
+## Shipped since this table was written (now ✅ above)
 
-- Sing-box config import
-- Profile merge (multiple subscriptions active at once)
-- PAC mode
-- mihomo service-mode installation for TUN without UAC prompts
+- Sing-box config import (v1.8.0)
+- Profile merge / union subscriptions (v1.5.0)
+- PAC mode (v1.11.0)
+- mihomo service-mode installation for TUN without UAC prompts (v1.9.0 + v1.10.0)
+- WireGuard wg-quick .conf import (v1.12.0)
+
+## Explicit non-goals (see ROADMAP.md)
+
+- Converting sing-box groups/route rules (nodes only, #16 decision)
+- OpenVPN import — mihomo cannot model it as a proxy node (owner decision,
+  2026-11-23); a separate system process would not join speed tests, url-test
+  groups or the traffic display
+- Bundling extra cores (Xray/sing-box runtimes)
+- SSH outbound node type

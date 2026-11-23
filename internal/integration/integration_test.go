@@ -442,6 +442,45 @@ func TestFullStack(t *testing.T) {
 		t.Fatalf("provider hot-swap failed")
 	}
 
+	// --- 7.5 wg-quick WireGuard conf import (schema check against the
+	// real core; the node must be ACCEPTED and surface in the groups —
+	// no real WireGuard server exists here, so no traffic flows) ---------
+	wgConf := "[Interface]\n" +
+		"Address = 10.2.0.2/32, fd00:168:2::2/128\n" +
+		"PrivateKey = eCtXsJZ27+4PbhDkHnB923tkUn2Gj59wZw5wFA75MnU=\n" +
+		"DNS = 1.1.1.1, 8.8.8.8\n" +
+		"MTU = 1408\n" +
+		"[Peer]\n" +
+		"Endpoint = 162.159.192.1:2480\n" +
+		"PublicKey = Cr8hWlKvtDt7nrvf+f0brNQQzabAqrjfBvas9pmowjo=\n" +
+		"AllowedIPs = 0.0.0.0/0\n" +
+		"[Peer]\n" +
+		"Endpoint = wg2.example.com:51821\n" +
+		"PublicKey = MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=\n" +
+		"AllowedIPs = ::/0\n" +
+		"PersistentKeepalive = 25\n"
+	if _, err := f.profiles.AddFromText(ctx, wgConf, "WG Conf"); err != nil {
+		t.Fatalf("wg-quick import: %v", err)
+	}
+	// Activate it like a user would: only the active provider's nodes join
+	// the routing groups (issue #42 semantics) — proving the node is
+	// eligible for url-test auto-switching.
+	if err := f.profiles.SetActive(ctx, idOf(f, "WG Conf")); err != nil {
+		t.Fatalf("activate wg profile: %v", err)
+	}
+	if !waitFor(t, 8*time.Second, "wireguard node to appear in groups", func() bool {
+		p, err := api.Proxies(ctx)
+		if err != nil {
+			return false
+		}
+		g, ok := p[nr.GroupNodeSelect]
+		return ok && contains(g.All, "162.159.192.1")
+	}) {
+		f.dumpConsole(t)
+		f.dumpFiles(t)
+		t.Fatalf("wireguard node never surfaced")
+	}
+
 	// --- 8. clash profile switch (full YAML passthrough) -------------------------
 	clashYAML := `
 proxies:

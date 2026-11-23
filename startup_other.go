@@ -28,3 +28,8 @@ func notifyError(cl *crashLog, lg *slog.Logger, err error, fatal bool) {
 	}
 	cl.Printf("wails error (fatal=%v): %v", fatal, err)
 }
+
+// recoverSingleInstance is Windows-only (native dialog + mutex); other
+// platforms never see singleinstance.ErrLockHeld, so the fallback simply
+// propagates the cause.
+func recoverSingleInstance(cl *crashLog, cause error) error { return cause }

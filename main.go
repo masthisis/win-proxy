@@ -156,12 +156,25 @@ func main() {
 	// woken (it will show its window) and we exit; when the holder is
 	// unresponsive it is terminated and we take over. Never silently, and
 	// never forever.
+	// Issue #89: when the holder cannot be terminated at all (an elevated
+	// or cross-session instance), the user chooses — retry, continue
+	// without the lock, or abort — instead of a fatal dialog that leaves
+	// them with no app at all.
 	if err := singleinstance.Acquire(); err != nil {
 		if errors.Is(err, singleinstance.ErrAlreadyRunning) {
 			cl.Printf("NeuroRift is already running; asked it to show its window — exiting")
 			return
 		}
-		startupFatal(cl, nil, fmt.Errorf("single-instance: %w", err))
+		if errors.Is(err, singleinstance.ErrLockHeld) {
+			err = recoverSingleInstance(cl, err)
+		}
+		if err != nil {
+			if errors.Is(err, singleinstance.ErrAlreadyRunning) {
+				cl.Printf("NeuroRift is already running; asked it to show its window — exiting")
+				return
+			}
+			startupFatal(cl, nil, fmt.Errorf("single-instance: %w", err))
+		}
 	}
 	boot.mark("single_instance")
 	armBootWatchdog(cl)
@@ -307,10 +320,13 @@ func installBridges(app *application.App) {
 	openURLFn = func(u string) error { return app.Browser.OpenURL(u) }
 	pickFileFn = func() (string, error) {
 		return app.Dialog.OpenFile().
-			SetTitle("Import Clash YAML").
+			SetTitle("Import profile").
 			CanChooseFiles(true).
 			CanChooseDirectories(false).
-			AddFilter("Clash YAML", "*.yaml;*.yml").
+			// Clash/mihomo YAML, sing-box JSON and wg-quick WireGuard
+			// confs are all accepted by the same import pipeline.
+			AddFilter("Profile configs", "*.yaml;*.yml;*.json;*.conf").
+			AddFilter("All files", "*").
 			PromptForSingleSelection()
 	}
 	autostartOnFn = func(args []string) error {

@@ -177,7 +177,10 @@ func acquire(log *slog.Logger) error {
 			return fmt.Errorf("single-instance mutex: %w", err)
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("previous instance still holds the single-instance lock after recovery attempt: %w", err)
+			// Issue #89: the holder survived termination (elevated /
+			// cross-session). A distinct error so callers can offer
+			// recovery instead of a fatal dialog.
+			return fmt.Errorf("%w: %w", ErrLockHeld, err)
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
@@ -287,13 +290,22 @@ func terminateZombie(log *slog.Logger) {
 	}
 	for {
 		name := strings.ToLower(windows.UTF16ToString(entry.ExeFile[:]))
-		if name == image && int(entry.ProcessID) != self {
+		if int(entry.ProcessID) != self && (name == image || isOurImage(name)) {
+			log.Warn("single-instance: fallback sweep candidate", "pid", entry.ProcessID, "name", name)
 			killProcess(log, int(entry.ProcessID), "same-image process")
 		}
 		if err := windows.Process32Next(snap, &entry); err != nil {
 			break
 		}
 	}
+}
+
+// isOurImage matches renamed or portable copies (neurorift-1.11.exe,
+// NeuroRift_v1.9.zip extractions) that still identify by product-name
+// prefix. Issue #89: the holder survived the sweep when the exe had been
+// renamed between releases.
+func isOurImage(lowerName string) bool {
+	return strings.HasPrefix(lowerName, "neurorift")
 }
 
 // killProcess terminates pid and waits for it to release its handles.
