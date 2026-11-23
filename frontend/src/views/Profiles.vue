@@ -27,6 +27,7 @@ const INTERVALS = [0, 1, 6, 12, 24, 72];
 
 const url = ref("");
 const name = ref("");
+const userAgent = ref("");
 const addingUrl = ref(false);
 const clipboardBusy = ref(false);
 const fileBusy = ref(false);
@@ -34,6 +35,7 @@ const updatingId = ref<string | null>(null);
 const activatingId = ref<string | null>(null);
 const deletingId = ref<string | null>(null);
 const intervalBusyId = ref<string | null>(null);
+const uaBusyId = ref<string | null>(null);
 
 /** inline rename */
 const editingId = ref<string | null>(null);
@@ -70,10 +72,11 @@ async function addFromUrl(): Promise<void> {
   if (!u || addingUrl.value) return;
   addingUrl.value = true;
   try {
-    const p = await Profile.AddFromURL(u, name.value.trim());
+    const p = await Profile.AddFromURL(u, name.value.trim(), userAgent.value.trim());
     toast.success(t("toast.profileAdded", { name: p?.name ?? u }));
     url.value = "";
     name.value = "";
+    userAgent.value = "";
   } catch (e) {
     toast.error(errMsg(e));
   } finally {
@@ -186,6 +189,21 @@ async function setIntervalH(p: ProfileSummary, h: number): Promise<void> {
   }
 }
 
+async function setUserAgent(p: ProfileSummary, ua: string): Promise<void> {
+  const v = ua.trim();
+  if (uaBusyId.value || v === (p.userAgent ?? "")) return;
+  uaBusyId.value = p.id;
+  try {
+    await Profile.SetUserAgent(p.id, v);
+    p.userAgent = v || undefined;
+    toast.success(v ? t("profiles.userAgentSet") : t("profiles.userAgentReset"));
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    uaBusyId.value = null;
+  }
+}
+
 function startRename(p: ProfileSummary): void {
   editingId.value = p.id;
   editName.value = p.name;
@@ -225,6 +243,11 @@ async function removeProfile(p: ProfileSummary): Promise<void> {
 }
 
 const kindBadge = (p: ProfileSummary): string => (p.kind === "clash" ? "violet" : p.kind === "local" ? "warn" : "accent");
+
+/** URL-sourced subscription (issue #75): User-Agent override only applies to these. */
+function isUrlSub(p: ProfileSummary): boolean {
+  return /^https?:\/\//i.test(p.source);
+}
 
 /* ---------------------------------------------------------------- */
 /* raw YAML editor (#49 / #9)                                         */
@@ -349,6 +372,19 @@ if (typeof window !== "undefined") {
           <IconPlus v-else :size="14" />
           {{ t("profiles.fromUrl") }}
         </button>
+      </div>
+      <div class="row" style="margin-top: 10px">
+        <div class="field" style="flex: 1; min-width: 220px; max-width: 420px">
+          <label for="sub-ua">{{ t("profiles.userAgent") }}</label>
+          <input
+            id="sub-ua"
+            v-model="userAgent"
+            type="text"
+            :placeholder="t('profiles.userAgentPlaceholder')"
+            :title="t('profiles.userAgentHint')"
+            @keyup.enter="addFromUrl"
+          />
+        </div>
       </div>
       <div class="row" style="margin-top: 10px">
         <button class="btn" :disabled="clipboardBusy" @click="fromClipboard()">
@@ -493,6 +529,22 @@ if (typeof window !== "undefined") {
             </option>
           </select>
         </span>
+        <template v-if="isUrlSub(p)">
+          <span class="k">{{ t("profiles.userAgent") }}</span>
+          <span class="v">
+            <input
+              :value="p.userAgent ?? ''"
+              :disabled="uaBusyId === p.id"
+              type="text"
+              class="mono"
+              style="width: 100%; max-width: 280px"
+              :placeholder="t('profiles.userAgentPlaceholder')"
+              :title="t('profiles.userAgentHint')"
+              :aria-label="t('profiles.userAgent')"
+              @change="setUserAgent(p, ($event.target as HTMLInputElement).value)"
+            />
+          </span>
+        </template>
       </div>
 
       <!-- subscription usage -->
