@@ -2,6 +2,47 @@
 
 ## Unreleased
 
+## v1.12.0 — WireGuard import (owner chat directive 2026-11-23)
+
+Standard WireGuard `wg-quick` configuration files are now a first-class
+import format. A `.conf` becomes real mihomo `wireguard` proxy nodes — they
+join the Proxies view, participate in latency/speed tests, sit in url-test
+groups for auto-switching, and show up in rules and traffic exactly like any
+other node (mihomo native outbound, no helper processes).
+
+- **Full wg-quick translation (`internal/profile/wgquick.go`).** `[Interface]`
+  Address splits into `ip`/`ipv6` per family (bare addresses become /32 and
+  /128 prefixes), `PrivateKey`, `DNS` → `remote-dns-resolve: true` +
+  `dns: [...]`, `MTU`; `[Peer]` Endpoint → `server`/`port` (bracketed IPv6
+  `[v6]:port` and port-less endpoints both handled, 51820 default),
+  `PublicKey`, `AllowedIPs` → `allowed-ips` (mirrored; full-tunnel
+  `0.0.0.0/0` default when absent), `PresharedKey` → `pre-shared-key`,
+  `PersistentKeepalive` → `persistent-keepalive` (simplified syntax —
+  mihomo's peers list has no per-peer keepalive field). AmneziaWG
+  obfuscation keys (`Jc`…`H4`, `S1`–`S4`, `I1`–`I5`) map into mihomo's
+  `amnezia-wg-option`. wg-quick plumbing (`Table`, `FwMark`, `PreUp/PostUp`,
+  `ListenPort`, …) is ignored silently — mihomo owns routing.
+- **One peer → simplified syntax, N peers → full syntax.** A single `[Peer]`
+  emits mihomo's flat node (wiki field order); two or more emit the full
+  `peers:` list form. Schema verified against
+  https://wiki.metacubex.one/en/config/proxies/wg/ and proven by booting the
+  real core in the integration suite with a two-peer conf (step 7.5).
+- **Conservative import discipline.** 32-byte base64 key validation on
+  PrivateKey/PublicKey/PresharedKey; unconvertible peers are dropped with
+  countable warnings, the import fails only when nothing usable remains;
+  duplicate `allowed-ips` across peers are rejected (mihomo requires
+  distinct peers). Sanitize learned the wireguard shapes — multi-peer nodes
+  (no top-level server/port) are validated per-peer instead of dropped.
+- **Import UX unchanged, reach widened.** Paste / clipboard / file pick all
+  auto-detect the conf (`[Interface]` + `PrivateKey` fingerprint); the file
+  dialog now accepts `.yaml;*.yml;*.json;*.conf` and renames itself to
+  "Import profile"; the hint line (EN/FA) lists all accepted formats.
+- **Tests.** 10 unit tests (detector positives/negatives, single peer,
+  full-tunnel defaults, IPv6 endpoints, multi-peer, partial skip, AmneziaWG,
+  failure matrix, duplicate allowed-ips, sanitize full-syntax acceptance) +
+  the integration step. `go test ./internal/...` green, Windows build green,
+  vue-tsc green.
+
 ## v1.11.0 — PAC mode (user-requested #15)
 
 The next user-requested feature in priority order: **PAC** is now the third

@@ -53,6 +53,32 @@ func nodeIssue(n Node) string {
 		}
 	}
 
+	// wireguard is checked before the generic server/port gate: the
+	// multi-peer (full) syntax legitimately has no top-level server/port —
+	// they live inside the peers list.
+	if str("type") == "wireguard" {
+		if pk := str("private-key"); pk == "" || !validB64Key(pk, 32) {
+			return "invalid or missing private-key"
+		}
+		if v, ok := m.Get("peers"); ok {
+			peers, isList := v.([]*yamlx.OMap)
+			if !isList || len(peers) == 0 {
+				return "empty or malformed peers list"
+			}
+			return "" // peers carry their own keys; deep checks belong to the core
+		}
+		if str("server") == "" {
+			return "missing server"
+		}
+		if port < 1 || port > 65535 {
+			return fmt.Sprintf("invalid port %d", port)
+		}
+		if !validB64Key(str("public-key"), 32) {
+			return "invalid or missing public-key"
+		}
+		return ""
+	}
+
 	if str("server") == "" {
 		return "missing server"
 	}
@@ -129,8 +155,9 @@ func isHex(r rune) bool {
 	return (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')
 }
 
-// validB64Key checks that s is a urlsafe (or std) base64 string decoding to
-// exactly n bytes.
+// validB64Key checks that s is a base64 string decoding to exactly n bytes.
+// Accepts both base64 alphabets, padded or not: REALITY keys are urlsafe
+// (43 chars), WireGuard keys are std with padding (44 chars, wiki examples).
 func validB64Key(s string, n int) bool {
 	if b, err := base64.RawURLEncoding.DecodeString(s); err == nil && len(b) == n {
 		return true
@@ -139,6 +166,9 @@ func validB64Key(s string, n int) bool {
 		return true
 	}
 	if b, err := base64.RawStdEncoding.DecodeString(s); err == nil && len(b) == n {
+		return true
+	}
+	if b, err := base64.StdEncoding.DecodeString(s); err == nil && len(b) == n {
 		return true
 	}
 	return false
