@@ -98,6 +98,44 @@ func TestParseVLESSWs(t *testing.T) {
 	}
 }
 
+// --- vless post-quantum encryption (#90) -------------------------------------
+
+func TestParseVLESSEncryption(t *testing.T) {
+	// Real-world shape of an mlkem768x25519plus link (payloads replaced).
+	link := "vless://0d01fc6c-edb8-407c-8ee3-f3b5e5b83c06@ex.com:25565?encryption=mlkem768x25519plus.native.0rtt.dQbYeJPo4efEGu8T4Gy-A_GIFQcUik9J9LhlksRcNEU&type=tcp&security=none&headerType=http&host=render.com&path=%2F#PQ"
+	n, err := parseShareLink(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := nodeMap(t, n)
+	if m["encryption"] != "mlkem768x25519plus.native.0rtt.dQbYeJPo4efEGu8T4Gy-A_GIFQcUik9J9LhlksRcNEU" {
+		t.Fatalf("encryption must pass through verbatim, got %v", m["encryption"])
+	}
+	// HTTP camouflage transport must survive alongside.
+	if m["network"] != "http" {
+		t.Errorf("network = %v, want http (headerType=http)", m["network"])
+	}
+	httpOpts := m["http-opts"].(map[string]any)
+	if path, ok := httpOpts["path"].([]any); !ok || len(path) != 1 || path[0] != "/" {
+		t.Errorf("http-opts path = %v", httpOpts["path"])
+	}
+}
+
+func TestParseVLESSEncryptionNoneOmitted(t *testing.T) {
+	link := "vless://u1@ex.com:443?encryption=none&security=tls&sni=a.example&fp=chrome&type=ws&host=cdn.example&path=%2F#WS"
+	n, err := parseShareLink(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := nodeMap(t, n)
+	if _, ok := m["encryption"]; ok {
+		t.Errorf("encryption=none must not emit an encryption field, got %v", m["encryption"])
+	}
+	if m["client-fingerprint"] != "chrome" {
+		t.Errorf("fp = %v", m["client-fingerprint"])
+	}
+}
+
 // --- trojan grpc -------------------------------------------------------------
 
 func TestParseTrojan(t *testing.T) {
