@@ -69,6 +69,11 @@ type Profile struct {
 	// the ACTIVE profile (issue #48 / #8: activate multiple subscriptions
 	// as one provider-union).
 	Union bool `json:"union,omitempty"`
+	// UserAgent overrides the User-Agent sent when fetching this
+	// subscription (issue #75; "" = DefaultUserAgent). Panels negotiate the
+	// payload format per client UA, and some only hand out usable nodes to
+	// a client family they recognize (clash / v2rayNG / …).
+	UserAgent string `json:"userAgent,omitempty"`
 }
 
 // Summary is the API-facing projection of a Profile.

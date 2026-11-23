@@ -19,6 +19,15 @@ type FetchResponse struct {
 	SubInfo     *SubscriptionInfo
 }
 
+// DefaultUserAgent is the User-Agent sent for subscription downloads when a
+// profile does not override it (issue #75). Subscription panels negotiate the
+// payload per client: clash-family UAs are served a tuned Clash YAML — our
+// native format, with client-fingerprint / servername / alpn pre-set — while
+// unknown UAs often get a raw v2ray link list, and legacy Clash UAs a stub.
+// "clash-verge" identifies as a meta-compatible client to every panel
+// tested (2026-11, issue #90).
+const DefaultUserAgent = "clash-verge/v2.4.4"
+
 var userinfoRe = regexp.MustCompile(`([a-z_]+)=([0-9]+)`)
 
 // Fetcher downloads subscription content.
@@ -31,6 +40,9 @@ type Fetcher struct {
 	Client *http.Client
 	// MaxBytes caps the response size (default 32 MiB).
 	MaxBytes int64
+	// UserAgent overrides the request User-Agent; "" selects
+	// DefaultUserAgent (issue #75).
+	UserAgent string
 }
 
 // NewFetcher builds a fetcher; proxyURL may be "" for direct connections.
@@ -64,8 +76,12 @@ func (f *Fetcher) Fetch(ctx context.Context, url string) (*FetchResponse, error)
 	if err != nil {
 		return nil, fmt.Errorf("bad url: %w", err)
 	}
-	// UA matters: many panels serve different formats per client.
-	req.Header.Set("User-Agent", "NeuroRift/1.0 (mihomo; clash.meta compatible)")
+	// UA matters: many panels serve different formats per client (#75, #90).
+	ua := strings.TrimSpace(f.UserAgent)
+	if ua == "" {
+		ua = DefaultUserAgent
+	}
+	req.Header.Set("User-Agent", ua)
 	req.Header.Set("Accept", "*/*")
 
 	resp, err := f.Client.Do(req)

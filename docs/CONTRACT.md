@@ -44,7 +44,7 @@ a bound signature changes.
 | Method | Returns | Notes |
 | --- | --- | --- |
 | `List()` | `Profile[]` | summaries incl. subInfo, intervalH, nodeCount, nextUpdateAt |
-| `AddFromURL(url, name)` | `Profile` | |
+| `AddFromURL(url, name, userAgent)` | `Profile` | `userAgent` optional (`""` = `clash-verge/v2.4.4` default; panels serve different payloads per client UA — #75, #90) |
 | `AddFromText(text, name)` | `Profile` | parsed content (links/clash yaml) |
 | `ImportFromClipboard()` | `Profile` | |
 | `AddFromFile(path)` | `Profile` | |
@@ -52,6 +52,7 @@ a bound signature changes.
 | `Remove(id)` | – | removes files; reverts engine if active |
 | `SetActive(id)` | – | hot-applies the profile |
 | `Rename(id, name)` / `SetInterval(id, hours)` | – | 0 hours = manual |
+| `SetUserAgent(id, userAgent)` | – | per-subscription fetch UA override (`""` = default; #75) |
 | `SetUnion(id, on)` | – | joins the subscription's nodes into the active profile's routing groups (#48) |
 | `UpdateAll()` | `UpdateSummary` | `{updated, failed, skipped, errors}` — parallel refresh (#46) |
 | `GetNodes(id)` | `string[]` | node names |

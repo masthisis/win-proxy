@@ -225,6 +225,23 @@ func (m *Manager) SetInterval(id string, hours int) error {
 	return os.ErrNotExist
 }
 
+// SetUserAgent changes the fetch User-Agent override ("" = default; #75).
+func (m *Manager) SetUserAgent(id, ua string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range m.reg.Profiles {
+		if m.reg.Profiles[i].ID == id {
+			m.reg.Profiles[i].UserAgent = strings.TrimSpace(ua)
+			if err := m.store.Save(m.reg); err != nil {
+				return err
+			}
+			m.emitList()
+			return nil
+		}
+	}
+	return os.ErrNotExist
+}
+
 // Remove deletes a profile and its files. Removing the active profile
 // clears the active selection and reverts the engine to the empty config.
 func (m *Manager) Remove(ctx context.Context, id string) error {
@@ -262,9 +279,10 @@ func (m *Manager) Remove(ctx context.Context, id string) error {
 
 // ----------------------------------------------------------------- add ----
 
-// AddFromURL fetches a subscription and registers it.
-func (m *Manager) AddFromURL(ctx context.Context, rawURL, name string) (*Summary, error) {
-	fetcher := m.newFetcher()
+// AddFromURL fetches a subscription and registers it. An empty userAgent
+// selects DefaultUserAgent (issue #75).
+func (m *Manager) AddFromURL(ctx context.Context, rawURL, name, userAgent string) (*Summary, error) {
+	fetcher := m.newFetcher(userAgent)
 	resp, err := fetcher.Fetch(ctx, rawURL)
 	if err != nil {
 		return nil, err
@@ -282,6 +300,7 @@ func (m *Manager) AddFromURL(ctx context.Context, rawURL, name string) (*Summary
 	p.Source = rawURL
 	p.IntervalH = m.settings.Get().Subscription.DefaultIntervalH
 	p.SubInfo = resp.SubInfo
+	p.UserAgent = strings.TrimSpace(userAgent)
 	return m.commitNew(ctx, p, dec)
 }
 
@@ -423,7 +442,7 @@ func (m *Manager) Update(ctx context.Context, id string) (*Summary, error) {
 		}
 	default: // subscriptions
 		m.progress(id, PhaseFetching, p.Source)
-		fetcher := m.newFetcher()
+		fetcher := m.newFetcher(p.UserAgent)
 		resp, err := fetcher.Fetch(ctx, p.Source)
 		if err != nil {
 			return nil, m.updateFailed(id, err)
@@ -591,13 +610,15 @@ func (m *Manager) findLocked(id string) (Profile, bool) {
 	return Profile{}, false
 }
 
-func (m *Manager) newFetcher() *Fetcher {
+func (m *Manager) newFetcher(userAgent string) *Fetcher {
 	s := m.settings.Get()
 	proxyURL := ""
 	if s.Subscription.UpdateViaProxy {
 		proxyURL = fmt.Sprintf("http://127.0.0.1:%d", s.Ports.Mixed)
 	}
-	return NewFetcher(proxyURL, 30*time.Second)
+	f := NewFetcher(proxyURL, 30*time.Second)
+	f.UserAgent = strings.TrimSpace(userAgent)
+	return f
 }
 
 func (m *Manager) emitList() {

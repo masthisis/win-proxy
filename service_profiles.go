@@ -14,9 +14,11 @@ type ProfileService struct{ c *Container }
 // List returns all profiles.
 func (s *ProfileService) List() []profile.Summary { return s.c.Profiles.List() }
 
-// AddFromURL subscribes to a URL.
-func (s *ProfileService) AddFromURL(url, name string) (*profile.Summary, error) {
-	return s.c.Profiles.AddFromURL(context.Background(), url, name)
+// AddFromURL subscribes to a URL. userAgent is optional ("" selects the
+// default, issue #75): panels serve different payload formats per client
+// User-Agent.
+func (s *ProfileService) AddFromURL(url, name, userAgent string) (*profile.Summary, error) {
+	return s.c.Profiles.AddFromURL(context.Background(), url, name, userAgent)
 }
 
 // AddFromText imports pasted content (share links or Clash YAML).
@@ -68,6 +70,12 @@ func (s *ProfileService) Rename(id, name string) error { return s.c.Profiles.Ren
 // SetInterval changes the auto-update interval (hours; 0 = manual).
 func (s *ProfileService) SetInterval(id string, hours int) error {
 	return s.c.Profiles.SetInterval(id, hours)
+}
+
+// SetUserAgent changes a subscription's fetch User-Agent override
+// ("" = default; issue #75).
+func (s *ProfileService) SetUserAgent(id, userAgent string) error {
+	return s.c.Profiles.SetUserAgent(id, userAgent)
 }
 
 // SetUnion toggles a profile's membership in the routing union (#48).
