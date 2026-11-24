@@ -19,6 +19,7 @@ import (
 	"github.com/neurorift/neurorift/internal/nr"
 	"github.com/neurorift/neurorift/internal/settings"
 	"github.com/neurorift/neurorift/internal/xjson"
+	"gopkg.in/yaml.v3"
 )
 
 // Registry is the persisted shape of the profile store.
@@ -369,13 +370,23 @@ func (m *Manager) AddFromText(ctx context.Context, text, name string) (*Summary,
 	return m.commitNew(ctx, p, dec)
 }
 
-// AddFromFile registers a local Clash YAML file.
+// AddFromFile registers a local Clash YAML file. QR images (PNG/JPEG,
+// issue #102) are also accepted: the QR payload is decoded and imported
+// through the same text pipeline.
 func (m *Manager) AddFromFile(ctx context.Context, path string) (*Summary, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	dec, err := DecodeContent(string(data))
+	text := string(data)
+	if IsImageFile(data) {
+		qr, err := DecodeQRImage(path)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", filepath.Base(path), err)
+		}
+		text = qr
+	}
+	dec, err := DecodeContent(text)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", filepath.Base(path), err)
 	}
@@ -385,6 +396,80 @@ func (m *Manager) AddFromFile(ctx context.Context, path string) (*Summary, error
 	p.Source = path
 	p.IntervalH = 0
 	return m.commitNew(ctx, p, dec)
+}
+
+// ShareInfoFor locates a node by name across all profiles (the active
+// profile first) and exports it for sharing (issue #102). Profiles that
+// cannot be read are skipped, not fatal.
+func (m *Manager) ShareInfoFor(node string) (*ShareInfo, error) {
+	active := m.ActiveID()
+	ids := make([]string, 0, 8)
+	if active != "" {
+		ids = append(ids, active)
+	}
+	for _, p := range m.List() {
+		if p.ID != active {
+			ids = append(ids, p.ID)
+		}
+	}
+	for _, id := range ids {
+		p, ok := m.Get(id)
+		if !ok {
+			continue
+		}
+		var raw map[string]any
+		switch p.Kind {
+		case KindNodes:
+			raw, _ = readProviderNodeMap(m.paths.ProviderPath(id), node)
+		case KindClash, KindLocal:
+			raw, _ = readClashNodeMap(m.paths.ClashPath(id), node)
+		default:
+			continue
+		}
+		if raw == nil {
+			continue
+		}
+		return ExportShareInfo(raw)
+	}
+	return nil, fmt.Errorf("node %q not found in any profile", node)
+}
+
+// readProviderNodeMap loads one node map from a materialized provider
+// file. nil when the node is not present.
+func readProviderNodeMap(path, node string) (map[string]any, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var pf ProviderFile
+	if err := yaml.Unmarshal(data, &pf); err != nil {
+		return nil, err
+	}
+	for _, item := range pf.Proxies {
+		if nm := normMap(item); nm != nil && strOf(nm["name"]) == node {
+			return nm, nil
+		}
+	}
+	return nil, nil
+}
+
+// readClashNodeMap loads one node map from a clash/local profile YAML.
+// nil when the node is not present.
+func readClashNodeMap(path, node string) (map[string]any, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	d, err := parseClashDoc(string(data))
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range d.Proxies {
+		if strOf(p["name"]) == node {
+			return p, nil
+		}
+	}
+	return nil, nil
 }
 
 // commitNew materializes files, persists the registry and applies.

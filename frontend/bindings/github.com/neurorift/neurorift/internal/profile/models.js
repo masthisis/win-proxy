@@ -270,6 +270,74 @@ export class RawEditResult {
 }
 
 /**
+ * ShareInfo is the UI-facing result of exporting one node for sharing
+ * (issue #102).
+ */
+export class ShareInfo {
+    /**
+     * Creates a new ShareInfo instance.
+     * @param {Partial<ShareInfo>} [$$source = {}] - The source object to create the ShareInfo.
+     */
+    constructor($$source = {}) {
+        if (!("name" in $$source)) {
+            /**
+             * Name is the node's display name.
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("type" in $$source)) {
+            /**
+             * Type is the mihomo proxy type ("vmess", "wireguard", ...).
+             * @member
+             * @type {string}
+             */
+            this["type"] = "";
+        }
+        if (!("kind" in $$source)) {
+            /**
+             * Kind is what Text holds: "uri" (a share link) or "wg-quick" (a
+             * WireGuard .conf document).
+             * @member
+             * @type {string}
+             */
+            this["kind"] = "";
+        }
+        if (!("text" in $$source)) {
+            /**
+             * Text is the share link or the wg-quick conf body.
+             * @member
+             * @type {string}
+             */
+            this["text"] = "";
+        }
+        if (!("qr" in $$source)) {
+            /**
+             * QR is the QR-encoded Text as a data: URL ("data:image/png;base64,..."
+             * for direct <img src> binding). Empty when Text exceeds QR capacity
+             * or the type has no link form.
+             * @member
+             * @type {string}
+             */
+            this["qr"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ShareInfo instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ShareInfo}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ShareInfo(/** @type {Partial<ShareInfo>} */($$parsedSource));
+    }
+}
+
+/**
  * SubscriptionInfo is the traffic/expiry metadata advertised by many
  * subscription servers in the "Subscription-Userinfo" response header.
  */

@@ -83,6 +83,7 @@ const en: Record<string, string> = {
   "dash.goProfiles": "Go to Profiles",
   "dash.groupsError": "Could not load groups",
   "dash.loadingGroups": "Loading groups…",
+  "dash.shareHint": "Right-click a node to share it",
 
   // ---- profiles ----
   "profiles.addTitle": "Add profile",
@@ -92,7 +93,18 @@ const en: Record<string, string> = {
   "profiles.fromUrl": "Add from URL",
   "profiles.fromClipboard": "From Clipboard",
   "profiles.fromFile": "From File",
+  "profiles.scanQR": "Scan QR",
   "profiles.addHint": "Imports subscription/share links, Clash YAML, sing-box JSON or a WireGuard wg-quick .conf.",
+
+  // ---- share (#102) ----
+  "share.title": "Share node",
+  "share.copyLink": "Copy link",
+  "share.copied": "Copied to clipboard",
+  "share.copyFailed": "Copy failed",
+  "share.qrHint": "Scan with v2rayNG / Qv2ray / any client",
+  "share.noQR": "Payload too long for a QR code",
+  "share.downloadConf": "Download .conf",
+  "share.wgHint": "Standard wg-quick configuration file",
   "profiles.source": "Source",
   "profiles.updated": "Updated",
   "profiles.nextUpdate": "Next update",
@@ -546,6 +558,7 @@ const fa: Record<string, string> = {
   "dash.goProfiles": "رفتن به پروفایل‌ها",
   "dash.groupsError": "بارگذاری گروه‌ها ناموفق بود",
   "dash.loadingGroups": "در حال بارگذاری گروه‌ها…",
+  "dash.shareHint": "برای اشتراک‌گذاری روی گره راست‌کلیک کنید",
 
   // ---- profiles ----
   "profiles.addTitle": "افزودن پروفایل",
@@ -555,7 +568,18 @@ const fa: Record<string, string> = {
   "profiles.fromUrl": "افزودن از نشانی",
   "profiles.fromClipboard": "از کلیپ‌بورد",
   "profiles.fromFile": "از فایل",
+  "profiles.scanQR": "اسکن QR",
   "profiles.addHint": "لینک اشتراک/لینک‌های اشتراکی، YAML کلش، JSON سینگ‌باکس یا کانفیگ WireGuard (wg-quick) را وارد می‌کند.",
+
+  // ---- share (#102) ----
+  "share.title": "اشتراک‌گذاری گره",
+  "share.copyLink": "کپی پیوند",
+  "share.copied": "در کلیپ‌بورد کپی شد",
+  "share.copyFailed": "کپی ناموفق بود",
+  "share.qrHint": "با v2rayNG یا هر کلاینت دیگر اسکن کنید",
+  "share.noQR": "محتوا برای کد QR طولانی است",
+  "share.downloadConf": "دانلود فایل conf",
+  "share.wgHint": "فایل پیکربندی استاندارد wg-quick",
   "profiles.source": "منبع",
   "profiles.updated": "به‌روزرسانی",
   "profiles.nextUpdate": "به‌روزرسانی بعدی",

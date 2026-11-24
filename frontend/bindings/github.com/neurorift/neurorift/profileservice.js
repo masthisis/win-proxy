@@ -131,6 +131,17 @@ export function Rename(id, name) {
 }
 
 /**
+ * ScanScreenQR captures the whole screen (Windows), decodes the first QR
+ * code it finds and imports its text as a new profile (issue #102).
+ * @returns {$CancellablePromise<profile$0.Summary | null>}
+ */
+export function ScanScreenQR() {
+    return $Call.ByID(317539350).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
+
+/**
  * SetActive activates a profile (hot-applies the runtime config).
  * @param {string} id
  * @returns {$CancellablePromise<void>}
@@ -182,6 +193,19 @@ export function SetUserAgent(id, userAgent) {
 }
 
 /**
+ * ShareNode exports one node (searched across all profiles, active first)
+ * as a share link plus a QR PNG data URL — or as a wg-quick .conf for
+ * WireGuard nodes (issue #102).
+ * @param {string} node
+ * @returns {$CancellablePromise<profile$0.ShareInfo | null>}
+ */
+export function ShareNode(node) {
+    return $Call.ByID(652761519, node).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType5($result);
+    }));
+}
+
+/**
  * Update refreshes one profile (network fetch for subscriptions).
  * @param {string} id
  * @returns {$CancellablePromise<profile$0.Summary | null>}
@@ -199,7 +223,7 @@ export function Update(id) {
  */
 export function UpdateAll() {
     return $Call.ByID(763197780).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
+        return $$createType7($result);
     }));
 }
 
@@ -212,7 +236,7 @@ export function UpdateAll() {
  */
 export function UpdateRaw(id, content) {
     return $Call.ByID(2730273537, id, content).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType6($result);
+        return $$createType8($result);
     }));
 }
 
@@ -224,7 +248,7 @@ export function UpdateRaw(id, content) {
  */
 export function ValidateRaw(content) {
     return $Call.ByID(2110768460, content).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType8($result);
+        return $$createType10($result);
     }));
 }
 
@@ -233,8 +257,10 @@ const $$createType0 = profile$0.Profile.createFrom;
 const $$createType1 = $Create.Nullable($$createType0);
 const $$createType2 = $Create.Array($Create.Any);
 const $$createType3 = $Create.Array($$createType0);
-const $$createType4 = profile$0.UpdateSummary.createFrom;
+const $$createType4 = profile$0.ShareInfo.createFrom;
 const $$createType5 = $Create.Nullable($$createType4);
-const $$createType6 = profile$0.RawEditResult.createFrom;
-const $$createType7 = profile$0.LintIssue.createFrom;
-const $$createType8 = $Create.Array($$createType7);
+const $$createType6 = profile$0.UpdateSummary.createFrom;
+const $$createType7 = $Create.Nullable($$createType6);
+const $$createType8 = profile$0.RawEditResult.createFrom;
+const $$createType9 = profile$0.LintIssue.createFrom;
+const $$createType10 = $Create.Array($$createType9);

@@ -324,8 +324,10 @@ func installBridges(app *application.App) {
 			CanChooseFiles(true).
 			CanChooseDirectories(false).
 			// Clash/mihomo YAML, sing-box JSON and wg-quick WireGuard
-			// confs are all accepted by the same import pipeline.
+			// confs are all accepted by the same import pipeline; QR
+			// images (PNG/JPEG) are decoded and imported too (#102).
 			AddFilter("Profile configs", "*.yaml;*.yml;*.json;*.conf").
+			AddFilter("QR images", "*.png;*.jpg;*.jpeg").
 			AddFilter("All files", "*").
 			PromptForSingleSelection()
 	}

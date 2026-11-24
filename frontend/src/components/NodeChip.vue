@@ -1,7 +1,9 @@
 <script setup lang="ts">
-/** One proxy node inside a group grid: name, protocol type, latency badge. */
+/** One proxy node inside a group grid: name, protocol type, latency badge.
+ * Right-click shares the node as a link/QR (#102). */
 import { computed } from "vue";
 import { fmtLatency } from "../lib/format";
+import { t } from "../lib/i18n";
 
 export interface NodeChipModel {
   name: string;
@@ -16,11 +18,15 @@ const props = withDefaults(
     selected?: boolean;
     interactive?: boolean;
     busy?: boolean;
+    shareable?: boolean;
   }>(),
-  { selected: false, interactive: false, busy: false },
+  { selected: false, interactive: false, busy: false, shareable: false },
 );
 
-const emit = defineEmits<{ (e: "select", node: NodeChipModel): void }>();
+const emit = defineEmits<{
+  (e: "select", node: NodeChipModel): void;
+  (e: "share", node: NodeChipModel): void;
+}>();
 
 const latCls = computed(() => {
   const d = props.node.delay;
@@ -33,6 +39,14 @@ const latCls = computed(() => {
 function onClick(): void {
   if (props.interactive && !props.busy) emit("select", props.node);
 }
+
+function onContextmenu(ev: MouseEvent): void {
+  if (!props.shareable) return;
+  ev.preventDefault();
+  emit("share", props.node);
+}
+
+const shareHint = computed(() => t("dash.shareHint"));
 </script>
 
 <template>
@@ -43,6 +57,8 @@ function onClick(): void {
     :aria-pressed="interactive ? selected : undefined"
     :disabled="interactive && busy ? true : undefined"
     @click="onClick"
+    @contextmenu="onContextmenu"
+    :title="shareable ? node.name + ' — ' + shareHint : node.name"
   >
     <span class="n-name" :title="node.name">{{ node.name }}</span>
     <span class="n-meta">

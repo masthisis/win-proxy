@@ -2,11 +2,14 @@
 /** Dashboard: mode switcher, group panels with node chips, engine empty state. */
 import { computed, ref } from "vue";
 import * as Proxy from "../../bindings/github.com/neurorift/neurorift/proxyservice.js";
+import * as Profile from "../../bindings/github.com/neurorift/neurorift/profileservice.js";
 import type { GroupUI, NodeUI } from "../../bindings/github.com/neurorift/neurorift/models.js";
+import type { ShareInfo } from "../../bindings/github.com/neurorift/neurorift/internal/profile/models.js";
 import { store, refreshGroups, startEngine, setView, engineRunning } from "../store";
 import { t } from "../lib/i18n";
 import { toast, errMsg } from "../lib/toast";
 import NodeChip from "../components/NodeChip.vue";
+import ShareModal from "../components/ShareModal.vue";
 import StatusPill from "../components/StatusPill.vue";
 import { IconRefresh, IconBolt, IconGauge, IconProfiles, IconWarn, IconSort } from "../components/Icons";
 
@@ -16,6 +19,29 @@ const modeBusy = ref(false);
 const testAllBusy = ref(false);
 const groupTestBusy = ref<string | null>(null);
 const selecting = ref<string | null>(null);
+
+/** Share modal state (#102): right-click a node chip to share it. */
+const shareInfo = ref<ShareInfo | null>(null);
+const shareOpen = ref(false);
+const shareBusy = ref(false);
+
+async function shareNode(n: { name: string }): Promise<void> {
+  if (shareBusy.value) return;
+  shareBusy.value = true;
+  try {
+    shareInfo.value = await Profile.ShareNode(n.name);
+    shareOpen.value = true;
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    shareBusy.value = false;
+  }
+}
+
+function closeShare(): void {
+  shareOpen.value = false;
+  shareInfo.value = null;
+}
 
 /** Issue #43: node search + sort-by-delay toggle (persisted per session). */
 const nodeSearch = ref("");
@@ -268,10 +294,14 @@ async function selectNode(g: GroupUI, node: NodeUI): Promise<void> {
             :selected="n.name === g.now"
             :interactive="g.type === 'Selector'"
             :busy="selecting === n.name"
+            shareable
             @select="selectNode(g, n)"
+            @share="shareNode(n)"
           />
         </div>
       </section>
     </template>
+
+    <ShareModal :open="shareOpen" :info="shareInfo" @close="closeShare" />
   </div>
 </template>

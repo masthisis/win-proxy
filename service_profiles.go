@@ -96,6 +96,23 @@ func (s *ProfileService) GetNodes(id string) ([]string, error) {
 	return s.c.Profiles.NodeNames(id)
 }
 
+// ShareNode exports one node (searched across all profiles, active first)
+// as a share link plus a QR PNG data URL — or as a wg-quick .conf for
+// WireGuard nodes (issue #102).
+func (s *ProfileService) ShareNode(node string) (*profile.ShareInfo, error) {
+	return s.c.Profiles.ShareInfoFor(node)
+}
+
+// ScanScreenQR captures the whole screen (Windows), decodes the first QR
+// code it finds and imports its text as a new profile (issue #102).
+func (s *ProfileService) ScanScreenQR() (*profile.Summary, error) {
+	text, err := profile.CaptureScreenQR()
+	if err != nil {
+		return nil, err
+	}
+	return s.c.Profiles.AddFromText(context.Background(), text, "QR")
+}
+
 // GetRaw returns the raw YAML of a profile (#49) — editable for
 // clash/local profiles, a read-only provider export for nodes profiles.
 func (s *ProfileService) GetRaw(id string) (string, error) {
