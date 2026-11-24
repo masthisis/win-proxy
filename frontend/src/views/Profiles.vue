@@ -15,6 +15,7 @@ import {
   IconLink,
   IconClipboard,
   IconFile,
+  IconQR,
   IconPlus,
   IconRefresh,
   IconCheck,
@@ -32,6 +33,7 @@ const headersText = ref("");
 const addingUrl = ref(false);
 const clipboardBusy = ref(false);
 const fileBusy = ref(false);
+const qrBusy = ref(false);
 const updatingId = ref<string | null>(null);
 const activatingId = ref<string | null>(null);
 const deletingId = ref<string | null>(null);
@@ -111,6 +113,20 @@ async function fromFile(): Promise<void> {
     toast.error(errMsg(e));
   } finally {
     fileBusy.value = false;
+  }
+}
+
+/** Scan QR from the whole screen (Windows) and import its payload (#102). */
+async function scanScreenQR(): Promise<void> {
+  if (qrBusy.value) return;
+  qrBusy.value = true;
+  try {
+    const p = await Profile.ScanScreenQR();
+    toast.success(t("toast.profileAdded", { name: p?.name ?? "QR" }));
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    qrBusy.value = false;
   }
 }
 
@@ -451,6 +467,11 @@ if (typeof window !== "undefined") {
           <span v-if="fileBusy" class="spinner" />
           <IconFile v-else :size="14" />
           {{ t("profiles.fromFile") }}
+        </button>
+        <button class="btn" :disabled="qrBusy" @click="scanScreenQR()">
+          <span v-if="qrBusy" class="spinner" />
+          <IconQR v-else :size="14" />
+          {{ t("profiles.scanQR") }}
         </button>
         <span class="dim small">{{ t("profiles.addHint") }}</span>
       </div>

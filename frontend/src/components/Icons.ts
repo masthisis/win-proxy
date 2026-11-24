@@ -191,6 +191,22 @@ export const IconExternal = icon("IconExternal", () => [
 
 export const IconChevron = icon("IconChevron", () => [p("M9 6l6 6-6 6")]);
 
+export const IconShare = icon("IconShare", () => [
+  p("M12 15V4"),
+  p("M7.5 8.5 12 4l4.5 4.5"),
+  p("M5 13v5h14v-5"),
+]);
+
+export const IconQR = icon("IconQR", () => [
+  p("M4 4h6v6H4z"),
+  p("M14 4h6v6h-6z"),
+  p("M4 14h6v6H4z"),
+  p("M14 14h2.5v2.5H14z"),
+  p("M18 18h2.5v2.5H18z"),
+  p("M14 20h2.5"),
+  p("M20 14h-2.5"),
+]);
+
 // Window control glyphs (issue #45 — custom titlebar).
 export const IconWinMin = icon("IconWinMin", () => [p("M5 12h14")]);
 export const IconWinMax = icon("IconWinMax", () => [rect(6.5, 6.5, 11, 11)]);

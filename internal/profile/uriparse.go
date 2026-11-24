@@ -278,7 +278,13 @@ func parseVMess(raw string) (*Node, error) {
 		Set("udp", true)
 
 	tlsEnabled := v.TLS == "tls" || truthy(v.TLS)
-	applyNetwork(m, v.Net, v.Path, v.Host, "")
+	// v2rayN encodes TCP + HTTP obfs header as net=tcp & type=http
+	// (#102 round-trip); other clients put "none" in type.
+	net := v.Net
+	if (net == "" || net == "tcp") && strings.EqualFold(v.Type, "http") {
+		net = "http"
+	}
+	applyNetwork(m, net, v.Path, v.Host, "")
 	applyTLS(m, tlsEnabled, "servername", firstNonEmpty(v.SNI, v.Host), splitComma(v.ALPN), false, v.FP)
 
 	name, _ := m.Get("name")
@@ -546,7 +552,12 @@ func applySSPlugin(m *yamlx.OMap, plugin string) {
 	parts := strings.Split(plugin, ";")
 	name := strings.TrimSpace(parts[0])
 	opts := map[string]string{}
+	bareTLS := false // v2rayN writes the v2ray-plugin TLS flag as a bare ";tls" token
 	for _, p := range parts[1:] {
+		if strings.TrimSpace(p) == "tls" {
+			bareTLS = true
+			continue
+		}
 		if i := strings.Index(p, "="); i > 0 {
 			opts[strings.TrimSpace(p[:i])] = strings.TrimSpace(p[i+1:])
 		}
@@ -561,6 +572,8 @@ func applySSPlugin(m *yamlx.OMap, plugin string) {
 	case "v2ray-plugin":
 		po := newOMap().Set("mode", orDefault(opts["mode"], "websocket"))
 		if tls, ok := opts["tls"]; ok && truthy(tls) {
+			po.Set("tls", true)
+		} else if bareTLS {
 			po.Set("tls", true)
 		}
 		if h := opts["host"]; h != "" {
