@@ -190,6 +190,41 @@ export class Failover {
 }
 
 /**
+ * Geo configures the geodata mirror preset (issue #106).
+ */
+export class Geo {
+    /**
+     * Creates a new Geo instance.
+     * @param {Partial<Geo>} [$$source = {}] - The source object to create the Geo.
+     */
+    constructor($$source = {}) {
+        if (!("mirror" in $$source)) {
+            /**
+             * Mirror selects the geox-url source mihomo downloads geoip/geosite/
+             * mmdb/ASN data from: "" | "jsdelivr" (testingcf, default), "fastly",
+             * "ghproxy" or "direct". Different CDNs are reachable in different
+             * censored networks — v2rayN exposes the same choice for its GEO files.
+             * @member
+             * @type {string}
+             */
+            this["mirror"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Geo instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {Geo}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Geo(/** @type {Partial<Geo>} */($$parsedSource));
+    }
+}
+
+/**
  * KCP carries v2rayNG's mKCP defaults, applied to vmess nodes whose network
  * is kcp/mkcp (issue #96). mihomo models mKCP per node via mkcp-opts.
  */
@@ -615,7 +650,8 @@ export class RoutingOverride {
         if (!("pattern" in $$source)) {
             /**
              * Pattern is the matched value: domain, domain suffix, domain
-             * keyword or process name (e.g. "openai.com", "telegram.exe").
+             * keyword, process name, IP CIDR or GEOIP country code
+             * (e.g. "openai.com", "telegram.exe", "10.0.0.0/8", "CN").
              * @member
              * @type {string}
              */
@@ -624,7 +660,7 @@ export class RoutingOverride {
         if (!("type" in $$source)) {
             /**
              * Type is the match type: domain-suffix | domain | domain-keyword |
-             * process-name.
+             * process-name | ip-cidr | geoip (#104).
              * @member
              * @type {string}
              */
@@ -826,6 +862,15 @@ export class Settings {
              */
             this["bypassCN"] = false;
         }
+        if (!("geo" in $$source)) {
+            /**
+             * Geo selects the geodata mirror preset and drives the manual
+             * "update geo now" action (issue #106).
+             * @member
+             * @type {Geo}
+             */
+            this["geo"] = (new Geo());
+        }
         if (!("proxyGuard" in $$source)) {
             /**
              * @member
@@ -898,7 +943,8 @@ export class Settings {
         const $$createField22_0 = $$createType16;
         const $$createField23_0 = $$createType17;
         const $$createField24_0 = $$createType18;
-        const $$createField26_0 = $$createType0;
+        const $$createField25_0 = $$createType19;
+        const $$createField27_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("ports" in $$parsedSource) {
             $$parsedSource["ports"] = $$createField7_0($$parsedSource["ports"]);
@@ -939,20 +985,23 @@ export class Settings {
         if ("routingOverrides" in $$parsedSource) {
             $$parsedSource["routingOverrides"] = $$createField19_0($$parsedSource["routingOverrides"]);
         }
+        if ("geo" in $$parsedSource) {
+            $$parsedSource["geo"] = $$createField21_0($$parsedSource["geo"]);
+        }
         if ("proxyGuard" in $$parsedSource) {
-            $$parsedSource["proxyGuard"] = $$createField21_0($$parsedSource["proxyGuard"]);
+            $$parsedSource["proxyGuard"] = $$createField22_0($$parsedSource["proxyGuard"]);
         }
         if ("updates" in $$parsedSource) {
-            $$parsedSource["updates"] = $$createField22_0($$parsedSource["updates"]);
+            $$parsedSource["updates"] = $$createField23_0($$parsedSource["updates"]);
         }
         if ("reporting" in $$parsedSource) {
-            $$parsedSource["reporting"] = $$createField23_0($$parsedSource["reporting"]);
+            $$parsedSource["reporting"] = $$createField24_0($$parsedSource["reporting"]);
         }
         if ("window" in $$parsedSource) {
-            $$parsedSource["window"] = $$createField24_0($$parsedSource["window"]);
+            $$parsedSource["window"] = $$createField25_0($$parsedSource["window"]);
         }
         if ("bypassDomains" in $$parsedSource) {
-            $$parsedSource["bypassDomains"] = $$createField26_0($$parsedSource["bypassDomains"]);
+            $$parsedSource["bypassDomains"] = $$createField27_0($$parsedSource["bypassDomains"]);
         }
         return new Settings(/** @type {Partial<Settings>} */($$parsedSource));
     }
@@ -1318,7 +1367,8 @@ const $$createType11 = KCP.createFrom;
 const $$createType12 = Sniffer.createFrom;
 const $$createType13 = RoutingOverride.createFrom;
 const $$createType14 = $Create.Array($$createType13);
-const $$createType15 = ProxyGuard.createFrom;
-const $$createType16 = Updates.createFrom;
-const $$createType17 = Reporting.createFrom;
-const $$createType18 = WindowGeometry.createFrom;
+const $$createType15 = Geo.createFrom;
+const $$createType16 = ProxyGuard.createFrom;
+const $$createType17 = Updates.createFrom;
+const $$createType18 = Reporting.createFrom;
+const $$createType19 = WindowGeometry.createFrom;

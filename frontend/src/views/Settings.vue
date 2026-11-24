@@ -5,6 +5,7 @@ import { Events } from "@wailsio/runtime";
 import { EV } from "../lib/events";
 import * as SettingsSvc from "../../bindings/github.com/neurorift/neurorift/settingsservice.js";
 import * as Sys from "../../bindings/github.com/neurorift/neurorift/sysservice.js";
+import * as CoreSvc from "../../bindings/github.com/neurorift/neurorift/coreservice.js";
 import * as ReportSvc from "../../bindings/github.com/neurorift/neurorift/reportservice.js";
 import * as AppSvc from "../../bindings/github.com/neurorift/neurorift/appservice.js";
 import type { PendingInfo, PortableInfo } from "../../bindings/github.com/neurorift/neurorift/models.js";
@@ -23,7 +24,8 @@ import {
 } from "../store";
 import { t, setLang, type Lang } from "../lib/i18n";
 import { toast, errMsg } from "../lib/toast";
-import { IconChevron, IconFolder, IconWarn, IconCheck, IconRefresh, IconDownload, IconExternal, IconTrash, IconPlus } from "../components/Icons";
+import { askConfirm } from "../lib/confirm";
+import { IconChevron, IconFolder, IconWarn, IconCheck, IconRefresh, IconDownload, IconUpload, IconExternal, IconShield, IconTrash, IconPlus } from "../components/Icons";
 
 const form = ref<SettingsDoc | null>(null);
 const saving = ref(false);
@@ -84,15 +86,99 @@ const open = reactive<Record<string, boolean>>({
   testing: false,
   failover: false,
   core: false,
+  geo: false,
   dns: false,
   nodes: false,
   sniffer: false,
   tun: false,
   subscriptions: false,
   routing: false,
+  maintenance: false,
   updates: false,
   reporting: false,
 });
+
+/* ---------------------------------------------------------------- */
+/* Geo databases (#106) + maintenance (#103/#105)                      */
+/* ---------------------------------------------------------------- */
+
+const GEO_MIRRORS = ["", "jsdelivr", "fastly", "ghproxy", "direct"] as const;
+
+const geoBusy = ref(false);
+
+/** Update geo now: persist the mirror choice, then delete + refetch. */
+async function updateGeoNow(): Promise<void> {
+  if (geoBusy.value) return;
+  geoBusy.value = true;
+  try {
+    await save(); // persist the mirror selection first
+    await CoreSvc.RefreshGeoData();
+    toast.success(t("settings.geoUpdated"));
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    geoBusy.value = false;
+  }
+}
+
+const uwpBusy = ref(false);
+
+/** UWP loopback exemption (#105): one UAC prompt via the elevated child. */
+async function exemptUWP(): Promise<void> {
+  if (uwpBusy.value) return;
+  uwpBusy.value = true;
+  try {
+    const res = await Sys.ExemptUWP();
+    if (res.elevated) toast.success(t("settings.uwpDone", { n: res.families }));
+    else toast.success(t("settings.uwpPrompted"));
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    uwpBusy.value = false;
+  }
+}
+
+const backupBusy = ref(false);
+
+/** Export the full app state as a zip (#103). */
+async function exportBackup(): Promise<void> {
+  if (backupBusy.value) return;
+  backupBusy.value = true;
+  try {
+    const sum = await Sys.BackupExport();
+    if (sum) toast.success(t("settings.backupDone", { n: sum.files }));
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    backupBusy.value = false;
+  }
+}
+
+const restoreBusy = ref(false);
+
+/** Restore state from a backup zip, then relaunch (#103). */
+async function restoreBackup(): Promise<void> {
+  if (restoreBusy.value) return;
+  const ok = await askConfirm({
+    title: t("settings.backupRestoreTitle"),
+    body: t("settings.backupRestoreWarn"),
+    danger: true,
+    confirmLabel: t("common.confirm"),
+  });
+  if (!ok) return;
+  restoreBusy.value = true;
+  try {
+    const sum = await Sys.BackupRestore();
+    if (sum) {
+      toast.success(t("settings.backupRestored", { n: sum.files }));
+      await Sys.RestartApp();
+    }
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    restoreBusy.value = false;
+  }
+}
 
 // ---- TUN service mode (#14) ----
 // Service state lives in the store (bootstrap + settings:changed refresh);
@@ -405,7 +491,7 @@ async function openFolder(which: "config" | "core" | "logs"): Promise<void> {
 /* routing overrides (#50 / #10)                                      */
 /* ---------------------------------------------------------------- */
 
-const OV_TYPES = ["domain-suffix", "domain", "domain-keyword", "process-name"] as const;
+const OV_TYPES = ["domain-suffix", "domain", "domain-keyword", "process-name", "ip-cidr", "geoip"] as const;
 
 /** Route targets offered as suggestions: built-ins + groups + their nodes. */
 const targetOptions = computed<string[]>(() => {
@@ -732,6 +818,30 @@ async function importOverrides(ev: Event): Promise<void> {
             <label for="core-ghproxy">{{ t("settings.ghProxy") }}</label>
             <input id="core-ghproxy" v-model="form.core.ghProxyPrefix" type="text" class="mono" placeholder="https://gh-proxy.com/" />
             <span class="hint">{{ t("settings.ghProxyHint") }}</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Geo databases (#106) -->
+      <section class="panel">
+        <button class="section-head" :aria-expanded="open.geo" @click="open.geo = !open.geo">
+          <IconChevron :size="14" class="chev" :class="{ open: open.geo }" />
+          {{ t("settings.secGeo") }}
+        </button>
+        <div v-if="open.geo" class="form-grid" style="margin-top: 12px">
+          <div class="field">
+            <label for="geo-mirror">{{ t("settings.geoMirror") }}</label>
+            <select id="geo-mirror" v-model="form.geo.mirror">
+              <option v-for="m in GEO_MIRRORS" :key="m" :value="m">{{ t(`settings.geoMirror.${m || 'jsdelivr'}`) }}</option>
+            </select>
+            <span class="hint">{{ t("settings.geoMirrorHint") }}</span>
+          </div>
+          <div class="field span-all" style="align-self: end">
+            <button class="btn sm" :disabled="geoBusy || store.engineBusy" @click="updateGeoNow()">
+              <span v-if="geoBusy" class="spinner" style="width: 12px; height: 12px" />
+              <IconRefresh v-else :size="13" />
+              {{ t("settings.geoUpdateNow") }}
+            </button>
           </div>
         </div>
       </section>
@@ -1123,6 +1233,41 @@ async function importOverrides(ev: Event): Promise<void> {
             <input ref="ovFile" type="file" accept=".yaml,.yml,.txt" style="display: none" @change="importOverrides" />
           </div>
           <p class="hint" style="margin: 10px 0 0">{{ t("settings.routingHint") }}</p>
+        </div>
+      </section>
+
+      <!-- Maintenance: backup & restore + UWP exemption (#103/#105) -->
+      <section class="panel">
+        <button class="section-head" :aria-expanded="open.maintenance" @click="open.maintenance = !open.maintenance">
+          <IconChevron :size="14" class="chev" :class="{ open: open.maintenance }" />
+          {{ t("settings.secMaintenance") }}
+        </button>
+        <div v-if="open.maintenance" style="margin-top: 12px" class="form-grid">
+          <div class="field span-all">
+            <label>{{ t("settings.backupLabel") }}</label>
+            <div class="row" style="gap: 8px">
+              <button class="btn sm" :disabled="backupBusy" @click="exportBackup()">
+                <span v-if="backupBusy" class="spinner" style="width: 12px; height: 12px" />
+                <IconDownload v-else :size="13" />
+                {{ t("settings.backupExport") }}
+              </button>
+              <button class="btn sm" :disabled="restoreBusy" @click="restoreBackup()">
+                <span v-if="restoreBusy" class="spinner" style="width: 12px; height: 12px" />
+                <IconUpload v-else :size="13" />
+                {{ t("settings.backupRestore") }}
+              </button>
+            </div>
+            <span class="hint">{{ t("settings.backupHint") }}</span>
+          </div>
+          <div class="field span-all">
+            <label>{{ t("settings.uwpLabel") }}</label>
+            <button class="btn sm" :disabled="uwpBusy" @click="exemptUWP()">
+              <span v-if="uwpBusy" class="spinner" style="width: 12px; height: 12px" />
+              <IconShield v-else :size="13" />
+              {{ t("settings.uwpExempt") }}
+            </button>
+            <span class="hint">{{ t("settings.uwpExemptHint") }}</span>
+          </div>
         </div>
       </section>
 

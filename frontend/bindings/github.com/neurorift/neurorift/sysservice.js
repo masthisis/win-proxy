@@ -13,7 +13,13 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as backup$0 from "./internal/backup/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as nrservice$0 from "./internal/nrservice/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as platform$0 from "./internal/platform/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as proxyguard$0 from "./internal/proxyguard/models.js";
@@ -21,6 +27,44 @@ import * as proxyguard$0 from "./internal/proxyguard/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
+
+/**
+ * BackupExport opens a save dialog and writes the full app state (settings,
+ * profile registry, provider/clash files) into a zip (issue #103). Returns
+ * nil, nil when the dialog is cancelled.
+ * @returns {$CancellablePromise<$models.BackupSummary | null>}
+ */
+export function BackupExport() {
+    return $Call.ByID(1514841152).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
+
+/**
+ * BackupRestore opens a zip dialog, validates the backup marker, keeps a
+ * safety backup of the current state, swaps the files in (engine stopped)
+ * and returns the summary (issue #103). The UI then calls RestartApp.
+ * Returns nil, nil when the dialog is cancelled.
+ * @returns {$CancellablePromise<$models.RestoreSummary | null>}
+ */
+export function BackupRestore() {
+    return $Call.ByID(2669640360).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
+ * ExemptUWP adds every installed UWP/AppContainer app to the Windows
+ * loopback exemption list so UWP apps can use the 127.0.0.1 system proxy
+ * (issue #105, v2rayN 解除Win10 UWP回环限制 parity). When not elevated a
+ * single UAC prompt launches the elevated child that performs the change.
+ * @returns {$CancellablePromise<platform$0.UWPExemptResult>}
+ */
+export function ExemptUWP() {
+    return $Call.ByID(2459457857).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType4($result);
+    }));
+}
 
 /**
  * GetAutostart reports the autostart registration state.
@@ -45,7 +89,7 @@ export function GetPACScript() {
  */
 export function GetProxyGuardStatus() {
     return $Call.ByID(3817443927).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
+        return $$createType5($result);
     }));
 }
 
@@ -56,7 +100,7 @@ export function GetProxyGuardStatus() {
  */
 export function GetProxyMode() {
     return $Call.ByID(1785675883).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType1($result);
+        return $$createType6($result);
     }));
 }
 
@@ -66,7 +110,7 @@ export function GetProxyMode() {
  */
 export function GetSystemProxy() {
     return $Call.ByID(1171326591).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType2($result);
+        return $$createType7($result);
     }));
 }
 
@@ -94,6 +138,15 @@ export function OpenFolder(which) {
  */
 export function OpenURL(url) {
     return $Call.ByID(3254073749, url);
+}
+
+/**
+ * RestartApp relaunches the app cleanly (used after a backup restore,
+ * issue #103) — every in-memory manager reloads from the restored files.
+ * @returns {$CancellablePromise<void>}
+ */
+export function RestartApp() {
+    return $Call.ByID(2150409730);
 }
 
 /**
@@ -159,7 +212,7 @@ export function TunServiceInstall() {
  */
 export function TunServiceStatus() {
     return $Call.ByID(942307840).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType8($result);
     }));
 }
 
@@ -171,8 +224,22 @@ export function TunServiceUninstall() {
     return $Call.ByID(3271954296);
 }
 
+/**
+ * UWPExemptCount reports how many AppContainers are currently exempted
+ * from the loopback isolation (issue #105).
+ * @returns {$CancellablePromise<number>}
+ */
+export function UWPExemptCount() {
+    return $Call.ByID(846420822);
+}
+
 // Private type creation functions
-const $$createType0 = proxyguard$0.Status.createFrom;
-const $$createType1 = $models.ProxyModeState.createFrom;
-const $$createType2 = $models.SysProxyState.createFrom;
-const $$createType3 = nrservice$0.Status.createFrom;
+const $$createType0 = backup$0.ExportSummary.createFrom;
+const $$createType1 = $Create.Nullable($$createType0);
+const $$createType2 = backup$0.RestoreSummary.createFrom;
+const $$createType3 = $Create.Nullable($$createType2);
+const $$createType4 = platform$0.UWPExemptResult.createFrom;
+const $$createType5 = proxyguard$0.Status.createFrom;
+const $$createType6 = $models.ProxyModeState.createFrom;
+const $$createType7 = $models.SysProxyState.createFrom;
+const $$createType8 = nrservice$0.Status.createFrom;

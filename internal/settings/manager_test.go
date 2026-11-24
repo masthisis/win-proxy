@@ -78,3 +78,32 @@ func TestProxyModeAndPACValidation(t *testing.T) {
 		t.Fatal("oversized PAC script must reset to the default")
 	}
 }
+
+// TestSanitizeRoutingOverrides_IPTypes (issue #104): ip-cidr rows need a
+// valid CIDR, geoip rows a two-letter country code or LAN/PRIVATE; rows
+// that would break the core config are dropped, not corrected.
+func TestSanitizeRoutingOverrides_IPTypes(t *testing.T) {
+	got := sanitizeRoutingOverrides([]RoutingOverride{
+		{Pattern: "10.0.0.0/8", Type: "ip-cidr", Target: "DIRECT"},
+		{Pattern: "bogus", Type: "ip-cidr", Target: "DIRECT"},
+		{Pattern: "fd00::/8", Type: "ip-cidr", Target: "DIRECT"},
+		{Pattern: " ir ", Type: "geoip", Target: "DIRECT"},
+		{Pattern: "USA", Type: "geoip", Target: "DIRECT"},
+		{Pattern: "lan", Type: "geoip", Target: "DIRECT"},
+	})
+	if len(got) != 4 {
+		t.Fatalf("want 4 overrides (bogus CIDR + 3-letter geoip dropped), got %d: %+v", len(got), got)
+	}
+	for _, o := range got {
+		switch o.Type {
+		case "ip-cidr":
+			if o.Pattern != "10.0.0.0/8" && o.Pattern != "fd00::/8" {
+				t.Errorf("unexpected ip-cidr %q", o.Pattern)
+			}
+		case "geoip":
+			if o.Pattern != "ir" && o.Pattern != "lan" {
+				t.Errorf("unexpected geoip %q (want trimmed/lowercase kept as-is)", o.Pattern)
+			}
+		}
+	}
+}

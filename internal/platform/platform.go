@@ -34,3 +34,29 @@ func GetPACAutoconfig() (string, error) { return getPACAutoconfig() }
 // IsElevated reports whether the process runs with administrator rights
 // (Windows UAC). TUN mode requires elevation.
 func IsElevated() bool { return isElevated() }
+
+// UWPExemptResult reports what a loopback-exemption run did (issue #105).
+type UWPExemptResult struct {
+	// Elevated is true when the exemptions were applied by this process;
+	// false means a UAC prompt was shown and an elevated child applies them.
+	Elevated bool `json:"elevated"`
+	// Families is the number of AppContainer exemptions applied (0 when a
+	// child was launched).
+	Families int `json:"families"`
+}
+
+// ExemptUWP adds every installed UWP/AppContainer app to the Windows
+// loopback exemption list so UWP apps can use the 127.0.0.1 system proxy
+// (issue #105, v2rayN parity). Requires admin: when not elevated, the app
+// self-relaunches once with the "runas" verb and the child performs the
+// change (fire-and-forget, exactly like v2rayN's button).
+func ExemptUWP() (UWPExemptResult, error) {
+	if !isElevated() {
+		return UWPExemptResult{Elevated: false}, relaunchSelfElevated("uwp-exempt")
+	}
+	n, err := exemptUWPLoopback()
+	return UWPExemptResult{Elevated: true, Families: n}, err
+}
+
+// UWPExemptCount lists how many AppContainers are currently exempted.
+func UWPExemptCount() (int, error) { return uwpLoopbackExemptCount() }

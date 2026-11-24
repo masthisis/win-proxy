@@ -213,7 +213,7 @@ func (g *ConfigGen) generateNodes(s settings.Settings, active profile.Summary, h
 	root.Set("geodata-mode", false)
 	root.Set("geo-auto-update", true)
 	root.Set("geo-update-interval", 168) // hours
-	root.Set("geox-url", geoMirrors())
+	root.Set("geox-url", geoMirrors(s.Geo.Mirror))
 	root.Set("profile", newOMap().
 		Set("store-selected", true).
 		Set("store-fake-ip", true))
@@ -342,6 +342,14 @@ func (g *ConfigGen) generateClash(s settings.Settings, active profile.Summary) (
 		Set("store-selected", true).
 		Set("store-fake-ip", true)))
 
+	// Geodata management (#106): same mirrored sources + auto-update for
+	// clash-kind profiles (previously these rode mihomo defaults, which
+	// point at plain GitHub — unreachable from censored networks).
+	setMapKey(rootMap, "geodata-mode", scalarBool(false))
+	setMapKey(rootMap, "geo-auto-update", scalarBool(true))
+	setMapKey(rootMap, "geo-update-interval", scalarIntNode(168))
+	setMapKey(rootMap, "geox-url", yamlNodeFrom(geoMirrors(s.Geo.Mirror)))
+
 	// DNS: override only when the user asked for it.
 	if s.DNS.Override {
 		setMapKey(rootMap, "dns", dnsNode(s))
@@ -466,23 +474,35 @@ func lanRules() []any {
 // ---------------------------------------------------------------- #50 ----
 
 // overrideRulePrefix maps a settings.RoutingOverride match type to the
-// mihomo rule prefix.
+// mihomo rule prefix. ip-cidr/geoip join as of #104 (v2rayN custom routing
+// + Mellow IP rules parity).
 var overrideRulePrefix = map[string]string{
 	"domain-suffix":  "DOMAIN-SUFFIX",
 	"domain":         "DOMAIN",
 	"domain-keyword": "DOMAIN-KEYWORD",
 	"process-name":   "PROCESS-NAME",
+	"ip-cidr":        "IP-CIDR",
+	"geoip":          "GEOIP",
 }
 
-// overrideRuleStrings renders the user's routing overrides (#50 / #10) as
-// mihomo rule strings. Rules whose target does not exist in the generated
-// config are skipped: mihomo refuses to load a config referencing an
-// unknown proxy, and one stale override must never take the engine down.
+// isIPOverride reports whether the match type targets IP-space.
+func isIPOverride(t string) bool { return t == "ip-cidr" || t == "geoip" }
+
+// overrideRuleStrings renders the user's routing overrides (#50 / #10,
+// #104) as mihomo rule strings. Rules whose target does not exist in the
+// generated config are skipped: mihomo refuses to load a config referencing
+// an unknown proxy, and one stale override must never take the engine down.
+//
+// Ordering (#104): domain-type overrides emit first, IP-type last, each
+// class preserving the user's relative order — domain matches need no DNS
+// resolution, IP rules would otherwise force needless lookups for host
+// names that a domain rule would have caught earlier.
 func overrideRuleStrings(s settings.Settings, validTargets map[string]bool) []string {
 	if len(s.RoutingOverrides) == 0 {
 		return nil
 	}
-	out := make([]string, 0, len(s.RoutingOverrides))
+	domain := make([]string, 0, len(s.RoutingOverrides))
+	ips := make([]string, 0, len(s.RoutingOverrides))
 	for _, o := range s.RoutingOverrides {
 		if !validTargets[o.Target] {
 			continue
@@ -491,9 +511,21 @@ func overrideRuleStrings(s settings.Settings, validTargets map[string]bool) []st
 		if !ok {
 			prefix = "DOMAIN-SUFFIX"
 		}
-		out = append(out, fmt.Sprintf("%s,%s,%s", prefix, o.Pattern, o.Target))
+		line := fmt.Sprintf("%s,%s,%s", prefix, o.Pattern, o.Target)
+		if o.Type == "ip-cidr" && strings.Contains(o.Pattern, ":") {
+			// IPv6 CIDRs use their own mihomo rule prefix.
+			line = fmt.Sprintf("IP-CIDR6,%s,%s", o.Pattern, o.Target)
+		}
+		if o.Type == "geoip" {
+			line = fmt.Sprintf("GEOIP,%s,%s", strings.ToUpper(o.Pattern), o.Target)
+		}
+		if isIPOverride(o.Type) {
+			ips = append(ips, line)
+		} else {
+			domain = append(domain, line)
+		}
 	}
-	return out
+	return append(domain, ips...)
 }
 
 // overrideRuleNodes is the []any variant used by generateNodes.
@@ -669,9 +701,11 @@ func tunBlock(s settings.Settings) *yamlx.OMap {
 		Set("dns-hijack", []string{"any:53"})
 }
 
-// geoMirrors returns geodata mirror URLs reachable from censored networks.
-func geoMirrors() *yamlx.OMap {
-	const base = "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/"
+// geoMirrors returns the geodata URLs for the configured mirror preset
+// (issue #106). The default is the testingcf jsdelivr mirror — reachable
+// from most censored networks; fastly/gh-proxy/direct cover the rest.
+func geoMirrors(mirror string) *yamlx.OMap {
+	base := settings.GeoMirrorBase(mirror)
 	return newOMap().
 		Set("geoip", base+"geoip-lite.dat").
 		Set("geosite", base+"geosite.dat").

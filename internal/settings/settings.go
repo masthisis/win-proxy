@@ -13,6 +13,7 @@ package settings
 
 import (
 	"fmt"
+	"net"
 	"strings"
 	"time"
 )
@@ -64,10 +65,11 @@ type ProxyGuard struct {
 // on Type; Target is a node name, group name, DIRECT or REJECT.
 type RoutingOverride struct {
 	// Pattern is the matched value: domain, domain suffix, domain
-	// keyword or process name (e.g. "openai.com", "telegram.exe").
+	// keyword, process name, IP CIDR or GEOIP country code
+	// (e.g. "openai.com", "telegram.exe", "10.0.0.0/8", "CN").
 	Pattern string `json:"pattern"`
 	// Type is the match type: domain-suffix | domain | domain-keyword |
-	// process-name.
+	// process-name | ip-cidr | geoip (#104).
 	Type string `json:"type"`
 	// Target is the routing destination: node, group, DIRECT or REJECT.
 	Target string `json:"target"`
@@ -150,6 +152,34 @@ type Nodes struct {
 	SmuxMaxConnections int `json:"smuxMaxConnections"`
 	// SmuxPadding enables obfuscation padding on mux streams.
 	SmuxPadding bool `json:"smuxPadding"`
+}
+
+// Geo configures the geodata mirror preset (issue #106).
+type Geo struct {
+	// Mirror selects the geox-url source mihomo downloads geoip/geosite/
+	// mmdb/ASN data from: "" | "jsdelivr" (testingcf, default), "fastly",
+	// "ghproxy" or "direct". Different CDNs are reachable in different
+	// censored networks — v2rayN exposes the same choice for its GEO files.
+	Mirror string `json:"mirror"`
+}
+
+// geoMirrorPresets maps the settings value to the URL prefix used for
+// every geodata file. Empty selects the default jsdelivr mirror.
+var geoMirrorPresets = map[string]string{
+	"":         "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/",
+	"jsdelivr": "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/",
+	"fastly":   "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/",
+	"ghproxy":  "https://gh-proxy.com/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/",
+	"direct":   "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/",
+}
+
+// GeoMirrorBase exposes the preset prefix for the config generator (the
+// engine package builds the full geox-url block from it).
+func GeoMirrorBase(mirror string) string {
+	if base, ok := geoMirrorPresets[mirror]; ok {
+		return base
+	}
+	return geoMirrorPresets[""]
 }
 
 // KCP carries v2rayNG's mKCP defaults, applied to vmess nodes whose network
@@ -281,7 +311,10 @@ type Settings struct {
 	// BypassCN routes mainland-China traffic DIRECT (v2rayNG "bypass
 	// mainland" parity, issue #96): GEOSITE,cn + GEOIP,CN. Placed after
 	// the LAN block and BEFORE the user overrides (#50 wins on conflict).
-	BypassCN   bool           `json:"bypassCN"`
+	BypassCN bool `json:"bypassCN"`
+	// Geo selects the geodata mirror preset and drives the manual
+	// "update geo now" action (issue #106).
+	Geo        Geo            `json:"geo"`
 	ProxyGuard ProxyGuard     `json:"proxyGuard"`
 	Updates    Updates        `json:"updates"`
 	Reporting  Reporting      `json:"reporting"`
@@ -466,6 +499,11 @@ func (s *Settings) validate() {
 	}
 	s.Nodes.SmuxMaxConnections = clampInt(s.Nodes.SmuxMaxConnections, 0, 64, 0)
 
+	// Issue #106: unknown mirror values fall back to the default CDN.
+	if _, ok := geoMirrorPresets[s.Geo.Mirror]; !ok {
+		s.Geo.Mirror = d.Geo.Mirror
+	}
+
 	s.KCP.MTU = clampInt(s.KCP.MTU, 300, 1400, d.KCP.MTU)
 	s.KCP.TTI = clampInt(s.KCP.TTI, 10, 100, d.KCP.TTI)
 	s.KCP.UplinkCapacity = clampInt(s.KCP.UplinkCapacity, 0, 1000, d.KCP.UplinkCapacity)
@@ -492,6 +530,19 @@ func sanitizeRoutingOverrides(in []RoutingOverride) []RoutingOverride {
 		o.Target = strings.TrimSpace(o.Target)
 		switch o.Type {
 		case "domain-suffix", "domain", "domain-keyword", "process-name":
+		case "ip-cidr":
+			// Issue #104: IP rules — the pattern must be a valid CIDR
+			// (IPv4 or IPv6); anything else would produce a config the
+			// core refuses to load.
+			if _, _, err := net.ParseCIDR(o.Pattern); err != nil {
+				continue
+			}
+		case "geoip":
+			// Issue #104: GEOIP — ISO country code or the reserved
+			// keywords mihomo documents (LAN / private ranges).
+			if !validGeoIPPattern(o.Pattern) {
+				continue
+			}
 		default:
 			o.Type = "domain-suffix"
 		}
@@ -507,6 +558,26 @@ func sanitizeRoutingOverrides(in []RoutingOverride) []RoutingOverride {
 		out = []RoutingOverride{}
 	}
 	return out
+}
+
+// validGeoIPPattern accepts ISO 3166-1 alpha-2 country codes (case-
+// insensitive) plus mihomo's reserved GEOIP keywords. Upper-cased for
+// emission — GEOIP wants "CN", "US", "LAN", "PRIVATE".
+func validGeoIPPattern(p string) bool {
+	p = strings.ToUpper(strings.TrimSpace(p))
+	switch p {
+	case "LAN", "PRIVATE":
+		return true
+	}
+	if len(p) != 2 {
+		return false
+	}
+	for _, r := range p {
+		if r < 'A' || r > 'Z' {
+			return false
+		}
+	}
+	return true
 }
 
 func clampInt(v, lo, hi, def int) int {

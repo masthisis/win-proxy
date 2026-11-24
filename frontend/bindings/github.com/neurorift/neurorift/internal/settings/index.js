@@ -6,6 +6,7 @@ export {
     Core,
     DNS,
     Failover,
+    Geo,
     KCP,
     Log,
     Nodes,

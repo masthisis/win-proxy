@@ -123,6 +123,13 @@ func main() {
 		return
 	}
 
+	// Issue #105: the uwp-exempt subcommand is the elevated one-shot child
+	// that adds every AppContainer to the loopback exemption list (UWP apps
+	// + system proxy). Never starts the GUI; same pre-GUI pattern as above.
+	if len(os.Args) > 1 && os.Args[1] == "uwp-exempt" {
+		os.Exit(runUWPExemptChild())
+	}
+
 	startMinimized := hasFlag("--minimized") || hasFlag("-m")
 
 	// From the very first statement, make every failure visible: GUI-
@@ -329,6 +336,21 @@ func installBridges(app *application.App) {
 			AddFilter("Profile configs", "*.yaml;*.yml;*.json;*.conf").
 			AddFilter("QR images", "*.png;*.jpg;*.jpeg").
 			AddFilter("All files", "*").
+			PromptForSingleSelection()
+	}
+	pickSaveFn = func() (string, error) {
+		return app.Dialog.SaveFile().
+			SetFilename("neurorift-backup.zip").
+			AddFilter("Backup archives", "*.zip").
+			CanCreateDirectories(true).
+			PromptForSingleSelection()
+	}
+	pickZipFn = func() (string, error) {
+		return app.Dialog.OpenFile().
+			SetTitle("Restore NeuroRift backup").
+			CanChooseFiles(true).
+			CanChooseDirectories(false).
+			AddFilter("Backup archives", "*.zip").
 			PromptForSingleSelection()
 	}
 	autostartOnFn = func(args []string) error {

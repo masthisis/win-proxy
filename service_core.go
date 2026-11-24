@@ -26,6 +26,13 @@ func (s *CoreService) Stop() error { return s.c.Engine.Stop() }
 // Restart recycles the engine.
 func (s *CoreService) Restart() error { return s.c.Engine.Restart(context.Background()) }
 
+// RefreshGeoData re-downloads the geo databases from the configured mirror
+// (issue #106): stops the core, deletes the local geodata files, restarts —
+// mihomo fetches fresh files at boot.
+func (s *CoreService) RefreshGeoData() error {
+	return s.c.Engine.RefreshGeoData(context.Background())
+}
+
 // CoreUpdateInfo describes an available core update.
 type CoreUpdateInfo struct {
 	Current   string `json:"current"`

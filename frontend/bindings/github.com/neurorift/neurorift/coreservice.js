@@ -30,6 +30,16 @@ export function CheckUpdate() {
 }
 
 /**
+ * RefreshGeoData re-downloads the geo databases from the configured mirror
+ * (issue #106): stops the core, deletes the local geodata files, restarts —
+ * mihomo fetches fresh files at boot.
+ * @returns {$CancellablePromise<void>}
+ */
+export function RefreshGeoData() {
+    return $Call.ByID(950536466);
+}
+
+/**
  * Restart recycles the engine.
  * @returns {$CancellablePromise<void>}
  */

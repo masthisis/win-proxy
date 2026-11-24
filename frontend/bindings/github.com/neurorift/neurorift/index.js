@@ -25,6 +25,7 @@ export {
 
 export {
     AppInfo,
+    BackupSummary,
     BootPhase,
     BootReport,
     CoreUpdateInfo,
@@ -33,5 +34,6 @@ export {
     PendingInfo,
     PortableInfo,
     ProxyModeState,
+    RestoreSummary,
     SysProxyState
 } from "./models.js";
