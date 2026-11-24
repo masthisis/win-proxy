@@ -79,6 +79,26 @@ async function importLegacy(): Promise<void> {
   }
 }
 
+// ---- proxy chains (#107): created from node chips on the Dashboard;
+// this card lists them and allows removal. Removal goes through the
+// service (read-modify-write + engine reapply) and syncs the local form
+// so a later Save cannot resurrect the deleted chain.
+const chainBusy = ref(false);
+
+async function removeChain(id: string): Promise<void> {
+  if (chainBusy.value) return;
+  chainBusy.value = true;
+  try {
+    const next = await SettingsSvc.RemoveProxyChain(id);
+    if (form.value) form.value.proxyChains = next ?? [];
+    toast.success(t("dash.chainRemoved"));
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    chainBusy.value = false;
+  }
+}
+
 const open = reactive<Record<string, boolean>>({
   general: true,
   proxy: false,
@@ -93,6 +113,7 @@ const open = reactive<Record<string, boolean>>({
   tun: false,
   subscriptions: false,
   routing: false,
+  chains: false,
   maintenance: false,
   updates: false,
   reporting: false,
@@ -1233,6 +1254,35 @@ async function importOverrides(ev: Event): Promise<void> {
             <input ref="ovFile" type="file" accept=".yaml,.yml,.txt" style="display: none" @change="importOverrides" />
           </div>
           <p class="hint" style="margin: 10px 0 0">{{ t("settings.routingHint") }}</p>
+        </div>
+      </section>
+
+      <!-- Proxy chains (#107) -->
+      <section class="panel">
+        <button class="section-head" :aria-expanded="open.chains" @click="open.chains = !open.chains">
+          <IconChevron :size="14" class="chev" :class="{ open: open.chains }" />
+          {{ t("settings.secChains") }}
+          <span v-if="form?.proxyChains?.length" class="badge accent">{{ form.proxyChains.length }}</span>
+        </button>
+        <div v-if="open.chains" style="margin-top: 12px">
+          <p class="hint" style="margin: 0 0 10px">{{ t("settings.chainsDesc") }}</p>
+
+          <div v-if="!form?.proxyChains?.length" class="dim" style="padding: 6px 0 10px">
+            {{ t("settings.chainsEmpty") }}
+          </div>
+
+          <div v-for="c in form?.proxyChains ?? []" :key="c.id" class="row" style="gap: 8px; margin-bottom: 6px">
+            <span class="mono small" style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis" :title="c.node">
+              {{ c.node }}
+            </span>
+            <span class="dim small">{{ t("settings.chainsVia") }}</span>
+            <span class="mono small" style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis" :title="c.via">
+              {{ c.via }}
+            </span>
+            <button class="btn-icon" :aria-label="t('common.delete')" :title="t('common.delete')" :disabled="chainBusy" @click="removeChain(c.id)">
+              <IconTrash :size="13" />
+            </button>
+          </div>
         </div>
       </section>
 

@@ -402,6 +402,18 @@ func (m *Manager) AddFromFile(ctx context.Context, path string) (*Summary, error
 // profile first) and exports it for sharing (issue #102). Profiles that
 // cannot be read are skipped, not fatal.
 func (m *Manager) ShareInfoFor(node string) (*ShareInfo, error) {
+	raw, err := m.NodeMapFor(node)
+	if err != nil {
+		return nil, err
+	}
+	return ExportShareInfo(raw)
+}
+
+// NodeMapFor returns the raw config map of one node, searched across
+// every profile (active first, then the rest — same order as the UI).
+// Used by share-link export (#102) and proxy-chain derivation (#107):
+// both need the ORIGINAL node mapping to serialize / copy it.
+func (m *Manager) NodeMapFor(node string) (map[string]any, error) {
 	active := m.ActiveID()
 	ids := make([]string, 0, 8)
 	if active != "" {
@@ -429,7 +441,7 @@ func (m *Manager) ShareInfoFor(node string) (*ShareInfo, error) {
 		if raw == nil {
 			continue
 		}
-		return ExportShareInfo(raw)
+		return raw, nil
 	}
 	return nil, fmt.Errorf("node %q not found in any profile", node)
 }

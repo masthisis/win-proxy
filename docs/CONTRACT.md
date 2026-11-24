@@ -69,6 +69,8 @@ a bound signature changes.
 | --- | --- |
 | `Get()` | `Settings` (full document, see below) |
 | `Save(next)` | sanitized `Settings` (engine re-applies automatically) |
+| `AddProxyChain(node, via)` | `ProxyChain[]` | #107: creates/replaces the chain "node dials via front" (mihomo dialer-proxy); read-modify-write under the settings lock, engine re-applies. Idempotent when the pair is unchanged |
+| `RemoveProxyChain(id)` | `ProxyChain[]` | #107: deletes the chain by id |
 
 ### TestService (`testservice`)
 | Method | Returns | Notes |
@@ -251,6 +253,13 @@ routingOverrides: [{pattern, type: "domain-suffix"|"domain"|"domain-keyword"|"pr
                     "ip-cidr"|"geoip", target}] — high-priority rules after the LAN
                     block, ≤200 (#50; ip-cidr/geoip: #104 — domain-type
                     rules emit before IP-type, IPv6 CIDRs → IP-CIDR6)
+proxyChains: [{id, node, via}] — two-hop chains (#107): config generation
+                    materializes a static "node via via" proxy with
+                    dialer-proxy (provider fronts get a static "via: ..."
+                    backing copy — mihomo resolves dialer-proxy against
+                    static proxies/groups only); entries join the routing
+                    groups on nodes-kind profiles; stale endpoints are
+                    skipped; ≤64, one chain per landing node
 bypassCN: bool — GEOSITE,cn + GEOIP,CN direct rules after the LAN block,
           before the user overrides (#96)
 geo: {mirror: ""|"jsdelivr"|"fastly"|"ghproxy"|"direct"} — geox-url

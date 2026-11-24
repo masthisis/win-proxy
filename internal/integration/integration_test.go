@@ -104,57 +104,8 @@ func newFixture(t *testing.T) *fixture {
 	}))
 
 	// proxyNode: an HTTP forward proxy acting as a genuinely working "proxy
-	// node". mihomo's HTTP node uses CONNECT tunneling for all traffic, so
-	// CONNECT support is mandatory; the absolute-URI GET form is kept as a
-	// fallback for direct clients.
-	proxyNode := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodConnect {
-			dst, err := net.DialTimeout("tcp", r.Host, 5*time.Second)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadGateway)
-				return
-			}
-			hj, ok := w.(http.Hijacker)
-			if !ok {
-				dst.Close()
-				http.Error(w, "no hijack", http.StatusInternalServerError)
-				return
-			}
-			client, _, err := hj.Hijack()
-			if err != nil {
-				dst.Close()
-				return
-			}
-			if _, err := client.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n")); err != nil {
-				client.Close()
-				dst.Close()
-				return
-			}
-			go func() {
-				_, _ = io.Copy(dst, client)
-				dst.Close()
-				client.Close()
-			}()
-			_, _ = io.Copy(client, dst)
-			dst.Close()
-			client.Close()
-			return
-		}
-		if !strings.HasPrefix(r.RequestURI, "http://") && !strings.HasPrefix(r.RequestURI, "https://") {
-			w.WriteHeader(400)
-			_, _ = w.Write([]byte("mock proxy: not an absolute URI: " + r.RequestURI))
-			return
-		}
-		resp, err := http.Get(r.RequestURI)
-		if err != nil {
-			w.WriteHeader(502)
-			_, _ = w.Write([]byte("mock proxy fetch error: " + err.Error()))
-			return
-		}
-		defer resp.Body.Close()
-		w.WriteHeader(resp.StatusCode)
-		_, _ = io.Copy(w, resp.Body)
-	}))
+	// node" (same handler as the chain test's landing server).
+	proxyNode := httptest.NewServer(proxyHandler())
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	b := bus.New(logger)
@@ -241,6 +192,61 @@ func (f *fixture) stop() {
 	_ = f.eng.Stop()
 	f.proxyNode.Close()
 	f.upstream.Close()
+}
+
+// proxyHandler builds an HTTP forward proxy: CONNECT tunneling (what
+// mihomo's http node uses for all traffic) plus the absolute-URI GET form
+// as a fallback for direct clients. Used by the fixture's working node and
+// by the chain test's landing server (#107).
+func proxyHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodConnect {
+			dst, err := net.DialTimeout("tcp", r.Host, 5*time.Second)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadGateway)
+				return
+			}
+			hj, ok := w.(http.Hijacker)
+			if !ok {
+				dst.Close()
+				http.Error(w, "no hijack", http.StatusInternalServerError)
+				return
+			}
+			client, _, err := hj.Hijack()
+			if err != nil {
+				dst.Close()
+				return
+			}
+			if _, err := client.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n")); err != nil {
+				client.Close()
+				dst.Close()
+				return
+			}
+			go func() {
+				_, _ = io.Copy(dst, client)
+				dst.Close()
+				client.Close()
+			}()
+			_, _ = io.Copy(client, dst)
+			dst.Close()
+			client.Close()
+			return
+		}
+		if !strings.HasPrefix(r.RequestURI, "http://") && !strings.HasPrefix(r.RequestURI, "https://") {
+			w.WriteHeader(400)
+			_, _ = w.Write([]byte("mock proxy: not an absolute URI: " + r.RequestURI))
+			return
+		}
+		resp, err := http.Get(r.RequestURI)
+		if err != nil {
+			w.WriteHeader(502)
+			_, _ = w.Write([]byte("mock proxy fetch error: " + err.Error()))
+			return
+		}
+		defer resp.Body.Close()
+		w.WriteHeader(resp.StatusCode)
+		_, _ = io.Copy(w, resp.Body)
+	})
 }
 
 // ensureCore makes sure the real mihomo binary exists in the fixture.

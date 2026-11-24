@@ -12,6 +12,7 @@ export {
     Nodes,
     PAC,
     Ports,
+    ProxyChain,
     ProxyGuard,
     Reporting,
     RoutingOverride,

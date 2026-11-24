@@ -47,6 +47,69 @@ func (s *SettingsService) Save(next settings.Settings) (settings.Settings, error
 	return saved, nil
 }
 
+// AddProxyChain creates or replaces the chain for a landing node (#107):
+// the node dials through the front (mihomo dialer-proxy). Read-modify-write
+// under the settings lock, then a settings-scoped engine reapply — the
+// derived static proxies appear on the next config regeneration.
+func (s *SettingsService) AddProxyChain(node, via string) ([]settings.ProxyChain, error) {
+	node, via = strings.TrimSpace(node), strings.TrimSpace(via)
+	if node == "" || via == "" {
+		return nil, errors.New("chain needs both a landing and a front node")
+	}
+	if node == via {
+		return nil, errors.New("a node cannot be chained through itself")
+	}
+	cur := s.c.Settings.Get()
+	chains := make([]settings.ProxyChain, 0, len(cur.ProxyChains)+1)
+	replaced := false
+	for _, c := range cur.ProxyChains {
+		if c.Node == node {
+			if c.Via == via {
+				return cur.ProxyChains, nil // unchanged — idempotent
+			}
+			c.Via = via
+			c.ID = settings.ChainID(node, via)
+			replaced = true
+		}
+		chains = append(chains, c)
+	}
+	if !replaced {
+		chains = append(chains, settings.ProxyChain{ID: settings.ChainID(node, via), Node: node, Via: via})
+	}
+	return s.saveChains(cur, chains)
+}
+
+// RemoveProxyChain deletes the chain with the given id (#107).
+func (s *SettingsService) RemoveProxyChain(id string) ([]settings.ProxyChain, error) {
+	cur := s.c.Settings.Get()
+	chains := make([]settings.ProxyChain, 0, len(cur.ProxyChains))
+	removed := false
+	for _, c := range cur.ProxyChains {
+		if c.ID == id {
+			removed = true
+			continue
+		}
+		chains = append(chains, c)
+	}
+	if !removed {
+		return cur.ProxyChains, nil
+	}
+	return s.saveChains(cur, chains)
+}
+
+// saveChains persists an updated chain list through the normal settings
+// pipeline (validate → save → engine reapply) and returns the stored list.
+func (s *SettingsService) saveChains(cur settings.Settings, chains []settings.ProxyChain) ([]settings.ProxyChain, error) {
+	next := cur
+	next.ProxyChains = chains
+	saved, err := s.c.Settings.Replace(next)
+	if err != nil {
+		return cur.ProxyChains, err
+	}
+	s.c.Engine.ReapplyForSettings(context.Background(), cur, saved)
+	return saved.ProxyChains, nil
+}
+
 // TestService runs latency and speed tests.
 type TestService struct{ c *Container }
 

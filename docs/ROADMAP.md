@@ -7,9 +7,10 @@ the standard workflow: issue → branch → PR → CI → squash-merge, followed
 release train (version bump, changelog, tag). This file is kept in sync
 whenever issues close.
 
-Released: v1.14.0 (2026-11-24) — awesome-tools client parity: share links +
-QR (#102), backup & restore (#103), IP-CIDR/GEOIP overrides (#104), UWP
-loopback exemption (#105), geo database manager (#106). v1.13.0 (2026-11-24)
+Released: v1.15.0 — proxy chains (前置/落地, #107). v1.14.0 (2026-11-24) —
+awesome-tools client parity: share links + QR (#102), backup & restore
+(#103), IP-CIDR/GEOIP overrides (#104), UWP loopback exemption (#105), geo
+database manager (#106). v1.13.0 (2026-11-24)
 — v2rayNG settings parity (#96) + custom subscription headers (#75);
 v1.12.0 WireGuard import; v1.11.0 (2026-11-22) PAC mode; v1.10.0 TUN service
 complete (#14 done); v1.9.0 TUN service foundation; v1.8.0 sing-box import.
@@ -64,13 +65,20 @@ complete (#14 done); v1.9.0 TUN service foundation; v1.8.0 sing-box import.
 
 ### 1. #107 — proxy chains (前置/落地 proxy via mihomo dialer-proxy)
 
-v2rayN wiki "前置代理和落地代理说明": chain an outbound through another
-node first. Next implementation target (top of the queue after the
-v1.14.0 parity release): right-click a node → "Route via…" creates a
-derived `A via B` proxy (copy of A with `dialer-proxy: B`) in an
-app-managed proxies block, joined into the url-test group; re-derived on
-provider updates; validated when either endpoint disappears. Acceptance:
-two-hop chain proven in the integration suite.
+> **LANDED — ships in v1.15.0.** Right-click a node chip → "Route via…"
+> picks the front node; the chain materializes as a static `proxies:`
+> entry `<A> via <B>` carrying `dialer-proxy` (provider fronts get a
+> static `via: <B>` backing copy — verified against mihomo v1.19.34
+> source: `config/utils.go validateDialerProxies` and
+> `component/proxydialer` resolve ONLY static proxies/groups). Entries
+> join Node Select + NR Auto on nodes-kind profiles and stay referenceable
+> from clash-doc rules/groups. Re-derived from live node maps on every
+> generation (subscription updates picked up automatically); stale
+> endpoints are skipped; derived-name collisions are refused (mihomo
+> rejects duplicate names). Settings → Proxy chains lists/removes chains.
+> Acceptance: `TestProxyChain_TwoHops` proves the chain END-TO-END on the
+> real core (latency through front → landing → upstream, and traversal
+> proven by killing the front — the chain must die with it).
 
 ### 2. #14 — TUN service mode (no UAC prompt on every launch)
 
@@ -142,10 +150,18 @@ same subscriptions.
 ## Agent-filed backlog (after the user-requested set, or as small
 companion items when a cycle has capacity left)
 
-- **#75 — per-profile User-Agent for subscription fetch** — SHIPPED in
-  v1.12.0: `clash-verge/v2.4.4` default (panels serve tuned Clash YAML to
-  clash-family clients) plus a per-subscription override in the Profiles UI.
-  The general "custom headers" half of the issue stays open.
+- **#114 — per-profile enhancement chain** (YAML merge docs + config
+  scripts, Clash Verge Rev parity) — filed 2026-11-25 with a full plan
+  (merge semantics, goja sandbox, configgen hook, two-layer validation).
+  The last big config-shaping gap vs competitors.
+- **#115 — rule-providers management** (mihomo rule-sets .mrs/yaml/text +
+  RULE-SET rules GUI) — filed 2026-11-25, schema verified against
+  mihomo v1.19.34 rules/provider/parse.go; carries health badges via the
+  provider API.
+- **#100 — TLS ClientHello fragmentation** — no mihomo support; Xray-core
+  only, sidecar/upstream paths documented on the issue.
+- **#108 — per-proxy traffic accounting** (mihomo external controller
+  surface; v2rayN server-statistics parity).
 - **#76 — pause traffic sampling / chart work while the window is hidden**
   (frontend-only; Clash Verge Rev's CPU fix). Visibility-gated ring-buffer
   pushes in `store.ts`.
