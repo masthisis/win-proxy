@@ -6,6 +6,10 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as backup$0 from "./internal/backup/models.js";
+
 /**
  * AppInfo describes the running build.
  */
@@ -80,6 +84,16 @@ export class AppInfo {
         return new AppInfo(/** @type {Partial<AppInfo>} */($$parsedSource));
     }
 }
+
+/**
+ * BackupSummary describes what was exported (service-facing alias).
+ */
+export const BackupSummary = backup$0.ExportSummary;
+
+/**
+ * BackupSummary describes what was exported (service-facing alias).
+ * @typedef {backup$0.ExportSummary} BackupSummary
+ */
 
 /**
  * BootPhase is one measured startup segment (#27).
@@ -511,6 +525,16 @@ export class ProxyModeState {
         return new ProxyModeState(/** @type {Partial<ProxyModeState>} */($$parsedSource));
     }
 }
+
+/**
+ * RestoreSummary describes what a restore did (service-facing alias).
+ */
+export const RestoreSummary = backup$0.RestoreSummary;
+
+/**
+ * RestoreSummary describes what a restore did (service-facing alias).
+ * @typedef {backup$0.RestoreSummary} RestoreSummary
+ */
 
 /**
  * SysProxyState mirrors platform state.

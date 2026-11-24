@@ -426,3 +426,45 @@ func TestGenerateClash_ParityInjection(t *testing.T) {
 		t.Errorf("user's own proxy must stay verbatim:\n%s", out)
 	}
 }
+
+// TestGenerateNodes_IPOverrides (issue #104): ip-cidr and geoip override
+// types emit with the right prefixes (IP-CIDR6 for IPv6), domain-type
+// overrides stay ahead of IP-type overrides, and GEOIP patterns are
+// upper-cased.
+func TestGenerateNodes_IPOverrides(t *testing.T) {
+	gen := newGenForTest(t, "aaaa",
+		profile.Profile{ID: "aaaa", Name: "Sub One", Kind: profile.KindNodes},
+	)
+	setOverrides(t, gen,
+		settings.RoutingOverride{Pattern: "2001:db8::/32", Type: "ip-cidr", Target: "n-aaaa"},
+		settings.RoutingOverride{Pattern: "openai.com", Type: "domain-suffix", Target: "n-aaaa"},
+		settings.RoutingOverride{Pattern: "10.0.8.0/24", Type: "ip-cidr", Target: "DIRECT"},
+		settings.RoutingOverride{Pattern: "ir", Type: "geoip", Target: "DIRECT"},
+		settings.RoutingOverride{Pattern: "not-a-cidr", Type: "ip-cidr", Target: "DIRECT"},
+	)
+	out, err := gen.Generate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rulesBlock := out[strings.Index(out, "rules:"):]
+	for _, want := range []string{
+		"IP-CIDR6,2001:db8::/32,n-aaaa",
+		"IP-CIDR,10.0.8.0/24,DIRECT",
+		"GEOIP,IR,DIRECT",
+		"DOMAIN-SUFFIX,openai.com,n-aaaa",
+	} {
+		if !strings.Contains(rulesBlock, want) {
+			t.Errorf("missing rule %q in:\n%s", want, rulesBlock)
+		}
+	}
+	if strings.Contains(rulesBlock, "not-a-cidr") {
+		t.Errorf("invalid CIDR must not be emitted (sanitize drops it):\n%s", rulesBlock)
+	}
+	// Ordering (#104): domain overrides before IP overrides.
+	if dom := strings.Index(rulesBlock, "DOMAIN-SUFFIX,openai.com"); dom < 0 {
+		t.Fatalf("domain override missing")
+	}
+	if dom, ip6 := strings.Index(rulesBlock, "DOMAIN-SUFFIX,openai.com"), strings.Index(rulesBlock, "IP-CIDR6,2001:db8"); !(dom < ip6) {
+		t.Errorf("domain-type overrides must precede IP-type overrides:\n%s", rulesBlock)
+	}
+}

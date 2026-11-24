@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -269,6 +270,43 @@ func (m *Manager) Stop() error {
 // Restart = Stop + Start.
 func (m *Manager) Restart(ctx context.Context) error {
 	_ = m.Stop()
+	return m.Start(ctx)
+}
+
+// geoDataFiles are the geodata files mihomo stores in its config dir
+// (CoreDir), in both spellings seen across mihomo versions (#106).
+var geoDataFiles = []string{
+	"country.mmdb", "Country.mmdb",
+	"geoip.dat", "GeoIP.dat",
+	"geosite.dat", "GeoSite.dat",
+	"GeoLite2-ASN.mmdb", "ASN.mmdb",
+}
+
+// RefreshGeoData forces a geodata refresh (issue #106): the geo files in
+// the core dir are deleted and the core restarted — mihomo re-downloads
+// them at boot from the configured geox-url mirror. When the engine is not
+// running the files are just deleted; the next Start fetches them.
+func (m *Manager) RefreshGeoData(ctx context.Context) error {
+	wasRunning := m.host.Running()
+	if wasRunning {
+		if err := m.Stop(); err != nil {
+			return fmt.Errorf("stop core for geo refresh: %w", err)
+		}
+	}
+	removed := 0
+	for _, name := range geoDataFiles {
+		if err := os.Remove(filepath.Join(m.Core.CoreDir, name)); err == nil {
+			removed++
+		}
+	}
+	if removed == 0 {
+		m.Log.Info("geo refresh: no local geodata files found")
+	} else {
+		m.Log.Info("geo refresh: removed stale geodata", "files", removed)
+	}
+	if !wasRunning {
+		return nil
+	}
 	return m.Start(ctx)
 }
 

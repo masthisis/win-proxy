@@ -227,6 +227,58 @@ func (s *SysService) OpenFolder(which string) error {
 // OpenURL opens an external URL in the default browser.
 func (s *SysService) OpenURL(url string) error { return openURL(url) }
 
+// ExemptUWP adds every installed UWP/AppContainer app to the Windows
+// loopback exemption list so UWP apps can use the 127.0.0.1 system proxy
+// (issue #105, v2rayN 解除Win10 UWP回环限制 parity). When not elevated a
+// single UAC prompt launches the elevated child that performs the change.
+func (s *SysService) ExemptUWP() (platform.UWPExemptResult, error) {
+	return platform.ExemptUWP()
+}
+
+// UWPExemptCount reports how many AppContainers are currently exempted
+// from the loopback isolation (issue #105).
+func (s *SysService) UWPExemptCount() (int, error) {
+	return platform.UWPExemptCount()
+}
+
+// BackupExport opens a save dialog and writes the full app state (settings,
+// profile registry, provider/clash files) into a zip (issue #103). Returns
+// nil, nil when the dialog is cancelled.
+func (s *SysService) BackupExport() (*BackupSummary, error) {
+	dest, err := pickSaveFile()
+	if err != nil {
+		return nil, err
+	}
+	if dest == "" {
+		return nil, nil
+	}
+	return exportBackup(s.c.Paths, dest)
+}
+
+// BackupRestore opens a zip dialog, validates the backup marker, keeps a
+// safety backup of the current state, swaps the files in (engine stopped)
+// and returns the summary (issue #103). The UI then calls RestartApp.
+// Returns nil, nil when the dialog is cancelled.
+func (s *SysService) BackupRestore() (*RestoreSummary, error) {
+	src, err := pickZipFile()
+	if err != nil {
+		return nil, err
+	}
+	if src == "" {
+		return nil, nil
+	}
+	if err := s.c.Engine.Stop(); err != nil {
+		return nil, fmt.Errorf("stop engine before restore: %w", err)
+	}
+	return restoreBackup(s.c.Paths, src)
+}
+
+// RestartApp relaunches the app cleanly (used after a backup restore,
+// issue #103) — every in-memory manager reloads from the restored files.
+func (s *SysService) RestartApp() error {
+	return relaunchAppThenQuit()
+}
+
 // AppService exposes app metadata and small utilities.
 type AppService struct {
 	c *Container

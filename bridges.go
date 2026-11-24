@@ -12,6 +12,8 @@ var (
 	openPathFn      func(string) error
 	openURLFn       func(string) error
 	pickFileFn      func() (string, error)
+	pickSaveFn      func() (string, error) // save-file dialog (#103)
+	pickZipFn       func() (string, error) // open-zip dialog for restore (#103)
 	autostartOnFn   func(args []string) error
 	autostartOffFn  func() error
 	autostartIsOnFn func() (bool, error)
@@ -50,6 +52,23 @@ func pickFile() (string, error) {
 		return "", errBridgeUnavailable
 	}
 	return pickFileFn()
+}
+
+// pickSaveFile shows the native save-file dialog (backup export, #103).
+func pickSaveFile() (string, error) {
+	if pickSaveFn == nil {
+		return "", errBridgeUnavailable
+	}
+	return pickSaveFn()
+}
+
+// pickZipFile shows the native open-file dialog limited to zips (backup
+// restore, #103).
+func pickZipFile() (string, error) {
+	if pickZipFn == nil {
+		return "", errBridgeUnavailable
+	}
+	return pickZipFn()
 }
 
 // setAutostart registers/unregisters login launch (args e.g. --minimized).
