@@ -7,12 +7,21 @@ the standard workflow: issue → branch → PR → CI → squash-merge, followed
 release train (version bump, changelog, tag). This file is kept in sync
 whenever issues close.
 
-Released: v1.11.0 (2026-11-22) — PAC mode; v1.10.0 TUN service complete
-(#14 done); v1.9.0 TUN service foundation; v1.8.0 sing-box import.
+Released: v1.13.0 (2026-11-24) — v2rayNG settings parity (#96) + custom
+subscription headers (#75); v1.12.0 WireGuard import; v1.11.0 (2026-11-22)
+PAC mode; v1.10.0 TUN service complete (#14 done); v1.9.0 TUN service
+foundation; v1.8.0 sing-box import.
+
+### 0-ter. #75 — subscription custom request headers
+
+> **LANDED — ships in v1.13.0 (PR #98).** The User-Agent half shipped in
+> v1.12.0; this lands the custom-header half: per-subscription extra fetch
+> headers (`Authorization`/`Cookie`/...) applied after the defaults, capped
+> and sanitized so a malformed entry can never break a fetch. UI EN/FA.
 
 ### 0-bis. #96 — v2rayNG settings parity (owner chat directive 2026-11-24)
 
-> **IN PROGRESS (branch feat/96-v2rayng-settings-parity).** Owner directive:
+> **LANDED — ships in v1.13.0 (PR #97).** Owner directive:
 > implement ALL v2rayNG settings NeuroRift lacks, per official protocol docs
 > + mihomo core. Lands as: Connection defaults (UDP / IP-version strategy /
 > skip-cert-verify / uTLS fingerprint / sing-mux + KCP defaults) riding on
