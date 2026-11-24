@@ -76,6 +76,11 @@ type Profile struct {
 	// payload format per client UA, and some only hand out usable nodes to
 	// a client family they recognize (clash / v2rayNG / …).
 	UserAgent string `json:"userAgent,omitempty"`
+	// Headers are extra request headers sent when fetching this
+	// subscription (custom-header half of issue #75). They are applied
+	// verbatim AFTER the defaults, so they can override User-Agent and
+	// Accept — panels that need an Authorization/Cookie token use this.
+	Headers map[string]string `json:"headers,omitempty"`
 }
 
 // Summary is the API-facing projection of a Profile.

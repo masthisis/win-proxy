@@ -28,6 +28,7 @@ const INTERVALS = [0, 1, 6, 12, 24, 72];
 const url = ref("");
 const name = ref("");
 const userAgent = ref("");
+const headersText = ref("");
 const addingUrl = ref(false);
 const clipboardBusy = ref(false);
 const fileBusy = ref(false);
@@ -72,11 +73,12 @@ async function addFromUrl(): Promise<void> {
   if (!u || addingUrl.value) return;
   addingUrl.value = true;
   try {
-    const p = await Profile.AddFromURL(u, name.value.trim(), userAgent.value.trim());
+    const p = await Profile.AddFromURL(u, name.value.trim(), userAgent.value.trim(), parseHeaders(headersText.value));
     toast.success(t("toast.profileAdded", { name: p?.name ?? u }));
     url.value = "";
     name.value = "";
     userAgent.value = "";
+    headersText.value = "";
   } catch (e) {
     toast.error(errMsg(e));
   } finally {
@@ -201,6 +203,48 @@ async function setUserAgent(p: ProfileSummary, ua: string): Promise<void> {
     toast.error(errMsg(e));
   } finally {
     uaBusyId.value = null;
+  }
+}
+
+// ---- custom fetch headers (#75, custom-header half) ----
+// Textarea format: one "Name: value" per line. Empty text clears.
+type HeaderMap = { [x: string]: string | undefined };
+
+function parseHeaders(text: string): HeaderMap {
+  const out: HeaderMap = {};
+  for (const line of text.split("\n")) {
+    const i = line.indexOf(":");
+    if (i <= 0) continue;
+    const k = line.slice(0, i).trim();
+    const v = line.slice(i + 1).trim();
+    if (k && v) out[k] = v;
+  }
+  return out;
+}
+
+function headersToText(h?: HeaderMap): string {
+  if (!h) return "";
+  return Object.entries(h)
+    .filter(([k, v]) => k && v)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join("\n");
+}
+
+const hdrBusyId = ref<string | null>(null);
+
+async function setUserHeaders(p: ProfileSummary, text: string): Promise<void> {
+  const next = parseHeaders(text);
+  const current = headersToText(p.headers);
+  if (hdrBusyId.value || text.trim() === current) return;
+  hdrBusyId.value = p.id;
+  try {
+    await Profile.SetHeaders(p.id, next);
+    p.headers = next;
+    toast.success(Object.keys(next).length ? t("profiles.headersSet") : t("profiles.headersReset"));
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    hdrBusyId.value = null;
   }
 }
 
@@ -385,6 +429,17 @@ if (typeof window !== "undefined") {
             @keyup.enter="addFromUrl"
           />
         </div>
+        <div class="field" style="flex: 1; min-width: 220px; max-width: 420px">
+          <label for="sub-headers">{{ t("profiles.headers") }}</label>
+          <textarea
+            id="sub-headers"
+            v-model="headersText"
+            rows="2"
+            class="mono"
+            :placeholder="t('profiles.headersPlaceholder')"
+            :title="t('profiles.headersHint')"
+          />
+        </div>
       </div>
       <div class="row" style="margin-top: 10px">
         <button class="btn" :disabled="clipboardBusy" @click="fromClipboard()">
@@ -542,6 +597,20 @@ if (typeof window !== "undefined") {
               :title="t('profiles.userAgentHint')"
               :aria-label="t('profiles.userAgent')"
               @change="setUserAgent(p, ($event.target as HTMLInputElement).value)"
+            />
+          </span>
+          <span class="k">{{ t("profiles.headers") }}</span>
+          <span class="v">
+            <textarea
+              :value="headersToText(p.headers)"
+              :disabled="hdrBusyId === p.id"
+              rows="2"
+              class="mono"
+              style="width: 100%; max-width: 280px; resize: vertical"
+              :placeholder="t('profiles.headersPlaceholder')"
+              :title="t('profiles.headersHint')"
+              :aria-label="t('profiles.headers')"
+              @change="setUserHeaders(p, ($event.target as HTMLTextAreaElement).value)"
             />
           </span>
         </template>

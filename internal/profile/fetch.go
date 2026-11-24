@@ -43,6 +43,11 @@ type Fetcher struct {
 	// UserAgent overrides the request User-Agent; "" selects
 	// DefaultUserAgent (issue #75).
 	UserAgent string
+	// Headers are extra request headers applied verbatim after the
+	// defaults; they win over User-Agent/Accept (custom-header half of
+	// issue #75 — some panels need an Authorization/Cookie token or a
+	// specific Accept).
+	Headers map[string]string
 }
 
 // NewFetcher builds a fetcher; proxyURL may be "" for direct connections.
@@ -83,6 +88,15 @@ func (f *Fetcher) Fetch(ctx context.Context, url string) (*FetchResponse, error)
 	}
 	req.Header.Set("User-Agent", ua)
 	req.Header.Set("Accept", "*/*")
+	for k, v := range f.Headers {
+		k = strings.TrimSpace(k)
+		// Skip anything Go's http client would reject (spaces/colons
+		// in names) so one malformed entry cannot break the fetch.
+		if k == "" || v == "" || strings.ContainsAny(k, " :\t") {
+			continue
+		}
+		req.Header.Set(k, strings.TrimSpace(v))
+	}
 
 	resp, err := f.Client.Do(req)
 	if err != nil {

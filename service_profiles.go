@@ -16,9 +16,11 @@ func (s *ProfileService) List() []profile.Summary { return s.c.Profiles.List() }
 
 // AddFromURL subscribes to a URL. userAgent is optional ("" selects the
 // default, issue #75): panels serve different payload formats per client
-// User-Agent.
-func (s *ProfileService) AddFromURL(url, name, userAgent string) (*profile.Summary, error) {
-	return s.c.Profiles.AddFromURL(context.Background(), url, name, userAgent)
+// User-Agent. headers is an optional map of extra request headers applied
+// verbatim on top of the defaults (custom-header half of #75: some panels
+// need an Authorization/Cookie token or a specific Accept).
+func (s *ProfileService) AddFromURL(url, name, userAgent string, headers map[string]string) (*profile.Summary, error) {
+	return s.c.Profiles.AddFromURL(context.Background(), url, name, userAgent, headers)
 }
 
 // AddFromText imports pasted content (share links or Clash YAML).
@@ -76,6 +78,12 @@ func (s *ProfileService) SetInterval(id string, hours int) error {
 // ("" = default; issue #75).
 func (s *ProfileService) SetUserAgent(id, userAgent string) error {
 	return s.c.Profiles.SetUserAgent(id, userAgent)
+}
+
+// SetHeaders changes a subscription's extra fetch request headers
+// (nil/empty clears them; custom-header half of issue #75).
+func (s *ProfileService) SetHeaders(id string, headers map[string]string) error {
+	return s.c.Profiles.SetHeaders(id, headers)
 }
 
 // SetUnion toggles a profile's membership in the routing union (#48).

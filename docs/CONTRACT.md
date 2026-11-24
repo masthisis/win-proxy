@@ -249,6 +249,10 @@ reporting: {enable (default true), githubToken} — token stored locally only (#
 window: {width, height, x, y, maximised, set} — persisted geometry (#44)
 controllerSecret: string (auto-generated; read-only in practice)
 bypassDomains: string[]
+Profile (profiles list): ... userAgent, headers: {name: value, ...} — extra
+           fetch request headers applied verbatim after the defaults; they win
+           over User-Agent/Accept (#75). SetHeaders(id, headers) persists them;
+           AddFromURL(url, name, userAgent, headers) accepts them at import.
 ```
 
 Validation clamps every bounded field; `Save` returns the sanitized result.
