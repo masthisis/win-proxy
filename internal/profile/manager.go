@@ -242,6 +242,53 @@ func (m *Manager) SetUserAgent(id, ua string) error {
 	return os.ErrNotExist
 }
 
+// SetHeaders changes the extra fetch request headers of a subscription
+// (nil/empty clears them; custom-header half of #75). Keys and values are
+// trimmed; empty keys or values are dropped; the map is capped at 16 entries
+// and 4 KiB total (a sane ceiling — these are panel-auth headers, not bulk
+// config).
+func (m *Manager) SetHeaders(id string, headers map[string]string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	clean := sanitizeHeaders(headers)
+	for i := range m.reg.Profiles {
+		if m.reg.Profiles[i].ID == id {
+			m.reg.Profiles[i].Headers = clean
+			if err := m.store.Save(m.reg); err != nil {
+				return err
+			}
+			m.emitList()
+			return nil
+		}
+	}
+	return os.ErrNotExist
+}
+
+// sanitizeHeaders normalizes a header map (used at set time).
+func sanitizeHeaders(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	total := 0
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if k == "" || v == "" {
+			continue
+		}
+		total += len(k) + len(v)
+		if len(out) >= 16 || total > 4*1024 {
+			break
+		}
+		out[k] = v
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // Remove deletes a profile and its files. Removing the active profile
 // clears the active selection and reverts the engine to the empty config.
 func (m *Manager) Remove(ctx context.Context, id string) error {
@@ -280,9 +327,10 @@ func (m *Manager) Remove(ctx context.Context, id string) error {
 // ----------------------------------------------------------------- add ----
 
 // AddFromURL fetches a subscription and registers it. An empty userAgent
-// selects DefaultUserAgent (issue #75).
-func (m *Manager) AddFromURL(ctx context.Context, rawURL, name, userAgent string) (*Summary, error) {
-	fetcher := m.newFetcher(userAgent)
+// selects DefaultUserAgent (issue #75); headers is the optional extra-header
+// map (custom-header half of #75).
+func (m *Manager) AddFromURL(ctx context.Context, rawURL, name, userAgent string, headers map[string]string) (*Summary, error) {
+	fetcher := m.newFetcher(userAgent, headers)
 	resp, err := fetcher.Fetch(ctx, rawURL)
 	if err != nil {
 		return nil, err
@@ -301,6 +349,7 @@ func (m *Manager) AddFromURL(ctx context.Context, rawURL, name, userAgent string
 	p.IntervalH = m.settings.Get().Subscription.DefaultIntervalH
 	p.SubInfo = resp.SubInfo
 	p.UserAgent = strings.TrimSpace(userAgent)
+	p.Headers = sanitizeHeaders(headers)
 	return m.commitNew(ctx, p, dec)
 }
 
@@ -442,7 +491,7 @@ func (m *Manager) Update(ctx context.Context, id string) (*Summary, error) {
 		}
 	default: // subscriptions
 		m.progress(id, PhaseFetching, p.Source)
-		fetcher := m.newFetcher(p.UserAgent)
+		fetcher := m.newFetcher(p.UserAgent, p.Headers)
 		resp, err := fetcher.Fetch(ctx, p.Source)
 		if err != nil {
 			return nil, m.updateFailed(id, err)
@@ -610,7 +659,7 @@ func (m *Manager) findLocked(id string) (Profile, bool) {
 	return Profile{}, false
 }
 
-func (m *Manager) newFetcher(userAgent string) *Fetcher {
+func (m *Manager) newFetcher(userAgent string, headers map[string]string) *Fetcher {
 	s := m.settings.Get()
 	proxyURL := ""
 	if s.Subscription.UpdateViaProxy {
@@ -618,6 +667,7 @@ func (m *Manager) newFetcher(userAgent string) *Fetcher {
 	}
 	f := NewFetcher(proxyURL, 30*time.Second)
 	f.UserAgent = strings.TrimSpace(userAgent)
+	f.Headers = headers
 	return f
 }
 

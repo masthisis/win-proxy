@@ -53,14 +53,17 @@ export function AddFromText(text, name) {
 /**
  * AddFromURL subscribes to a URL. userAgent is optional ("" selects the
  * default, issue #75): panels serve different payload formats per client
- * User-Agent.
+ * User-Agent. headers is an optional map of extra request headers applied
+ * verbatim on top of the defaults (custom-header half of #75: some panels
+ * need an Authorization/Cookie token or a specific Accept).
  * @param {string} url
  * @param {string} name
  * @param {string} userAgent
+ * @param {{ [_ in string]?: string }} headers
  * @returns {$CancellablePromise<profile$0.Summary | null>}
  */
-export function AddFromURL(url, name, userAgent) {
-    return $Call.ByID(1738956852, url, name, userAgent).then(/** @type {($result: any) => any} */(($result) => {
+export function AddFromURL(url, name, userAgent, headers) {
+    return $Call.ByID(1738956852, url, name, userAgent, headers).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType1($result);
     }));
 }
@@ -134,6 +137,17 @@ export function Rename(id, name) {
  */
 export function SetActive(id) {
     return $Call.ByID(3395228430, id);
+}
+
+/**
+ * SetHeaders changes a subscription's extra fetch request headers
+ * (nil/empty clears them; custom-header half of issue #75).
+ * @param {string} id
+ * @param {{ [_ in string]?: string }} headers
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetHeaders(id, headers) {
+    return $Call.ByID(3904833614, id, headers);
 }
 
 /**

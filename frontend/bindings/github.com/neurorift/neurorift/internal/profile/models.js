@@ -192,6 +192,17 @@ export class Profile {
              */
             this["userAgent"] = undefined;
         }
+        if (/** @type {any} */(false)) {
+            /**
+             * Headers are extra request headers sent when fetching this
+             * subscription (custom-header half of issue #75). They are applied
+             * verbatim AFTER the defaults, so they can override User-Agent and
+             * Accept — panels that need an Authorization/Cookie token use this.
+             * @member
+             * @type {{ [_ in string]?: string } | undefined}
+             */
+            this["headers"] = undefined;
+        }
 
         Object.assign(this, $$source);
     }
@@ -203,9 +214,13 @@ export class Profile {
      */
     static createFrom($$source = {}) {
         const $$createField8_0 = $$createType1;
+        const $$createField12_0 = $$createType2;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("subInfo" in $$parsedSource) {
             $$parsedSource["subInfo"] = $$createField8_0($$parsedSource["subInfo"]);
+        }
+        if ("headers" in $$parsedSource) {
+            $$parsedSource["headers"] = $$createField12_0($$parsedSource["headers"]);
         }
         return new Profile(/** @type {Partial<Profile>} */($$parsedSource));
     }
@@ -245,7 +260,7 @@ export class RawEditResult {
      * @returns {RawEditResult}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType3;
+        const $$createField1_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("issues" in $$parsedSource) {
             $$parsedSource["issues"] = $$createField1_0($$parsedSource["issues"]);
@@ -366,7 +381,7 @@ export class UpdateSummary {
      * @returns {UpdateSummary}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType4;
+        const $$createField3_0 = $$createType2;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("errors" in $$parsedSource) {
             $$parsedSource["errors"] = $$createField3_0($$parsedSource["errors"]);
@@ -378,6 +393,6 @@ export class UpdateSummary {
 // Private type creation functions
 const $$createType0 = SubscriptionInfo.createFrom;
 const $$createType1 = $Create.Nullable($$createType0);
-const $$createType2 = LintIssue.createFrom;
-const $$createType3 = $Create.Array($$createType2);
-const $$createType4 = $Create.Map($Create.Any, $Create.Any);
+const $$createType2 = $Create.Map($Create.Any, $Create.Any);
+const $$createType3 = LintIssue.createFrom;
+const $$createType4 = $Create.Array($$createType3);
