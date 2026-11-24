@@ -88,6 +88,25 @@ export class DNS {
              */
             this["nameservers"] = [];
         }
+        if (!("mode" in $$source)) {
+            /**
+             * Mode is the mihomo enhanced-mode (v2rayNG domain strategy parity,
+             * issue #96): "fake-ip" (default, snappy, per-IP rules see fake IPs) or
+             * "redir-host" (real resolution, what v2rayNG calls UseIP behavior).
+             * @member
+             * @type {string}
+             */
+            this["mode"] = "";
+        }
+        if (!("ipv6" in $$source)) {
+            /**
+             * IPv6 toggles AAAA usage in the DNS layer (mihomo dns.ipv6). Off
+             * matches v2rayNG "UseIPv4"; on = dual-stack resolution.
+             * @member
+             * @type {boolean}
+             */
+            this["ipv6"] = false;
+        }
 
         Object.assign(this, $$source);
     }
@@ -171,6 +190,94 @@ export class Failover {
 }
 
 /**
+ * KCP carries v2rayNG's mKCP defaults, applied to vmess nodes whose network
+ * is kcp/mkcp (issue #96). mihomo models mKCP per node via mkcp-opts.
+ */
+export class KCP {
+    /**
+     * Creates a new KCP instance.
+     * @param {Partial<KCP>} [$$source = {}] - The source object to create the KCP.
+     */
+    constructor($$source = {}) {
+        if (!("mtu" in $$source)) {
+            /**
+             * MTU of the underlying UDP datagrams (300..1400).
+             * @member
+             * @type {number}
+             */
+            this["mtu"] = 0;
+        }
+        if (!("tti" in $$source)) {
+            /**
+             * TTI is the transmission time interval in ms (10..100).
+             * @member
+             * @type {number}
+             */
+            this["tti"] = 0;
+        }
+        if (!("uplinkCapacity" in $$source)) {
+            /**
+             * UplinkCapacity in MB/s (0 = dynamic defaults; Xray semantics).
+             * @member
+             * @type {number}
+             */
+            this["uplinkCapacity"] = 0;
+        }
+        if (!("downlinkCapacity" in $$source)) {
+            /**
+             * DownlinkCapacity in MB/s.
+             * @member
+             * @type {number}
+             */
+            this["downlinkCapacity"] = 0;
+        }
+        if (!("congestion" in $$source)) {
+            /**
+             * Congestion enables the KCP congestion control.
+             * @member
+             * @type {boolean}
+             */
+            this["congestion"] = false;
+        }
+        if (!("writeBufferMb" in $$source)) {
+            /**
+             * WriteBufferMB / ReadBufferMB are the KCP socket buffers.
+             * @member
+             * @type {number}
+             */
+            this["writeBufferMb"] = 0;
+        }
+        if (!("readBufferMb" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["readBufferMb"] = 0;
+        }
+        if (!("seed" in $$source)) {
+            /**
+             * Seed is the optional obfuscation seed ("" = none).
+             * @member
+             * @type {string}
+             */
+            this["seed"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new KCP instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {KCP}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new KCP(/** @type {Partial<KCP>} */($$parsedSource));
+    }
+}
+
+/**
  * Log configures logging verbosity.
  */
 export class Log {
@@ -207,6 +314,104 @@ export class Log {
     static createFrom($$source = {}) {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new Log(/** @type {Partial<Log>} */($$parsedSource));
+    }
+}
+
+/**
+ * Nodes are global defaults forced onto EVERY node of app-managed providers
+ * (subscription imports; issue #96 — v2rayNG core-settings parity). They ride
+ * on mihomo's provider `override` block (incl. override-expr), so they are
+ * applied config-side: hot on regeneration, no provider rewrites. Clash-kind
+ * profiles own their proxies verbatim — defaults never touch user documents.
+ */
+export class Nodes {
+    /**
+     * Creates a new Nodes instance.
+     * @param {Partial<Nodes>} [$$source = {}] - The source object to create the Nodes.
+     */
+    constructor($$source = {}) {
+        if (!("udp" in $$source)) {
+            /**
+             * UDP forces udp: on all nodes of app-managed providers (v2rayNG
+             * "allow UDP over proxy" toggle).
+             * @member
+             * @type {boolean}
+             */
+            this["udp"] = false;
+        }
+        if (!("ipVersion" in $$source)) {
+            /**
+             * IPVersion forces ip-version on all nodes ("" = core default dual).
+             * Values: dual | ipv4 | ipv6 | ipv4-prefer | ipv6-prefer.
+             * @member
+             * @type {string}
+             */
+            this["ipVersion"] = "";
+        }
+        if (!("skipCertVerify" in $$source)) {
+            /**
+             * SkipCertVerify forces skip-cert-verify on all nodes (v2rayNG
+             * allowInsecure). Self-signed server certs stop failing.
+             * @member
+             * @type {boolean}
+             */
+            this["skipCertVerify"] = false;
+        }
+        if (!("clientFingerprint" in $$source)) {
+            /**
+             * ClientFingerprint sets the uTLS fingerprint per node (v2rayNG TLS
+             * fingerprint; "" = leave nodes as-is). Values: chrome | firefox |
+             * safari | ios | android | edge | 360 | qq | random. mihomo's global
+             * field is deprecated upstream — this is injected per-proxy.
+             * @member
+             * @type {string}
+             */
+            this["clientFingerprint"] = "";
+        }
+        if (!("smuxEnable" in $$source)) {
+            /**
+             * SmuxEnable enables sing-mux on TCP-capable nodes (v2rayNG mux).
+             * @member
+             * @type {boolean}
+             */
+            this["smuxEnable"] = false;
+        }
+        if (!("smuxProtocol" in $$source)) {
+            /**
+             * SmuxProtocol is the multiplexing protocol: smux | yamux | h2mux.
+             * @member
+             * @type {string}
+             */
+            this["smuxProtocol"] = "";
+        }
+        if (!("smuxMaxConnections" in $$source)) {
+            /**
+             * SmuxMaxConnections caps concurrent mux connections (0 = core default).
+             * @member
+             * @type {number}
+             */
+            this["smuxMaxConnections"] = 0;
+        }
+        if (!("smuxPadding" in $$source)) {
+            /**
+             * SmuxPadding enables obfuscation padding on mux streams.
+             * @member
+             * @type {boolean}
+             */
+            this["smuxPadding"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Nodes instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {Nodes}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Nodes(/** @type {Partial<Nodes>} */($$parsedSource));
     }
 }
 
@@ -577,6 +782,31 @@ export class Settings {
              */
             this["pac"] = (new PAC());
         }
+        if (!("nodes" in $$source)) {
+            /**
+             * Nodes are global per-node defaults for app-managed providers
+             * (issue #96): udp / ip-version / skip-cert-verify / uTLS / smux.
+             * @member
+             * @type {Nodes}
+             */
+            this["nodes"] = (new Nodes());
+        }
+        if (!("kcp" in $$source)) {
+            /**
+             * KCP are the mKCP defaults for vmess kcp-transport nodes (#96).
+             * @member
+             * @type {KCP}
+             */
+            this["kcp"] = (new KCP());
+        }
+        if (!("sniffer" in $$source)) {
+            /**
+             * Sniffer configures mihomo traffic sniffing (#96).
+             * @member
+             * @type {Sniffer}
+             */
+            this["sniffer"] = (new Sniffer());
+        }
         if (!("routingOverrides" in $$source)) {
             /**
              * RoutingOverrides are injected as high-priority rules into every
@@ -585,6 +815,16 @@ export class Settings {
              * @type {RoutingOverride[]}
              */
             this["routingOverrides"] = [];
+        }
+        if (!("bypassCN" in $$source)) {
+            /**
+             * BypassCN routes mainland-China traffic DIRECT (v2rayNG "bypass
+             * mainland" parity, issue #96): GEOSITE,cn + GEOIP,CN. Placed after
+             * the LAN block and BEFORE the user overrides (#50 wins on conflict).
+             * @member
+             * @type {boolean}
+             */
+            this["bypassCN"] = false;
         }
         if (!("proxyGuard" in $$source)) {
             /**
@@ -650,12 +890,15 @@ export class Settings {
         const $$createField13_0 = $$createType7;
         const $$createField14_0 = $$createType8;
         const $$createField15_0 = $$createType9;
-        const $$createField16_0 = $$createType11;
-        const $$createField17_0 = $$createType12;
-        const $$createField18_0 = $$createType13;
+        const $$createField16_0 = $$createType10;
+        const $$createField17_0 = $$createType11;
+        const $$createField18_0 = $$createType12;
         const $$createField19_0 = $$createType14;
-        const $$createField20_0 = $$createType15;
-        const $$createField22_0 = $$createType0;
+        const $$createField21_0 = $$createType15;
+        const $$createField22_0 = $$createType16;
+        const $$createField23_0 = $$createType17;
+        const $$createField24_0 = $$createType18;
+        const $$createField26_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("ports" in $$parsedSource) {
             $$parsedSource["ports"] = $$createField7_0($$parsedSource["ports"]);
@@ -684,25 +927,101 @@ export class Settings {
         if ("pac" in $$parsedSource) {
             $$parsedSource["pac"] = $$createField15_0($$parsedSource["pac"]);
         }
+        if ("nodes" in $$parsedSource) {
+            $$parsedSource["nodes"] = $$createField16_0($$parsedSource["nodes"]);
+        }
+        if ("kcp" in $$parsedSource) {
+            $$parsedSource["kcp"] = $$createField17_0($$parsedSource["kcp"]);
+        }
+        if ("sniffer" in $$parsedSource) {
+            $$parsedSource["sniffer"] = $$createField18_0($$parsedSource["sniffer"]);
+        }
         if ("routingOverrides" in $$parsedSource) {
-            $$parsedSource["routingOverrides"] = $$createField16_0($$parsedSource["routingOverrides"]);
+            $$parsedSource["routingOverrides"] = $$createField19_0($$parsedSource["routingOverrides"]);
         }
         if ("proxyGuard" in $$parsedSource) {
-            $$parsedSource["proxyGuard"] = $$createField17_0($$parsedSource["proxyGuard"]);
+            $$parsedSource["proxyGuard"] = $$createField21_0($$parsedSource["proxyGuard"]);
         }
         if ("updates" in $$parsedSource) {
-            $$parsedSource["updates"] = $$createField18_0($$parsedSource["updates"]);
+            $$parsedSource["updates"] = $$createField22_0($$parsedSource["updates"]);
         }
         if ("reporting" in $$parsedSource) {
-            $$parsedSource["reporting"] = $$createField19_0($$parsedSource["reporting"]);
+            $$parsedSource["reporting"] = $$createField23_0($$parsedSource["reporting"]);
         }
         if ("window" in $$parsedSource) {
-            $$parsedSource["window"] = $$createField20_0($$parsedSource["window"]);
+            $$parsedSource["window"] = $$createField24_0($$parsedSource["window"]);
         }
         if ("bypassDomains" in $$parsedSource) {
-            $$parsedSource["bypassDomains"] = $$createField22_0($$parsedSource["bypassDomains"]);
+            $$parsedSource["bypassDomains"] = $$createField26_0($$parsedSource["bypassDomains"]);
         }
         return new Settings(/** @type {Partial<Settings>} */($$parsedSource));
+    }
+}
+
+/**
+ * Sniffer configures mihomo's traffic sniffer (v2rayNG sniffing parity,
+ * issue #96). Sniffed domains make domain rules work under TUN even when
+ * apps connect by IP.
+ */
+export class Sniffer {
+    /**
+     * Creates a new Sniffer instance.
+     * @param {Partial<Sniffer>} [$$source = {}] - The source object to create the Sniffer.
+     */
+    constructor($$source = {}) {
+        if (!("enable" in $$source)) {
+            /**
+             * Enable emits the sniffer block (off = config keeps whatever the
+             * profile shipped, matching v2rayNG's default-off).
+             * @member
+             * @type {boolean}
+             */
+            this["enable"] = false;
+        }
+        if (!("tls" in $$source)) {
+            /**
+             * TLS / HTTP / QUIC select the protocols to sniff.
+             * @member
+             * @type {boolean}
+             */
+            this["tls"] = false;
+        }
+        if (!("http" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["http"] = false;
+        }
+        if (!("quic" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["quic"] = false;
+        }
+        if (!("overrideDest" in $$source)) {
+            /**
+             * OverrideDest replaces the connection target with the sniffed
+             * domain (v2rayNG "route only for sniffed" is the complement —
+             * without override, sniffed domains only enrich rule matching).
+             * @member
+             * @type {boolean}
+             */
+            this["overrideDest"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Sniffer instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {Sniffer}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Sniffer(/** @type {Partial<Sniffer>} */($$parsedSource));
     }
 }
 
@@ -994,9 +1313,12 @@ const $$createType6 = Tun.createFrom;
 const $$createType7 = Subscription.createFrom;
 const $$createType8 = Log.createFrom;
 const $$createType9 = PAC.createFrom;
-const $$createType10 = RoutingOverride.createFrom;
-const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = ProxyGuard.createFrom;
-const $$createType13 = Updates.createFrom;
-const $$createType14 = Reporting.createFrom;
-const $$createType15 = WindowGeometry.createFrom;
+const $$createType10 = Nodes.createFrom;
+const $$createType11 = KCP.createFrom;
+const $$createType12 = Sniffer.createFrom;
+const $$createType13 = RoutingOverride.createFrom;
+const $$createType14 = $Create.Array($$createType13);
+const $$createType15 = ProxyGuard.createFrom;
+const $$createType16 = Updates.createFrom;
+const $$createType17 = Reporting.createFrom;
+const $$createType18 = WindowGeometry.createFrom;

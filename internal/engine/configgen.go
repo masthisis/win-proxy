@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -55,9 +56,11 @@ func (g *ConfigGen) Generate() (string, error) {
 // profile (issue #42): all imported subscriptions stay loaded so the Test
 // Center can latency/speed-test any of them. Only the ACTIVE profile gets
 // health-check enabled — inactive providers must not generate background
-// URL-test traffic.
+// URL-test traffic. Every provider carries the global node-defaults
+// `override` block (issue #96) so settings ride config-side.
 func (g *ConfigGen) appProviders(s settings.Settings, activeID string) *yamlx.OMap {
 	providers := newOMap()
+	ov := providerOverride(s)
 	for _, p := range g.Profiles.List() {
 		if p.Kind != profile.KindNodes {
 			continue
@@ -72,9 +75,120 @@ func (g *ConfigGen) appProviders(s settings.Settings, activeID string) *yamlx.OM
 				Set("url", s.Test.URL).
 				Set("interval", 300))
 		}
+		if ov != nil {
+			prov.Set("override", ov)
+		}
 		providers.Set(providerName(p.ID), prov)
 	}
 	return providers
+}
+
+// providerOverride renders mihomo's provider override block from the global
+// node defaults (issue #96). Verified against mihomo v1.19.34
+// adapter/provider/override.go (typed fields) and override_expr.go (the
+// yq-subset expression engine). Returns nil when nothing is forced so the
+// generated config stays minimal.
+func providerOverride(s settings.Settings) *yamlx.OMap {
+	ov := newOMap()
+	// Typed fields (adapter/provider/override.go overrideSchema). NOTE:
+	// override.Apply unconditionally writes each present field, so a
+	// `false` here would clobber subscription nodes that already carry
+	// udp/skip-cert-verify — the toggles therefore only force when ON
+	// ("off" leaves nodes exactly as the subscription shipped them).
+	if s.Nodes.UDP {
+		ov.Set("udp", true)
+	}
+	if s.Nodes.IPVersion != "" {
+		ov.Set("ip-version", s.Nodes.IPVersion)
+	}
+	if s.Nodes.SkipCertVerify {
+		ov.Set("skip-cert-verify", true)
+	}
+
+	// Expression fields (override-expr, evaluated in order per node):
+	var exprs []any
+	if s.Nodes.ClientFingerprint != "" {
+		// Quoted path: the field name contains a dash. Types without
+		// the field (wireguard, hysteria2...) ignore it silently —
+		// mihomo's structure decoder walks struct fields, not data
+		// keys (common/structure/structure.go).
+		exprs = append(exprs, fmt.Sprintf(`."client-fingerprint" = %q`, s.Nodes.ClientFingerprint))
+	}
+	if s.Nodes.SmuxEnable {
+		// sing-mux wrapping happens for every type (adapter/parser.go
+		// reads mapping["smux"] after the type switch), but multiplexing
+		// only makes sense over TCP transports — select() guards the
+		// UDP-only outbounds so a WireGuard/Hysteria2/TUIC node is
+		// never wrapped.
+		mux := map[string]any{
+			"enabled":  true,
+			"protocol": s.Nodes.SmuxProtocol,
+		}
+		if s.Nodes.SmuxMaxConnections > 0 {
+			mux["max-connections"] = s.Nodes.SmuxMaxConnections
+		}
+		if s.Nodes.SmuxPadding {
+			mux["padding"] = true
+		}
+		muxJSON, _ := json.Marshal(mux)
+		exprs = append(exprs, "(select("+muxTypesGuard+") | .smux) = "+string(muxJSON))
+	}
+	if k := kcpOverride(s.KCP); k != "" {
+		// Only when the KCP section deviates from the factory
+		// defaults: factory configs must stay byte-identical to
+		// pre-#96 output (zero-regression on existing setups).
+		exprs = append(exprs, "(select(.network == \"kcp\" or .network == \"mkcp\") | .\"mkcp-opts\") *= "+k)
+	}
+	if len(exprs) > 0 {
+		ov.Set("override-expr", exprs)
+	}
+	if ov.Len() == 0 {
+		return nil // nothing forced — omit the block entirely
+	}
+	return ov
+}
+
+// muxTypesGuard is the select() predicate for mux-eligible proxy types:
+// everything EXCEPT the UDP/loopback-only outbounds (sing-mux streams ride a
+// TCP-like stream dial; wrapping those types would only break them).
+var muxTypesGuard = strings.Join([]string{
+	".type != \"wireguard\"", ".type != \"hysteria\"", ".type != \"hysteria2\"",
+	".type != \"tuic\"", ".type != \"mieru\"", ".type != \"masque\"",
+	".type != \"dns\"", ".type != \"easytier\"", ".type != \"zerotier\"",
+	".type != \"tailscale\"", ".type != \"openvpn\"",
+}, " and ")
+
+// kcpOverride renders the mkcp-opts mapping literal from the KCP settings;
+// "" when the section matches the factory defaults (keep generated configs
+// minimal — issue #96).
+func kcpOverride(k settings.KCP) string {
+	if k == settings.Default().KCP {
+		return ""
+	}
+	m := map[string]any{}
+	m["mtu"] = k.MTU
+	m["tti"] = k.TTI
+	if k.UplinkCapacity > 0 {
+		m["uplink-capacity"] = k.UplinkCapacity
+	}
+	if k.DownlinkCapacity > 0 {
+		m["downlink-capacity"] = k.DownlinkCapacity
+	}
+	m["congestion"] = k.Congestion
+	if k.WriteBufferMB > 0 {
+		m["write-buffer"] = k.WriteBufferMB
+	}
+	if k.ReadBufferMB > 0 {
+		m["read-buffer"] = k.ReadBufferMB
+	}
+	if k.Seed != "" {
+		m["seed"] = k.Seed
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 // ---------------------------------------------------------------- nodes ----
@@ -104,6 +218,10 @@ func (g *ConfigGen) generateNodes(s settings.Settings, active profile.Summary, h
 		Set("store-selected", true).
 		Set("store-fake-ip", true))
 	root.Set("listeners", []any{speedtestListener(s)})
+
+	if sn := snifferNode(s); sn != nil {
+		root.Set("sniffer", sn)
+	}
 
 	applyDNS(root, s)
 
@@ -173,9 +291,10 @@ func (g *ConfigGen) generateNodes(s settings.Settings, active profile.Summary, h
 	}
 	root.Set("proxy-groups", groups)
 
-	// Rules: LAN direct block, then the user's routing overrides (#50),
-	// then the catch-all.
+	// Rules: LAN direct block, then optional CN bypass (#96), then the
+	// user's routing overrides (#50), then the catch-all.
 	rules := lanRules()
+	rules = append(rules, bypassRules(s)...)
 	rules = append(rules, g.overrideRuleNodes(s, g.providerTargets())...)
 	rules = append(rules, "MATCH,"+nr.GroupNodeSelect)
 	root.Set("rules", rules)
@@ -228,6 +347,10 @@ func (g *ConfigGen) generateClash(s settings.Settings, active profile.Summary) (
 		setMapKey(rootMap, "dns", dnsNode(s))
 	}
 
+	if sn := snifferNode(s); sn != nil {
+		setMapKey(rootMap, "sniffer", yamlNodeFrom(sn))
+	}
+
 	if s.Tun.Enable {
 		setMapKey(rootMap, "tun", tunNode(s))
 	}
@@ -278,8 +401,9 @@ func (g *ConfigGen) generateClash(s settings.Settings, active profile.Summary) (
 	}
 
 	// Issue #50: the user's routing overrides are spliced in right after
-	// the leading LAN block so local traffic keeps going direct while
-	// everything else respects the overrides before any profile rule.
+	// the leading LAN block (and the optional CN bypass, #96) so local
+	// traffic keeps going direct while everything else respects the
+	// overrides before any profile rule.
 	g.spliceOverrideRules(s, rootMap)
 
 	out, err := yaml.Marshal(&doc)
@@ -435,10 +559,29 @@ func (g *ConfigGen) clashDocTargets(rootMap *yaml.Node) map[string]bool {
 	return targets
 }
 
+// bypassRules returns the China-direct block (#96). GEOSITE needs the
+// geosite database (geo-auto-update + mirrored geox-url are always emitted);
+// GEOIP needs the country mmdb. `no-resolve` keeps IP rules from triggering
+// DNS resolution for domain-based connections.
+func bypassRules(s settings.Settings) []any {
+	if !s.BypassCN {
+		return nil
+	}
+	return []any{
+		"GEOSITE,cn,DIRECT",
+		"GEOIP,CN,DIRECT,no-resolve",
+	}
+}
+
 // spliceOverrideRules inserts the override rules into a clash document's
-// rules sequence, right after the leading LAN-direct block (#50).
+// rules sequence, right after the leading LAN-direct block (#50). The CN
+// bypass (#96) goes right after the LAN block, BEFORE the user's overrides
+// (an explicit user override must win over the blanket bypass).
 func (g *ConfigGen) spliceOverrideRules(s settings.Settings, rootMap *yaml.Node) {
-	lines := overrideRuleStrings(s, g.clashDocTargets(rootMap))
+	lines := bypassRules(s)
+	for _, l := range overrideRuleStrings(s, g.clashDocTargets(rootMap)) {
+		lines = append(lines, l)
+	}
 	if len(lines) == 0 {
 		return
 	}
@@ -453,7 +596,7 @@ func (g *ConfigGen) spliceOverrideRules(s settings.Settings, rootMap *yaml.Node)
 	merged := make([]*yaml.Node, 0, len(lines)+len(rules))
 	merged = append(merged, rules[:insert]...)
 	for _, l := range lines {
-		merged = append(merged, scalarNode(l))
+		merged = append(merged, scalarNode(fmt.Sprint(l)))
 	}
 	merged = append(merged, rules[insert:]...)
 	setMapKey(rootMap, "rules", &yaml.Node{
@@ -470,12 +613,14 @@ func isLanDirectRule(v string) bool {
 		strings.HasSuffix(v, ",DIRECT")
 }
 
+// applyDNS emits the app-owned dns block for "nodes" configs. Mode/IPv6
+// honor the settings (issue #96): fake-ip|redir-host + AAAA toggle.
 func applyDNS(root *yamlx.OMap, s settings.Settings) {
 	dns := newOMap().
 		Set("enable", true).
 		Set("listen", "127.0.0.1:1053").
-		Set("ipv6", true).
-		Set("enhanced-mode", "fake-ip").
+		Set("ipv6", s.DNS.IPv6).
+		Set("enhanced-mode", s.DNS.Mode).
 		Set("fake-ip-range", "198.18.0.1/16").
 		Set("fake-ip-filter", []string{
 			"*.lan", "*.local", "*.localdomain",
@@ -484,6 +629,35 @@ func applyDNS(root *yamlx.OMap, s settings.Settings) {
 		Set("default-nameserver", []string{"1.1.1.1", "8.8.8.8"}).
 		Set("nameserver", s.DNS.Nameservers)
 	root.Set("dns", dns)
+}
+
+// snifferNode renders mihomo's sniffer block (issue #96). Schema verified
+// against mihomo v1.19.34 RawSniffer (config/config.go): enable,
+// override-destination, force-dns-mapping, parse-pure-ip and per-protocol
+// `sniff` entries with port lists. nil = do not emit (profile keeps its own).
+func snifferNode(s settings.Settings) *yamlx.OMap {
+	if !s.Sniffer.Enable {
+		return nil
+	}
+	sniff := newOMap()
+	if s.Sniffer.TLS {
+		sniff.Set("TLS", newOMap().Set("ports", []string{"443", "8443"}))
+	}
+	if s.Sniffer.HTTP {
+		sniff.Set("HTTP", newOMap().Set("ports", []string{"80", "8080-8880"}))
+	}
+	if s.Sniffer.QUIC {
+		sniff.Set("QUIC", newOMap().Set("ports", []string{"443", "8443"}))
+	}
+	node := newOMap().
+		Set("enable", true).
+		Set("override-destination", s.Sniffer.OverrideDest).
+		Set("force-dns-mapping", true).
+		Set("parse-pure-ip", true)
+	if sniff.Len() > 0 {
+		node.Set("sniff", sniff)
+	}
+	return node
 }
 
 func tunBlock(s settings.Settings) *yamlx.OMap {
@@ -582,8 +756,8 @@ func mappingHasKey(root *yaml.Node, key string) bool {
 func dnsNode(s settings.Settings) *yaml.Node {
 	d := newOMap().
 		Set("enable", true).
-		Set("ipv6", true).
-		Set("enhanced-mode", "fake-ip").
+		Set("ipv6", s.DNS.IPv6).
+		Set("enhanced-mode", s.DNS.Mode).
 		Set("fake-ip-range", "198.18.0.1/16").
 		Set("default-nameserver", []string{"1.1.1.1", "8.8.8.8"}).
 		Set("nameserver", s.DNS.Nameservers)

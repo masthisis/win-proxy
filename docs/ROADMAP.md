@@ -10,6 +10,19 @@ whenever issues close.
 Released: v1.11.0 (2026-11-22) — PAC mode; v1.10.0 TUN service complete
 (#14 done); v1.9.0 TUN service foundation; v1.8.0 sing-box import.
 
+### 0-bis. #96 — v2rayNG settings parity (owner chat directive 2026-11-24)
+
+> **IN PROGRESS (branch feat/96-v2rayng-settings-parity).** Owner directive:
+> implement ALL v2rayNG settings NeuroRift lacks, per official protocol docs
+> + mihomo core. Lands as: Connection defaults (UDP / IP-version strategy /
+> skip-cert-verify / uTLS fingerprint / sing-mux + KCP defaults) riding on
+> the mihomo provider `override` block (incl. override-expr, verified in the
+> bundled v1.19.34); DNS mode (fake-ip | redir-host) + AAAA toggle; traffic
+> sniffing (sniffer block); bypass-mainland-China routing preset. Non-goals
+> with reasons: TLS fragment (Xray-core-only feature — mihomo cannot model
+> it), per-app VPN split tunneling (Android-only; Windows gets TUN +
+> process-name routing rules).
+
 ### 0. WireGuard configuration import (owner chat directive 2026-11-23)
 
 > **LANDED (branch feat/wireguard-import), ships in v1.12.0.** Standard
@@ -106,3 +119,7 @@ companion items when a cycle has capacity left)
 - Converting sing-box groups/route rules (nodes only, per #16 decision).
 - Bundling extra cores (Xray/sing-box runtimes) — mihomo covers the schema.
 - Auto-starting the core at boot before the GUI ever ran.
+- TLS fragment / ClientHello splitting (#96): Xray-core-only feature; mihomo
+  has no fragment field anywhere in its schema (verified v1.19.34 source).
+- Per-app VPN split tunneling (#96): Android-only concept — on Windows the
+  equivalent is TUN + process-name routing overrides (#50).

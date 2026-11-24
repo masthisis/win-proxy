@@ -85,6 +85,8 @@ const open = reactive<Record<string, boolean>>({
   failover: false,
   core: false,
   dns: false,
+  nodes: false,
+  sniffer: false,
   tun: false,
   subscriptions: false,
   routing: false,
@@ -199,6 +201,8 @@ const SECTIONS = [
   { id: "failover", label: "settings.secFailover" },
   { id: "core", label: "settings.secCore" },
   { id: "dns", label: "settings.secDns" },
+  { id: "nodes", label: "settings.secNodes" },
+  { id: "sniffer", label: "settings.secSniffer" },
   { id: "tun", label: "settings.secTun" },
   { id: "subscriptions", label: "settings.secSubscriptions" },
   { id: "routing", label: "settings.secRouting" },
@@ -337,6 +341,30 @@ const dnsText = computed<string>({
   },
 });
 
+// ---- connection defaults (#96) ----
+// The KCP section acts as defaults for vmess kcp-transport nodes; the
+// backend only emits the override when the section deviates from the
+// factory values. The checkbox mirrors that state; toggling it off restores
+// the factory values before save so the config stays untouched.
+const KCP_FACTORY = {
+  mtu: 1350,
+  tti: 50,
+  uplinkCapacity: 5,
+  downlinkCapacity: 20,
+  congestion: false,
+  writeBufferMb: 2,
+  readBufferMb: 2,
+  seed: "",
+};
+const kcpTouched = ref(false);
+watch(
+  () => form.value?.kcp,
+  (k) => {
+    kcpTouched.value = !!k && JSON.stringify(k) !== JSON.stringify(KCP_FACTORY);
+  },
+  { immediate: true },
+);
+
 function onLanguage(e: Event): void {
   const lang = (e.target as HTMLSelectElement).value as Lang;
   if (!form.value) return;
@@ -346,6 +374,9 @@ function onLanguage(e: Event): void {
 
 async function save(): Promise<void> {
   if (!form.value || saving.value) return;
+  if (!kcpTouched.value) {
+    form.value.kcp = { ...KCP_FACTORY } as SettingsDoc["kcp"];
+  }
   saving.value = true;
   try {
     const saved = await SettingsSvc.Save(clone(form.value));
@@ -717,11 +748,172 @@ async function importOverrides(ev: Event): Promise<void> {
             <span class="box" />
             <span>{{ t("settings.dnsOverride") }}</span>
           </label>
+          <div class="field">
+            <label for="dns-mode">{{ t("settings.dnsMode") }}</label>
+            <select id="dns-mode" v-model="form.dns.mode">
+              <option value="fake-ip">fake-ip</option>
+              <option value="redir-host">redir-host</option>
+            </select>
+            <span class="hint">{{ t("settings.dnsModeHint") }}</span>
+          </div>
+          <label class="checkbox">
+            <input v-model="form.dns.ipv6" type="checkbox" />
+            <span class="box" />
+            <span>{{ t("settings.dnsIpv6") }}</span>
+          </label>
           <div class="field span-all">
             <label for="dns-ns">{{ t("settings.dnsNameservers") }}</label>
             <textarea id="dns-ns" v-model="dnsText" rows="4" :placeholder="'https://dns.google/dns-query\n8.8.8.8'" />
             <span class="hint">{{ t("settings.dnsHint") }}</span>
           </div>
+        </div>
+      </section>
+
+      <!-- Connection defaults (#96): v2rayNG core-settings parity -->
+      <section class="panel">
+        <button class="section-head" :aria-expanded="open.nodes" @click="open.nodes = !open.nodes">
+          <IconChevron :size="14" class="chev" :class="{ open: open.nodes }" />
+          {{ t("settings.secNodes") }}
+        </button>
+        <div v-if="open.nodes" style="margin-top: 12px" class="form-grid">
+          <p class="hint span-all" style="margin: 0">{{ t("settings.nodesDesc") }}</p>
+          <label class="checkbox">
+            <input v-model="form.nodes.udp" type="checkbox" />
+            <span class="box" />
+            <span>{{ t("settings.nodesUdp") }}</span>
+          </label>
+          <label class="checkbox">
+            <input v-model="form.nodes.skipCertVerify" type="checkbox" />
+            <span class="box" />
+            <span>{{ t("settings.nodesInsecure") }}</span>
+          </label>
+          <div class="field">
+            <label for="nodes-ipver">{{ t("settings.nodesIpVersion") }}</label>
+            <select id="nodes-ipver" v-model="form.nodes.ipVersion">
+              <option value="">{{ t("settings.nodesDefault") }}</option>
+              <option value="dual">dual</option>
+              <option value="ipv4">ipv4</option>
+              <option value="ipv6">ipv6</option>
+              <option value="ipv4-prefer">ipv4-prefer</option>
+              <option value="ipv6-prefer">ipv6-prefer</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="nodes-fp">{{ t("settings.nodesFingerprint") }}</label>
+            <select id="nodes-fp" v-model="form.nodes.clientFingerprint">
+              <option value="">{{ t("settings.nodesDefault") }}</option>
+              <option value="chrome">chrome</option>
+              <option value="firefox">firefox</option>
+              <option value="safari">safari</option>
+              <option value="ios">iOS</option>
+              <option value="android">android</option>
+              <option value="edge">edge</option>
+              <option value="360">360</option>
+              <option value="qq">QQ</option>
+              <option value="random">random</option>
+            </select>
+            <span class="hint">{{ t("settings.nodesFingerprintHint") }}</span>
+          </div>
+          <div class="field span-all" style="padding-top: 8px; border-top: 1px solid var(--border)">
+            <label class="checkbox">
+              <input v-model="form.nodes.smuxEnable" type="checkbox" />
+              <span class="box" />
+              <span>{{ t("settings.nodesMux") }}</span>
+            </label>
+            <span class="hint">{{ t("settings.nodesMuxHint") }}</span>
+          </div>
+          <template v-if="form.nodes.smuxEnable">
+            <div class="field">
+              <label for="nodes-mux-proto">{{ t("settings.nodesMuxProtocol") }}</label>
+              <select id="nodes-mux-proto" v-model="form.nodes.smuxProtocol">
+                <option value="smux">smux</option>
+                <option value="yamux">yamux</option>
+                <option value="h2mux">h2mux</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="nodes-mux-conn">{{ t("settings.nodesMuxConnections") }}</label>
+              <input id="nodes-mux-conn" v-model.number="form.nodes.smuxMaxConnections" type="number" min="0" max="64" />
+            </div>
+            <label class="checkbox">
+              <input v-model="form.nodes.smuxPadding" type="checkbox" />
+              <span class="box" />
+              <span>{{ t("settings.nodesMuxPadding") }}</span>
+            </label>
+          </template>
+          <div class="field span-all" style="padding-top: 8px; border-top: 1px solid var(--border)">
+            <label class="checkbox">
+              <input v-model="kcpTouched" type="checkbox" />
+              <span class="box" />
+              <span>{{ t("settings.kcpEnable") }}</span>
+            </label>
+            <span class="hint">{{ t("settings.kcpHint") }}</span>
+          </div>
+          <template v-if="kcpTouched">
+            <div class="field">
+              <label for="kcp-mtu">MTU</label>
+              <input id="kcp-mtu" v-model.number="form.kcp.mtu" type="number" min="300" max="1400" />
+            </div>
+            <div class="field">
+              <label for="kcp-tti">TTI (ms)</label>
+              <input id="kcp-tti" v-model.number="form.kcp.tti" type="number" min="10" max="100" />
+            </div>
+            <div class="field">
+              <label for="kcp-up">{{ t("settings.kcpUplink") }}</label>
+              <input id="kcp-up" v-model.number="form.kcp.uplinkCapacity" type="number" min="0" max="1000" />
+            </div>
+            <div class="field">
+              <label for="kcp-down">{{ t("settings.kcpDownlink") }}</label>
+              <input id="kcp-down" v-model.number="form.kcp.downlinkCapacity" type="number" min="0" max="1000" />
+            </div>
+            <label class="checkbox">
+              <input v-model="form.kcp.congestion" type="checkbox" />
+              <span class="box" />
+              <span>{{ t("settings.kcpCongestion") }}</span>
+            </label>
+            <div class="field">
+              <label for="kcp-seed">{{ t("settings.kcpSeed") }}</label>
+              <input id="kcp-seed" v-model="form.kcp.seed" type="text" class="mono" />
+            </div>
+          </template>
+        </div>
+      </section>
+
+      <!-- Sniffing (#96) -->
+      <section class="panel">
+        <button class="section-head" :aria-expanded="open.sniffer" @click="open.sniffer = !open.sniffer">
+          <IconChevron :size="14" class="chev" :class="{ open: open.sniffer }" />
+          {{ t("settings.secSniffer") }}
+        </button>
+        <div v-if="open.sniffer" style="margin-top: 12px" class="form-grid">
+          <label class="checkbox">
+            <input v-model="form.sniffer.enable" type="checkbox" />
+            <span class="box" />
+            <span>{{ t("settings.sniffEnable") }}</span>
+          </label>
+          <template v-if="form.sniffer.enable">
+            <label class="checkbox">
+              <input v-model="form.sniffer.tls" type="checkbox" />
+              <span class="box" />
+              <span>TLS</span>
+            </label>
+            <label class="checkbox">
+              <input v-model="form.sniffer.http" type="checkbox" />
+              <span class="box" />
+              <span>HTTP</span>
+            </label>
+            <label class="checkbox">
+              <input v-model="form.sniffer.quic" type="checkbox" />
+              <span class="box" />
+              <span>QUIC</span>
+            </label>
+            <label class="checkbox span-all">
+              <input v-model="form.sniffer.overrideDest" type="checkbox" />
+              <span class="box" />
+              <span>{{ t("settings.sniffOverride") }}</span>
+            </label>
+            <p class="hint span-all" style="margin: 0">{{ t("settings.sniffHint") }}</p>
+          </template>
         </div>
       </section>
 
@@ -863,6 +1055,12 @@ async function importOverrides(ev: Event): Promise<void> {
         </button>
         <div v-if="open.routing" style="margin-top: 12px">
           <p class="hint" style="margin: 0 0 10px">{{ t("settings.routingDesc") }}</p>
+
+          <label class="checkbox" style="margin-bottom: 10px">
+            <input v-model="form.bypassCN" type="checkbox" />
+            <span class="box" />
+            <span>{{ t("settings.bypassCn") }}</span>
+          </label>
 
           <div v-if="!form.routingOverrides?.length" class="dim" style="padding: 6px 0 10px">
             {{ t("settings.routingEmpty") }}
