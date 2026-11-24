@@ -481,6 +481,90 @@ func TestFullStack(t *testing.T) {
 		t.Fatalf("wireguard node never surfaced")
 	}
 
+	// --- 7.6 global node defaults via provider override-expr (issue #96).
+	// The REAL core must accept the generated override block (typed
+	// fields + override-expr select/assignment syntax). Two phases:
+	//
+	// A) everything on incl. smux: the core loads the config and the
+	//    node still surfaces in the groups. Traffic is NOT asserted —
+	//    sing-mux is a client/server protocol (like v2rayNG's mux, it
+	//    requires the server to speak sing-mux) and the mock upstream
+	//    here is a plain HTTP proxy, so a muxed dial correctly fails.
+	// B) uTLS fingerprint only (no mux): a full latency round trip must
+	//    still pass — fingerprint forcing must not break real traffic.
+	if err := f.profiles.SetActive(ctx, idOf(f, "Mock Sub")); err != nil {
+		t.Fatalf("reactivate mock sub: %v", err)
+	}
+	prev := f.set.Get()
+	next := prev
+	next.Nodes = settings.Nodes{
+		UDP:                true,
+		IPVersion:          "dual",
+		SkipCertVerify:     true,
+		ClientFingerprint:  "chrome",
+		SmuxEnable:         true,
+		SmuxProtocol:       "smux",
+		SmuxMaxConnections: 4,
+		SmuxPadding:        true,
+	}
+	next.KCP = settings.KCP{ // non-default -> kcp merge expr emitted
+		MTU:              1350,
+		TTI:              60,
+		UplinkCapacity:   5,
+		DownlinkCapacity: 20,
+		WriteBufferMB:    2,
+		ReadBufferMB:     2,
+	}
+	if _, err := f.set.Replace(next); err != nil {
+		t.Fatalf("settings replace: %v", err)
+	}
+	f.eng.ReapplyForSettings(ctx, prev, next)
+	if !waitFor(t, 8*time.Second, "node to surface with override-expr config", func() bool {
+		if f.eng.Status().State != nr.CoreRunning {
+			return false
+		}
+		p, err := api.Proxies(ctx)
+		if err != nil {
+			return false
+		}
+		g, ok := p[nr.GroupNodeSelect]
+		return ok && contains(g.All, mockNodeName)
+	}) {
+		f.dumpConsole(t)
+		f.dumpFiles(t)
+		t.Fatalf("real core rejected the override-expr config (or node lost)")
+	}
+	t.Log("override-expr config accepted by the real core; muxed node surfaced")
+
+	// Phase B: fingerprint only, no mux — traffic must keep flowing.
+	prevA := f.set.Get()
+	nextB := prevA
+	nextB.Nodes = settings.Nodes{ClientFingerprint: "firefox", SkipCertVerify: true}
+	if _, err := f.set.Replace(nextB); err != nil {
+		t.Fatalf("settings replace B: %v", err)
+	}
+	f.eng.ReapplyForSettings(ctx, prevA, nextB)
+	if !waitFor(t, 8*time.Second, "engine running with fingerprint-only defaults", func() bool {
+		return f.eng.Status().State == nr.CoreRunning
+	}) {
+		f.dumpConsole(t)
+		t.Fatalf("engine not running for phase B")
+	}
+	sample96, err := f.tester.TestNodeLatency(ctx, mockNodeName)
+	if err != nil || sample96.Delay <= 0 {
+		f.dumpConsole(t)
+		f.dumpFiles(t)
+		t.Fatalf("latency with fingerprint-forced node: delay=%d err=%v", sample96.Delay, err)
+	}
+	t.Logf("fingerprint-only latency: %dms", sample96.Delay)
+
+	// Restore factory settings so later steps run on the baseline config.
+	prev96 := f.set.Get()
+	if _, err := f.set.Replace(prev); err != nil {
+		t.Fatalf("settings restore: %v", err)
+	}
+	f.eng.ReapplyForSettings(ctx, prev96, prev)
+
 	// --- 8. clash profile switch (full YAML passthrough) -------------------------
 	clashYAML := `
 proxies:

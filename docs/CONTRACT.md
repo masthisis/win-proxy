@@ -222,12 +222,27 @@ test: {url, timeoutMs, speedUrl, speedUploadUrl, speedStreams(1..16),
        speedMaxSeconds, speedMaxMb, uploadTest}
 failover: {enable, intervalSec(≥15), timeoutMs, strikes, cooldownSec}
 core: {channel: "stable"|"alpha", autoUpdate, updateIntervalH, ghProxyPrefix}
-dns: {override, nameservers: string[]}
+dns: {override, nameservers: string[], mode: "fake-ip"|"redir-host", ipv6: bool} (#96)
+nodes: {udp, ipVersion: ""|"dual"|"ipv4"|"ipv6"|"ipv4-prefer"|"ipv6-prefer",
+        skipCertVerify, clientFingerprint: ""|"chrome"|"firefox"|"safari"|"ios"|
+        "android"|"edge"|"360"|"qq"|"random", smuxEnable, smuxProtocol:
+        "smux"|"yamux"|"h2mux", smuxMaxConnections(0..64), smuxPadding} — global
+        node defaults forced onto app-managed providers via the mihomo
+        proxy-provider `override` block (incl. override-expr); toggles only
+        force when ON, so subscriptions keep their own values otherwise (#96)
+kcp: {mtu(300..1400), tti(10..100), uplinkCapacity, downlinkCapacity,
+      congestion, writeBufferMb, readBufferMb, seed} — mKCP defaults merged
+      into vmess kcp-transport nodes when the section deviates from factory
+      values (#96)
+sniffer: {enable, tls, http, quic, overrideDest} — mihomo sniffer block,
+         emitted only when enable (#96)
 tun: {enable, stack: "system"|"gvisor"|"mixed"}
 subscription: {defaultIntervalH, updateViaProxy}
 log: {appLevel, coreLevel}
 routingOverrides: [{pattern, type: "domain-suffix"|"domain"|"domain-keyword"|"process-name",
                     target}] — high-priority rules after the LAN block, ≤200 (#50)
+bypassCN: bool — GEOSITE,cn + GEOIP,CN direct rules after the LAN block,
+          before the user overrides (#96)
 proxyGuard: {enable (default false), intervalSec (3..300, default 10), killSwitch (default false)} (#47)
 updates: {autoCheck (default true), includePrerelease (default false)}
 reporting: {enable (default true), githubToken} — token stored locally only (#36)

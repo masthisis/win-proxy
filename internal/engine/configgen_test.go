@@ -235,3 +235,194 @@ func TestGenerateClash_RoutingOverrides(t *testing.T) {
 		t.Errorf("user's trailing MATCH rule lost:\n%s", out)
 	}
 }
+
+// ---------------------------------------------------------------- #96 ----
+
+// TestGenerateNodes_NodeDefaultsOverride (issue #96): the global node
+// defaults ride on mihomo's provider override block — typed fields for
+// udp/ip-version/skip-cert-verify, override-expr for uTLS/mux/kcp.
+func TestGenerateNodes_NodeDefaultsOverride(t *testing.T) {
+	gen := newGenForTest(t, "aaaa",
+		profile.Profile{ID: "aaaa", Name: "Sub", Kind: profile.KindNodes},
+	)
+	st := gen.Settings.Get()
+	st.Nodes = settings.Nodes{
+		UDP:                true,
+		IPVersion:          "ipv4-prefer",
+		SkipCertVerify:     true,
+		ClientFingerprint:  "chrome",
+		SmuxEnable:         true,
+		SmuxProtocol:       "yamux",
+		SmuxMaxConnections: 4,
+		SmuxPadding:        true,
+	}
+	gen.Settings.Replace(st)
+
+	out, err := gen.Generate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ov := providerBlock(t, out)
+	for _, want := range []string{"udp: true", "ip-version: ipv4-prefer", "skip-cert-verify: true"} {
+		if !strings.Contains(ov, want) {
+			t.Errorf("override block missing %q:\n%s", want, ov)
+		}
+	}
+	for _, want := range []string{
+		`."client-fingerprint" = "chrome"`,
+		`.smux) = {"enabled":true,"max-connections":4,"padding":true,"protocol":"yamux"}`,
+		"select(", ".type != \"wireguard\"",
+	} {
+		if !strings.Contains(ov, want) {
+			t.Errorf("override-expr missing %q:\n%s", want, ov)
+		}
+	}
+}
+
+// providerBlock extracts the proxy-providers override block from generated
+// config text (helper for the #96 tests).
+func providerBlock(t *testing.T, cfg string) string {
+	t.Helper()
+	i := strings.Index(cfg, "override:")
+	if i < 0 {
+		t.Fatalf("no override block in config:\n%s", cfg)
+	}
+	return cfg[i:]
+}
+
+// TestGenerateNodes_NodeDefaultsOff_LeavesNodesAlone (issue #96): with
+// factory settings nothing is forced — no override block at all, so
+// subscription nodes keep their own udp/skip-cert-verify values.
+func TestGenerateNodes_NodeDefaultsOff_LeavesNodesAlone(t *testing.T) {
+	gen := newGenForTest(t, "aaaa",
+		profile.Profile{ID: "aaaa", Name: "Sub", Kind: profile.KindNodes},
+	)
+	out, err := gen.Generate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "override:") {
+		t.Errorf("factory settings must not emit an override block:\n%s", out)
+	}
+	if strings.Contains(out, "override-expr") {
+		t.Errorf("factory settings must not emit override-expr:\n%s", out)
+	}
+}
+
+// TestGenerateNodes_DNSModeAndIPv6 (issue #96): the dns block honors the
+// settings mode (fake-ip | redir-host) and the AAAA toggle.
+func TestGenerateNodes_DNSModeAndIPv6(t *testing.T) {
+	gen := newGenForTest(t, "aaaa",
+		profile.Profile{ID: "aaaa", Name: "Sub", Kind: profile.KindNodes},
+	)
+	st := gen.Settings.Get()
+	st.DNS.Mode = "redir-host"
+	st.DNS.IPv6 = false
+	gen.Settings.Replace(st)
+
+	out, err := gen.Generate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dnsBlock := out[strings.Index(out, "dns:"):]
+	if !strings.Contains(dnsBlock, "enhanced-mode: redir-host") {
+		t.Errorf("dns mode not applied:\n%s", out)
+	}
+	if strings.Contains(dnsBlock, "ipv6: true") {
+		t.Errorf("dns ipv6 must be off:\n%s", dnsBlock)
+	}
+}
+
+// TestGenerateNodes_Sniffer (issue #96): sniffer block emitted only when
+// enabled, with the selected protocols (mihomo RawSniffer schema).
+func TestGenerateNodes_Sniffer(t *testing.T) {
+	gen := newGenForTest(t, "aaaa",
+		profile.Profile{ID: "aaaa", Name: "Sub", Kind: profile.KindNodes},
+	)
+	out, err := gen.Generate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "sniffer:") {
+		t.Errorf("sniffer must be absent when disabled:\n%s", out)
+	}
+
+	st := gen.Settings.Get()
+	st.Sniffer = settings.Sniffer{Enable: true, TLS: true, HTTP: true, QUIC: true, OverrideDest: true}
+	gen.Settings.Replace(st)
+	out, err = gen.Generate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"sniffer:",
+		"override-destination: true",
+		"parse-pure-ip: true",
+		"TLS:", "HTTP:", "QUIC:",
+		"ports:",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("sniffer block missing %q:\n%s", want, out)
+		}
+	}
+}
+
+// TestGenerateNodes_BypassCN (issue #96): the CN bypass sits after the LAN
+// block and before the user overrides + MATCH.
+func TestGenerateNodes_BypassCN(t *testing.T) {
+	gen := newGenForTest(t, "aaaa",
+		profile.Profile{ID: "aaaa", Name: "Sub", Kind: profile.KindNodes},
+	)
+	st := gen.Settings.Get()
+	st.RoutingOverrides = []settings.RoutingOverride{{Pattern: "example.org", Type: "domain-suffix", Target: "DIRECT"}}
+	st.BypassCN = true
+	gen.Settings.Replace(st)
+
+	out, err := gen.Generate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	lan := strings.Index(out, "IP-CIDR,192.168.0.0/16,DIRECT,no-resolve")
+	cn := strings.Index(out, "GEOSITE,cn,DIRECT")
+	geo := strings.Index(out, "GEOIP,CN,DIRECT,no-resolve")
+	ovr := strings.Index(out, "DOMAIN-SUFFIX,example.org,DIRECT")
+	match := strings.Index(out, "MATCH,")
+	if cn < 0 || geo < 0 {
+		t.Fatalf("CN bypass rules missing:\n%s", out)
+	}
+	if !(lan < cn && cn < geo && geo < ovr && ovr < match) {
+		t.Errorf("rule order wrong (lan=%d geosite=%d geoip=%d ovr=%d match=%d):\n%s", lan, cn, geo, ovr, match, out)
+	}
+}
+
+// TestGenerateClash_ParityInjection (issue #96): clash documents get the
+// sniffer, CN bypass and provider override injected the same way — without
+// touching the user's own proxies.
+func TestGenerateClash_ParityInjection(t *testing.T) {
+	gen := newGenForTest(t, "cccc",
+		profile.Profile{ID: "cccc", Name: "Clashy", Kind: profile.KindClash},
+		profile.Profile{ID: "aaaa", Name: "Sub", Kind: profile.KindNodes},
+	)
+	st := gen.Settings.Get()
+	st.Sniffer = settings.Sniffer{Enable: true, TLS: true}
+	st.BypassCN = true
+	st.Nodes = settings.Nodes{UDP: true, ClientFingerprint: "firefox"}
+	gen.Settings.Replace(st)
+
+	out, err := gen.Generate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "sniffer:") {
+		t.Errorf("sniffer not injected into clash doc:\n%s", out)
+	}
+	if !strings.Contains(out, "GEOSITE,cn,DIRECT") {
+		t.Errorf("CN bypass not injected into clash doc:\n%s", out)
+	}
+	if !strings.Contains(out, `."client-fingerprint" = "firefox"`) {
+		t.Errorf("provider override-expr missing:\n%s", out)
+	}
+	if !strings.Contains(out, "name: u1") {
+		t.Errorf("user's own proxy must stay verbatim:\n%s", out)
+	}
+}

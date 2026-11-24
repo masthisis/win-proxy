@@ -113,6 +113,80 @@ type DNS struct {
 	Override bool `json:"override"`
 	// Nameservers is the ordered resolver list (DoH/DoT/plain accepted).
 	Nameservers []string `json:"nameservers"`
+	// Mode is the mihomo enhanced-mode (v2rayNG domain strategy parity,
+	// issue #96): "fake-ip" (default, snappy, per-IP rules see fake IPs) or
+	// "redir-host" (real resolution, what v2rayNG calls UseIP behavior).
+	Mode string `json:"mode"`
+	// IPv6 toggles AAAA usage in the DNS layer (mihomo dns.ipv6). Off
+	// matches v2rayNG "UseIPv4"; on = dual-stack resolution.
+	IPv6 bool `json:"ipv6"`
+}
+
+// Nodes are global defaults forced onto EVERY node of app-managed providers
+// (subscription imports; issue #96 — v2rayNG core-settings parity). They ride
+// on mihomo's provider `override` block (incl. override-expr), so they are
+// applied config-side: hot on regeneration, no provider rewrites. Clash-kind
+// profiles own their proxies verbatim — defaults never touch user documents.
+type Nodes struct {
+	// UDP forces udp: on all nodes of app-managed providers (v2rayNG
+	// "allow UDP over proxy" toggle).
+	UDP bool `json:"udp"`
+	// IPVersion forces ip-version on all nodes ("" = core default dual).
+	// Values: dual | ipv4 | ipv6 | ipv4-prefer | ipv6-prefer.
+	IPVersion string `json:"ipVersion"`
+	// SkipCertVerify forces skip-cert-verify on all nodes (v2rayNG
+	// allowInsecure). Self-signed server certs stop failing.
+	SkipCertVerify bool `json:"skipCertVerify"`
+	// ClientFingerprint sets the uTLS fingerprint per node (v2rayNG TLS
+	// fingerprint; "" = leave nodes as-is). Values: chrome | firefox |
+	// safari | ios | android | edge | 360 | qq | random. mihomo's global
+	// field is deprecated upstream — this is injected per-proxy.
+	ClientFingerprint string `json:"clientFingerprint"`
+	// SmuxEnable enables sing-mux on TCP-capable nodes (v2rayNG mux).
+	SmuxEnable bool `json:"smuxEnable"`
+	// SmuxProtocol is the multiplexing protocol: smux | yamux | h2mux.
+	SmuxProtocol string `json:"smuxProtocol"`
+	// SmuxMaxConnections caps concurrent mux connections (0 = core default).
+	SmuxMaxConnections int `json:"smuxMaxConnections"`
+	// SmuxPadding enables obfuscation padding on mux streams.
+	SmuxPadding bool `json:"smuxPadding"`
+}
+
+// KCP carries v2rayNG's mKCP defaults, applied to vmess nodes whose network
+// is kcp/mkcp (issue #96). mihomo models mKCP per node via mkcp-opts.
+type KCP struct {
+	// MTU of the underlying UDP datagrams (300..1400).
+	MTU int `json:"mtu"`
+	// TTI is the transmission time interval in ms (10..100).
+	TTI int `json:"tti"`
+	// UplinkCapacity in MB/s (0 = dynamic defaults; Xray semantics).
+	UplinkCapacity int `json:"uplinkCapacity"`
+	// DownlinkCapacity in MB/s.
+	DownlinkCapacity int `json:"downlinkCapacity"`
+	// Congestion enables the KCP congestion control.
+	Congestion bool `json:"congestion"`
+	// WriteBufferMB / ReadBufferMB are the KCP socket buffers.
+	WriteBufferMB int `json:"writeBufferMb"`
+	ReadBufferMB  int `json:"readBufferMb"`
+	// Seed is the optional obfuscation seed ("" = none).
+	Seed string `json:"seed"`
+}
+
+// Sniffer configures mihomo's traffic sniffer (v2rayNG sniffing parity,
+// issue #96). Sniffed domains make domain rules work under TUN even when
+// apps connect by IP.
+type Sniffer struct {
+	// Enable emits the sniffer block (off = config keeps whatever the
+	// profile shipped, matching v2rayNG's default-off).
+	Enable bool `json:"enable"`
+	// TLS / HTTP / QUIC select the protocols to sniff.
+	TLS  bool `json:"tls"`
+	HTTP bool `json:"http"`
+	QUIC bool `json:"quic"`
+	// OverrideDest replaces the connection target with the sniffed
+	// domain (v2rayNG "route only for sniffed" is the complement —
+	// without override, sniffed domains only enrich rule matching).
+	OverrideDest bool `json:"overrideDest"`
 }
 
 // Tun controls the transparent proxy interface (requires admin on Windows).
@@ -194,13 +268,24 @@ type Settings struct {
 	// PAC configures the PAC proxy mode (#15): loopback listener port +
 	// the optional user script (empty = built-in default).
 	PAC PAC `json:"pac"`
+	// Nodes are global per-node defaults for app-managed providers
+	// (issue #96): udp / ip-version / skip-cert-verify / uTLS / smux.
+	Nodes Nodes `json:"nodes"`
+	// KCP are the mKCP defaults for vmess kcp-transport nodes (#96).
+	KCP KCP `json:"kcp"`
+	// Sniffer configures mihomo traffic sniffing (#96).
+	Sniffer Sniffer `json:"sniffer"`
 	// RoutingOverrides are injected as high-priority rules into every
 	// generated runtime config, right after the LAN block (#50).
 	RoutingOverrides []RoutingOverride `json:"routingOverrides"`
-	ProxyGuard       ProxyGuard        `json:"proxyGuard"`
-	Updates          Updates           `json:"updates"`
-	Reporting        Reporting         `json:"reporting"`
-	Window           WindowGeometry    `json:"window"` // main-window geometry (#44)
+	// BypassCN routes mainland-China traffic DIRECT (v2rayNG "bypass
+	// mainland" parity, issue #96): GEOSITE,cn + GEOIP,CN. Placed after
+	// the LAN block and BEFORE the user overrides (#50 wins on conflict).
+	BypassCN   bool           `json:"bypassCN"`
+	ProxyGuard ProxyGuard     `json:"proxyGuard"`
+	Updates    Updates        `json:"updates"`
+	Reporting  Reporting      `json:"reporting"`
+	Window     WindowGeometry `json:"window"` // main-window geometry (#44)
 	// ControllerSecret authenticates the local mihomo API (auto-generated).
 	ControllerSecret string `json:"controllerSecret"`
 	// BypassDomains are appended to the system-proxy bypass list.
@@ -247,7 +332,22 @@ func Default() Settings {
 				"https://dns.cloudflare.com/dns-query",
 				"https://dns.google/dns-query",
 			},
+			Mode: "fake-ip",
+			IPv6: true,
 		},
+		Nodes: Nodes{
+			SmuxProtocol: "smux",
+		},
+		KCP: KCP{
+			MTU:              1350,
+			TTI:              50,
+			UplinkCapacity:   5,
+			DownlinkCapacity: 20,
+			Congestion:       false,
+			WriteBufferMB:    2,
+			ReadBufferMB:     2,
+		},
+		Sniffer:          Sniffer{Enable: false, TLS: true, HTTP: true, QUIC: false, OverrideDest: false},
 		Tun:              Tun{Enable: false, Stack: "mixed"},
 		Subscription:     Subscription{DefaultIntervalH: 24, UpdateViaProxy: false},
 		Log:              Log{AppLevel: "info", CoreLevel: "info"},
@@ -343,6 +443,38 @@ func (s *Settings) validate() {
 	if len(s.DNS.Nameservers) == 0 {
 		s.DNS.Nameservers = d.DNS.Nameservers
 	}
+	switch s.DNS.Mode {
+	case "fake-ip", "redir-host":
+	default:
+		s.DNS.Mode = d.DNS.Mode
+	}
+
+	switch s.Nodes.IPVersion {
+	case "", "dual", "ipv4", "ipv6", "ipv4-prefer", "ipv6-prefer":
+	default:
+		s.Nodes.IPVersion = ""
+	}
+	switch s.Nodes.ClientFingerprint {
+	case "", "chrome", "firefox", "safari", "ios", "android", "edge", "360", "qq", "random":
+	default:
+		s.Nodes.ClientFingerprint = ""
+	}
+	switch s.Nodes.SmuxProtocol {
+	case "smux", "yamux", "h2mux":
+	default:
+		s.Nodes.SmuxProtocol = d.Nodes.SmuxProtocol
+	}
+	s.Nodes.SmuxMaxConnections = clampInt(s.Nodes.SmuxMaxConnections, 0, 64, 0)
+
+	s.KCP.MTU = clampInt(s.KCP.MTU, 300, 1400, d.KCP.MTU)
+	s.KCP.TTI = clampInt(s.KCP.TTI, 10, 100, d.KCP.TTI)
+	s.KCP.UplinkCapacity = clampInt(s.KCP.UplinkCapacity, 0, 1000, d.KCP.UplinkCapacity)
+	s.KCP.DownlinkCapacity = clampInt(s.KCP.DownlinkCapacity, 0, 1000, d.KCP.DownlinkCapacity)
+	s.KCP.WriteBufferMB = clampInt(s.KCP.WriteBufferMB, 0, 512, d.KCP.WriteBufferMB)
+	s.KCP.ReadBufferMB = clampInt(s.KCP.ReadBufferMB, 0, 512, d.KCP.ReadBufferMB)
+	if len(s.KCP.Seed) > 256 {
+		s.KCP.Seed = ""
+	}
 	if s.Subscription.DefaultIntervalH < 0 || s.Subscription.DefaultIntervalH > 24*30 {
 		s.Subscription.DefaultIntervalH = d.Subscription.DefaultIntervalH
 	}
@@ -400,12 +532,22 @@ func NeedsConfigReload(a, b Settings) bool {
 		a.AllowLan != b.AllowLan ||
 		a.DNS.Override != b.DNS.Override ||
 		!slicesEqual(a.DNS.Nameservers, b.DNS.Nameservers) ||
+		a.DNS.Mode != b.DNS.Mode ||
+		a.DNS.IPv6 != b.DNS.IPv6 ||
 		a.Tun != b.Tun ||
 		a.Log.CoreLevel != b.Log.CoreLevel ||
 		a.Test.URL != b.Test.URL ||
 		a.Test.TimeoutMS != b.Test.TimeoutMS ||
+		a.BypassCN != b.BypassCN ||
+		a.Nodes != b.Nodes ||
+		a.Sniffer != b.Sniffer ||
+		!kcpEqual(a.KCP, b.KCP) ||
 		!routingOverridesEqual(a.RoutingOverrides, b.RoutingOverrides)
 }
+
+// kcpEqual compares two KCP documents (struct is comparable minus nothing;
+// kept as a named func so future pointer fields don't silently compare).
+func kcpEqual(a, b KCP) bool { return a == b }
 
 // routingOverridesEqual compares two override lists (order matters — the
 // list is injected top-down into the rules).
