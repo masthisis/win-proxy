@@ -241,6 +241,14 @@ func (g *ConfigGen) generateNodes(s settings.Settings, active profile.Summary, h
 		root.Set("proxy-providers", providers)
 	}
 
+	// Proxy chains (#107): materialize the user's two-hop chains as static
+	// dialer-proxy entries (provider fronts get "via: ..." backing copies —
+	// mihomo resolves dialer-proxy against static proxies/groups only).
+	chainList, chainEntries := chainProxies(s, g.nodesChainSource())
+	if len(chainList) > 0 {
+		root.Set("proxies", chainList)
+	}
+
 	// Generated groups. The hidden speed-test group covers every provider
 	// node (+ DIRECT); the user-facing selectors are scoped to the active
 	// provider via `use` (issue #42: other subscriptions stay testable but
@@ -260,20 +268,30 @@ func (g *ConfigGen) generateNodes(s settings.Settings, active profile.Summary, h
 				use = append(use, providerName(p.ID))
 			}
 		}
+		// Chain entries (#107) join both routing groups explicitly —
+		// they are static proxies and `use` only pulls provider nodes.
+		selectorProxies := []any{"DIRECT"}
+		for _, c := range chainEntries {
+			selectorProxies = append(selectorProxies, c)
+		}
 		groups = append(groups,
 			newOMap().
 				Set("name", nr.GroupNodeSelect).
 				Set("type", "select").
-				Set("proxies", []any{"DIRECT"}).
+				Set("proxies", selectorProxies).
 				Set("use", use),
-			newOMap().
-				Set("name", nr.GroupAutoSelect).
-				Set("type", "url-test").
-				Set("use", use).
-				Set("interval", 300).
-				Set("tolerance", 50).
-				Set("lazy", true),
 		)
+		auto := newOMap().
+			Set("name", nr.GroupAutoSelect).
+			Set("type", "url-test").
+			Set("use", use).
+			Set("interval", 300).
+			Set("tolerance", 50).
+			Set("lazy", true)
+		if len(chainEntries) > 0 {
+			auto.Set("proxies", chainEntriesAsAny(chainEntries))
+		}
+		groups = append(groups, auto)
 	} else {
 		groups = append(groups,
 			newOMap().
@@ -403,6 +421,25 @@ func (g *ConfigGen) generateClash(s settings.Settings, active profile.Summary) (
 		setMapKey(rootMap, "proxy-providers", provsNode)
 	}
 
+	// Proxy chains (#107): materialize static dialer-proxy entries into the
+	// document's own proxies list (created when absent). The doc's proxies
+	// back fronts directly (they are static — mihomo's dialer-proxy
+	// resolution sees them); provider fronts get "via: ..." backing copies.
+	// Chain entries are NOT spliced into the user's groups: the document
+	// owns its groups — chains are reachable via GLOBAL, rules and the
+	// speed-test group, and referenceable from user groups by name.
+	if chainList, _ := chainProxies(s, clashChainSource(rootMap, g)); len(chainList) > 0 {
+		merged := mapListValue(rootMap, "proxies")
+		for _, pm := range chainList {
+			merged = append(merged, yamlNodeFrom(pm))
+		}
+		setMapKey(rootMap, "proxies", &yaml.Node{
+			Kind:    yaml.SequenceNode,
+			Tag:     "!!seq",
+			Content: merged,
+		})
+	}
+
 	// Ensure some rules exist; an empty rules list is a config error.
 	if rules := mapListValue(rootMap, "rules"); len(rules) == 0 {
 		setMapKey(rootMap, "rules", yamlNodeFrom(defaultRules()))
@@ -419,6 +456,182 @@ func (g *ConfigGen) generateClash(s settings.Settings, active profile.Summary) (
 		return "", err
 	}
 	return string(out), nil
+}
+
+// ------------------------------------------------------------- chains ------
+//
+// Proxy chains (#107, v2rayN 前置/落地代理 parity): the user dials node A
+// THROUGH node B. mihomo models this with `dialer-proxy: B` on a copy of A.
+//
+// CORE CONSTRAINT (verified against mihomo v1.19.34 source): dialer-proxy
+// resolves ONLY against the config's static `proxies:` entries and groups —
+// config/utils.go validateDialerProxies fails the WHOLE config otherwise,
+// and component/proxydialer resolves by name through tunnel.Proxies() (the
+// static map; provider nodes never enter it). Therefore BOTH endpoints of a
+// chain whose nodes live in a provider must be materialized as static
+// proxies: the landing gets a copy named "<A> via <B>" carrying
+// dialer-proxy, and a provider-front gets a plain static copy named
+// "via: <B>" to back the reference. Names already present in the pool are
+// never reused (mihomo rejects duplicate names); a chain whose derived
+// names would collide is skipped entirely.
+
+const (
+	// chainNameSep joins "<landing> via <front>" in the derived entry name.
+	chainNameSep = " via "
+	// frontCopyPrefix marks the static backing copy of a provider front.
+	frontCopyPrefix = "via: "
+)
+
+// chainEntriesAsAny converts the derived entry names to the []any shape
+// the group builders expect.
+func chainEntriesAsAny(names []string) []any {
+	out := make([]any, len(names))
+	for i, n := range names {
+		out[i] = n
+	}
+	return out
+}
+
+// chainNames derives the two materialized names for a chain.
+func chainNames(node, via string) (entry, front string) {
+	return node + chainNameSep + via, frontCopyPrefix + via
+}
+
+// chainSource is the per-generation environment for chain materialization:
+// the addressable node-name pool, the raw-node resolver and the set of
+// names that are ALREADY static proxies in the target config (fronts
+// there need no backing copy).
+type chainSource struct {
+	pool    map[string]bool
+	resolve func(name string) map[string]any
+	static  map[string]bool
+}
+
+// chainProxies materializes static proxy maps for the user's chains.
+// Returns the ordered proxy list (front copies first, then entries) and
+// the derived entry names in the same order as s.ProxyChains (skipping
+// the stale ones — the UI keeps them but they cost nothing until their
+// endpoints reappear, mirroring stale routing overrides #50).
+func chainProxies(s settings.Settings, src chainSource) (proxies []any, entries []string) {
+	if len(s.ProxyChains) == 0 {
+		return nil, nil
+	}
+	frontCopies := map[string]bool{}
+	for _, c := range s.ProxyChains {
+		if !src.pool[c.Node] || !src.pool[c.Via] {
+			continue // stale endpoint — skip, keep for later re-derivation
+		}
+		entry, front := chainNames(c.Node, c.Via)
+		if src.pool[entry] || src.pool[front] {
+			continue // a real node already owns that name — refuse to shadow
+		}
+		landing := src.resolve(c.Node)
+		if landing == nil {
+			continue
+		}
+		// Front backing copy: only when the front is not already a static
+		// proxy of this config (clash-kind docs carry their own proxies;
+		// provider fronts must be copied).
+		if !src.static[c.Via] && !frontCopies[c.Via] {
+			fm := src.resolve(c.Via)
+			if fm == nil {
+				continue
+			}
+			fc := copyNodeMap(fm)
+			fc["name"] = front
+			proxies = append(proxies, fc)
+			frontCopies[c.Via] = true
+		}
+		entryMap := copyNodeMap(landing)
+		entryMap["name"] = entry
+		entryMap["dialer-proxy"] = front
+		proxies = append(proxies, entryMap)
+		entries = append(entries, entry)
+	}
+	return proxies, entries
+}
+
+// copyNodeMap deep-copies a raw node map (mutation of one entry must never
+// leak into the materialized provider file).
+func copyNodeMap(in map[string]any) map[string]any {
+	out := make(map[string]any, len(in)+2)
+	for k, v := range in {
+		if m, ok := v.(map[string]any); ok {
+			out[k] = copyNodeMap(m)
+			continue
+		}
+		if s, ok := v.([]any); ok {
+			cp := make([]any, len(s))
+			for i, item := range s {
+				if m, ok := item.(map[string]any); ok {
+					cp[i] = copyNodeMap(m)
+				} else {
+					cp[i] = item
+				}
+			}
+			out[k] = cp
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
+// nodesChainSource builds the chain environment for generated "nodes"
+// configs: every app provider node is addressable (same pool as provider
+// targets #42), nothing is static until we materialize it.
+func (g *ConfigGen) nodesChainSource() chainSource {
+	pool := map[string]bool{}
+	for _, p := range g.Profiles.List() {
+		if p.Kind != profile.KindNodes {
+			continue
+		}
+		if names, err := g.Profiles.NodeNames(p.ID); err == nil {
+			for _, n := range names {
+				pool[n] = true
+			}
+		}
+	}
+	return chainSource{
+		pool:    pool,
+		resolve: func(name string) map[string]any { m, _ := g.Profiles.NodeMapFor(name); return m },
+		static:  map[string]bool{},
+	}
+}
+
+// clashChainSource builds the chain environment for a user clash document:
+// the doc's own proxies are static (dialer-proxy can reference them
+// directly), provider nodes join the pool but need front copies.
+func clashChainSource(rootMap *yaml.Node, g *ConfigGen) chainSource {
+	pool := map[string]bool{}
+	static := map[string]bool{}
+	for _, item := range mapListValue(rootMap, "proxies") {
+		if item.Kind != yaml.MappingNode {
+			continue
+		}
+		for i := 0; i+1 < len(item.Content); i += 2 {
+			if item.Content[i].Value == "name" && item.Content[i+1].Value != "" {
+				name := item.Content[i+1].Value
+				pool[name] = true
+				static[name] = true
+			}
+		}
+	}
+	for _, p := range g.Profiles.List() {
+		if p.Kind != profile.KindNodes {
+			continue
+		}
+		if names, err := g.Profiles.NodeNames(p.ID); err == nil {
+			for _, n := range names {
+				pool[n] = true
+			}
+		}
+	}
+	return chainSource{
+		pool:    pool,
+		resolve: func(name string) map[string]any { m, _ := g.Profiles.NodeMapFor(name); return m },
+		static:  static,
+	}
 }
 
 // ---------------------------------------------------------------- helpers --

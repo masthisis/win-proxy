@@ -1,10 +1,14 @@
 <script setup lang="ts">
 /** Dashboard: mode switcher, group panels with node chips, engine empty state. */
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import * as Proxy from "../../bindings/github.com/neurorift/neurorift/proxyservice.js";
 import * as Profile from "../../bindings/github.com/neurorift/neurorift/profileservice.js";
+import * as Settings from "../../bindings/github.com/neurorift/neurorift/settingsservice.js";
 import type { GroupUI, NodeUI } from "../../bindings/github.com/neurorift/neurorift/models.js";
 import type { ShareInfo } from "../../bindings/github.com/neurorift/neurorift/internal/profile/models.js";
+import type { ProxyChain } from "../../bindings/github.com/neurorift/neurorift/internal/settings/models.js";
+import type { ChipMenu } from "../components/NodeChip.vue";
+import RouteViaModal from "../components/RouteViaModal.vue";
 import { store, refreshGroups, startEngine, setView, engineRunning } from "../store";
 import { t } from "../lib/i18n";
 import { toast, errMsg } from "../lib/toast";
@@ -14,6 +18,11 @@ import StatusPill from "../components/StatusPill.vue";
 import { IconRefresh, IconBolt, IconGauge, IconProfiles, IconWarn, IconSort } from "../components/Icons";
 
 const MODES = ["rule", "global", "direct"] as const;
+
+onMounted(() => {
+  window.addEventListener("click", closeMenu);
+  window.addEventListener("resize", closeMenu);
+});
 
 const modeBusy = ref(false);
 const testAllBusy = ref(false);
@@ -42,6 +51,65 @@ function closeShare(): void {
   shareOpen.value = false;
   shareInfo.value = null;
 }
+
+/** Context menu state: right-click a chip → Share / Route via… (#107). */
+const menu = ref<ChipMenu | null>(null);
+
+function openMenu(ev: ChipMenu): void {
+  menu.value = ev;
+}
+
+function closeMenu(): void {
+  menu.value = null;
+}
+
+function menuShare(): void {
+  const n = menu.value?.node;
+  closeMenu();
+  if (n) void shareNode(n);
+}
+
+function menuRoute(): void {
+  const n = menu.value?.node;
+  closeMenu();
+  if (n) openRouteVia(n.name);
+}
+
+/** Chain state (#107): the app-managed chain list, refreshed on mount and
+ * after every add/remove so the modal shows the current pairing. */
+const chains = ref<ProxyChain[]>([]);
+const routeViaOpen = ref(false);
+const routeViaNode = ref("");
+
+async function refreshChains(): Promise<void> {
+  try {
+    const doc = await Settings.Get();
+    chains.value = doc.proxyChains ?? [];
+  } catch {
+    chains.value = [];
+  }
+}
+
+onMounted(refreshChains);
+
+function openRouteVia(node: string): void {
+  routeViaNode.value = node;
+  routeViaOpen.value = true;
+}
+
+async function onRouteViaChanged(): Promise<void> {
+  await refreshChains();
+  await refreshGroups();
+}
+
+/** Candidates for a front: every node visible in any group. */
+const routeCandidates = computed(() => {
+  const names: string[] = [];
+  for (const g of store.groups) {
+    for (const n of g.all ?? []) names.push(n.name);
+  }
+  return [...new Set(names)];
+});
 
 /** Issue #43: node search + sort-by-delay toggle (persisted per session). */
 const nodeSearch = ref("");
@@ -295,13 +363,45 @@ async function selectNode(g: GroupUI, node: NodeUI): Promise<void> {
             :interactive="g.type === 'Selector'"
             :busy="selecting === n.name"
             shareable
+            routeable
             @select="selectNode(g, n)"
             @share="shareNode(n)"
+            @menu="openMenu"
           />
         </div>
       </section>
     </template>
 
     <ShareModal :open="shareOpen" :info="shareInfo" @close="closeShare" />
+
+    <!-- node context menu (right-click a chip) -->
+    <div
+      v-if="menu"
+      class="chip-menu"
+      :style="{ left: `${menu.x}px`, top: `${menu.y}px` }"
+      role="menu"
+      @click.stop
+    >
+      <button class="chip-menu-item" role="menuitem" @click="menuShare">
+        {{ t("dash.menuShare") }}
+      </button>
+      <button
+        v-if="!menu.node.name.includes(' via ')"
+        class="chip-menu-item"
+        role="menuitem"
+        @click="menuRoute"
+      >
+        {{ t("dash.menuRouteVia") }}
+      </button>
+    </div>
+
+    <RouteViaModal
+      :open="routeViaOpen"
+      :node="routeViaNode"
+      :chains="chains"
+      :candidates="routeCandidates"
+      @close="routeViaOpen = false"
+      @changed="onRouteViaChanged"
+    />
   </div>
 </template>

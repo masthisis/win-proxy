@@ -16,12 +16,38 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as settings$0 from "./internal/settings/models.js";
 
 /**
+ * AddProxyChain creates or replaces the chain for a landing node (#107):
+ * the node dials through the front (mihomo dialer-proxy). Read-modify-write
+ * under the settings lock, then a settings-scoped engine reapply — the
+ * derived static proxies appear on the next config regeneration.
+ * @param {string} node
+ * @param {string} via
+ * @returns {$CancellablePromise<settings$0.ProxyChain[]>}
+ */
+export function AddProxyChain(node, via) {
+    return $Call.ByID(2611969282, node, via).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
+
+/**
  * Get returns the current settings.
  * @returns {$CancellablePromise<settings$0.Settings>}
  */
 export function Get() {
     return $Call.ByID(710695688).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
+        return $$createType2($result);
+    }));
+}
+
+/**
+ * RemoveProxyChain deletes the chain with the given id (#107).
+ * @param {string} id
+ * @returns {$CancellablePromise<settings$0.ProxyChain[]>}
+ */
+export function RemoveProxyChain(id) {
+    return $Call.ByID(1711917669, id).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
     }));
 }
 
@@ -32,9 +58,11 @@ export function Get() {
  */
 export function Save(next) {
     return $Call.ByID(2704157817, next).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
+        return $$createType2($result);
     }));
 }
 
 // Private type creation functions
-const $$createType0 = settings$0.Settings.createFrom;
+const $$createType0 = settings$0.ProxyChain.createFrom;
+const $$createType1 = $Create.Array($$createType0);
+const $$createType2 = settings$0.Settings.createFrom;

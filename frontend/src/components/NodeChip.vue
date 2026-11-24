@@ -12,6 +12,13 @@ export interface NodeChipModel {
   delay: number;
 }
 
+/** Where a context menu was requested (viewport coordinates). */
+export interface ChipMenu {
+  node: NodeChipModel;
+  x: number;
+  y: number;
+}
+
 const props = withDefaults(
   defineProps<{
     node: NodeChipModel;
@@ -19,13 +26,16 @@ const props = withDefaults(
     interactive?: boolean;
     busy?: boolean;
     shareable?: boolean;
+    /** Right-click offers "Route via…" too (#107). */
+    routeable?: boolean;
   }>(),
-  { selected: false, interactive: false, busy: false, shareable: false },
+  { selected: false, interactive: false, busy: false, shareable: false, routeable: false },
 );
 
 const emit = defineEmits<{
   (e: "select", node: NodeChipModel): void;
   (e: "share", node: NodeChipModel): void;
+  (e: "menu", ev: ChipMenu): void;
 }>();
 
 const latCls = computed(() => {
@@ -43,10 +53,13 @@ function onClick(): void {
 function onContextmenu(ev: MouseEvent): void {
   if (!props.shareable) return;
   ev.preventDefault();
-  emit("share", props.node);
+  emit("menu", { node: props.node, x: ev.clientX, y: ev.clientY });
 }
 
 const shareHint = computed(() => t("dash.shareHint"));
+
+/** Chain-derived entries (#107) are named "<landing> via <front>". */
+const isChain = computed(() => props.node.name.includes(" via "));
 </script>
 
 <template>
@@ -62,9 +75,16 @@ const shareHint = computed(() => t("dash.shareHint"));
   >
     <span class="n-name" :title="node.name">{{ node.name }}</span>
     <span class="n-meta">
+      <span v-if="isChain" class="n-type chain-tag">{{ t("dash.chainTag") }}</span>
       <span class="n-type">{{ node.type || "—" }}</span>
       <span v-if="busy" class="spinner" style="width: 10px; height: 10px" />
       <span class="latency" :class="latCls">{{ fmtLatency(node.delay) }}</span>
     </span>
   </component>
 </template>
+
+<style scoped>
+.chain-tag {
+  color: var(--accent, #7aa2f7);
+}
+</style>

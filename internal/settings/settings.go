@@ -12,6 +12,8 @@
 package settings
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"strings"
@@ -73,6 +75,23 @@ type RoutingOverride struct {
 	Type string `json:"type"`
 	// Target is the routing destination: node, group, DIRECT or REJECT.
 	Target string `json:"target"`
+}
+
+// ProxyChain is one user-defined two-hop chain (issue #107, v2rayN
+// 前置/落地代理 parity): the landing node `Node` is dialed THROUGH the
+// front node `Via` (mihomo `dialer-proxy`). At config generation the
+// landing node's map is copied into a static `proxies:` entry named
+// "<Node> via <Via>" carrying dialer-proxy; when the front is a provider
+// node (invisible to mihomo's dialer-proxy resolution, which only sees
+// static proxies and groups) a static copy named "via: <Via>" backs it.
+// One chain per landing node; stale endpoints are skipped at generation.
+type ProxyChain struct {
+	// ID is a stable identifier for UI deletion (assigned on save).
+	ID string `json:"id"`
+	// Node is the landing node name (the exit / 落地).
+	Node string `json:"node"`
+	// Via is the front node name (the entry relay / 前置).
+	Via string `json:"via"`
 }
 
 // Failover configures the automatic node-switching watchdog.
@@ -308,6 +327,9 @@ type Settings struct {
 	// RoutingOverrides are injected as high-priority rules into every
 	// generated runtime config, right after the LAN block (#50).
 	RoutingOverrides []RoutingOverride `json:"routingOverrides"`
+	// ProxyChains are user-defined two-hop node chains (#107): landing
+	// node dialed through a front node via mihomo dialer-proxy.
+	ProxyChains []ProxyChain `json:"proxyChains"`
 	// BypassCN routes mainland-China traffic DIRECT (v2rayNG "bypass
 	// mainland" parity, issue #96): GEOSITE,cn + GEOIP,CN. Placed after
 	// the LAN block and BEFORE the user overrides (#50 wins on conflict).
@@ -517,6 +539,7 @@ func (s *Settings) validate() {
 		s.Subscription.DefaultIntervalH = d.Subscription.DefaultIntervalH
 	}
 	s.RoutingOverrides = sanitizeRoutingOverrides(s.RoutingOverrides)
+	s.ProxyChains = sanitizeProxyChains(s.ProxyChains)
 	s.ProxyGuard.IntervalSec = clampInt(s.ProxyGuard.IntervalSec, 3, 300, d.ProxyGuard.IntervalSec)
 }
 
@@ -558,6 +581,45 @@ func sanitizeRoutingOverrides(in []RoutingOverride) []RoutingOverride {
 		out = []RoutingOverride{}
 	}
 	return out
+}
+
+// sanitizeProxyChains normalizes the chain list: trims names, drops
+// malformed rows (empty names, node == via — dialing through itself),
+// keeps one chain per landing node (the derived entry name would collide)
+// and caps the list (each chain costs a static proxy + health state in
+// the core).
+func sanitizeProxyChains(in []ProxyChain) []ProxyChain {
+	out := make([]ProxyChain, 0, len(in))
+	seen := map[string]bool{}
+	for _, c := range in {
+		c.Node = strings.TrimSpace(c.Node)
+		c.Via = strings.TrimSpace(c.Via)
+		c.ID = strings.TrimSpace(c.ID)
+		if c.Node == "" || c.Via == "" || c.Node == c.Via || seen[c.Node] {
+			continue
+		}
+		if c.ID == "" {
+			c.ID = ChainID(c.Node, c.Via)
+		}
+		seen[c.Node] = true
+		out = append(out, c)
+	}
+	if len(out) > 64 {
+		out = out[:64]
+	}
+	if out == nil {
+		out = []ProxyChain{}
+	}
+	return out
+}
+
+// ChainID derives a stable UI id from the pair (stable as long as the
+// pair is unchanged — enough for the delete button, which sends the id
+// of the row it renders). Exported for the service layer, which must
+// mint the same id when replacing a chain's front (#107).
+func ChainID(node, via string) string {
+	h := sha256.Sum256([]byte(node + "\x00" + via))
+	return hex.EncodeToString(h[:6])
 }
 
 // validGeoIPPattern accepts ISO 3166-1 alpha-2 country codes (case-
@@ -613,7 +675,22 @@ func NeedsConfigReload(a, b Settings) bool {
 		a.Nodes != b.Nodes ||
 		a.Sniffer != b.Sniffer ||
 		!kcpEqual(a.KCP, b.KCP) ||
-		!routingOverridesEqual(a.RoutingOverrides, b.RoutingOverrides)
+		!routingOverridesEqual(a.RoutingOverrides, b.RoutingOverrides) ||
+		!proxyChainsEqual(a.ProxyChains, b.ProxyChains)
+}
+
+// proxyChainsEqual compares two chain lists (order must match — the
+// generated config materializes chains in list order).
+func proxyChainsEqual(a, b []ProxyChain) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // kcpEqual compares two KCP documents (struct is comparable minus nothing;

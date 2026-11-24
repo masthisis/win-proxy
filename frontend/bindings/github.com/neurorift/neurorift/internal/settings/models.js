@@ -543,6 +543,61 @@ export class Ports {
 }
 
 /**
+ * ProxyChain is one user-defined two-hop chain (issue #107, v2rayN
+ * 前置/落地代理 parity): the landing node `Node` is dialed THROUGH the
+ * front node `Via` (mihomo `dialer-proxy`). At config generation the
+ * landing node's map is copied into a static `proxies:` entry named
+ * "<Node> via <Via>" carrying dialer-proxy; when the front is a provider
+ * node (invisible to mihomo's dialer-proxy resolution, which only sees
+ * static proxies and groups) a static copy named "via: <Via>" backs it.
+ * One chain per landing node; stale endpoints are skipped at generation.
+ */
+export class ProxyChain {
+    /**
+     * Creates a new ProxyChain instance.
+     * @param {Partial<ProxyChain>} [$$source = {}] - The source object to create the ProxyChain.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * ID is a stable identifier for UI deletion (assigned on save).
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("node" in $$source)) {
+            /**
+             * Node is the landing node name (the exit / 落地).
+             * @member
+             * @type {string}
+             */
+            this["node"] = "";
+        }
+        if (!("via" in $$source)) {
+            /**
+             * Via is the front node name (the entry relay / 前置).
+             * @member
+             * @type {string}
+             */
+            this["via"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ProxyChain instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ProxyChain}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ProxyChain(/** @type {Partial<ProxyChain>} */($$parsedSource));
+    }
+}
+
+/**
  * ProxyGuard configures the system-proxy watchdog (issue #47).
  */
 export class ProxyGuard {
@@ -852,6 +907,15 @@ export class Settings {
              */
             this["routingOverrides"] = [];
         }
+        if (!("proxyChains" in $$source)) {
+            /**
+             * ProxyChains are user-defined two-hop node chains (#107): landing
+             * node dialed through a front node via mihomo dialer-proxy.
+             * @member
+             * @type {ProxyChain[]}
+             */
+            this["proxyChains"] = [];
+        }
         if (!("bypassCN" in $$source)) {
             /**
              * BypassCN routes mainland-China traffic DIRECT (v2rayNG "bypass
@@ -939,12 +1003,13 @@ export class Settings {
         const $$createField17_0 = $$createType11;
         const $$createField18_0 = $$createType12;
         const $$createField19_0 = $$createType14;
-        const $$createField21_0 = $$createType15;
-        const $$createField22_0 = $$createType16;
-        const $$createField23_0 = $$createType17;
-        const $$createField24_0 = $$createType18;
-        const $$createField25_0 = $$createType19;
-        const $$createField27_0 = $$createType0;
+        const $$createField20_0 = $$createType16;
+        const $$createField22_0 = $$createType17;
+        const $$createField23_0 = $$createType18;
+        const $$createField24_0 = $$createType19;
+        const $$createField25_0 = $$createType20;
+        const $$createField26_0 = $$createType21;
+        const $$createField28_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("ports" in $$parsedSource) {
             $$parsedSource["ports"] = $$createField7_0($$parsedSource["ports"]);
@@ -985,23 +1050,26 @@ export class Settings {
         if ("routingOverrides" in $$parsedSource) {
             $$parsedSource["routingOverrides"] = $$createField19_0($$parsedSource["routingOverrides"]);
         }
+        if ("proxyChains" in $$parsedSource) {
+            $$parsedSource["proxyChains"] = $$createField20_0($$parsedSource["proxyChains"]);
+        }
         if ("geo" in $$parsedSource) {
-            $$parsedSource["geo"] = $$createField21_0($$parsedSource["geo"]);
+            $$parsedSource["geo"] = $$createField22_0($$parsedSource["geo"]);
         }
         if ("proxyGuard" in $$parsedSource) {
-            $$parsedSource["proxyGuard"] = $$createField22_0($$parsedSource["proxyGuard"]);
+            $$parsedSource["proxyGuard"] = $$createField23_0($$parsedSource["proxyGuard"]);
         }
         if ("updates" in $$parsedSource) {
-            $$parsedSource["updates"] = $$createField23_0($$parsedSource["updates"]);
+            $$parsedSource["updates"] = $$createField24_0($$parsedSource["updates"]);
         }
         if ("reporting" in $$parsedSource) {
-            $$parsedSource["reporting"] = $$createField24_0($$parsedSource["reporting"]);
+            $$parsedSource["reporting"] = $$createField25_0($$parsedSource["reporting"]);
         }
         if ("window" in $$parsedSource) {
-            $$parsedSource["window"] = $$createField25_0($$parsedSource["window"]);
+            $$parsedSource["window"] = $$createField26_0($$parsedSource["window"]);
         }
         if ("bypassDomains" in $$parsedSource) {
-            $$parsedSource["bypassDomains"] = $$createField27_0($$parsedSource["bypassDomains"]);
+            $$parsedSource["bypassDomains"] = $$createField28_0($$parsedSource["bypassDomains"]);
         }
         return new Settings(/** @type {Partial<Settings>} */($$parsedSource));
     }
@@ -1367,8 +1435,10 @@ const $$createType11 = KCP.createFrom;
 const $$createType12 = Sniffer.createFrom;
 const $$createType13 = RoutingOverride.createFrom;
 const $$createType14 = $Create.Array($$createType13);
-const $$createType15 = Geo.createFrom;
-const $$createType16 = ProxyGuard.createFrom;
-const $$createType17 = Updates.createFrom;
-const $$createType18 = Reporting.createFrom;
-const $$createType19 = WindowGeometry.createFrom;
+const $$createType15 = ProxyChain.createFrom;
+const $$createType16 = $Create.Array($$createType15);
+const $$createType17 = Geo.createFrom;
+const $$createType18 = ProxyGuard.createFrom;
+const $$createType19 = Updates.createFrom;
+const $$createType20 = Reporting.createFrom;
+const $$createType21 = WindowGeometry.createFrom;
