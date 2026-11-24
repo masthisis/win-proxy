@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.13.0 — v2rayNG settings parity, subscription custom headers
 
 ### v2rayNG settings parity (#96 — owner directive 2026-11-24)
 
