@@ -1,5 +1,41 @@
 # Changelog
 
+## v1.15.0 — proxy chains (前置/落地代理)
+
+v2rayN's front/landing proxy parity (#107): any node can be dialed THROUGH
+another node — the classic anti-censorship setup (domestic relay as front,
+blocked endpoint as landing).
+
+### Route via… (#107)
+
+- **Right-click any node chip → "Route via…"** picks the front node from a
+  searchable candidate list (share moved into the same context menu). The
+  chain materializes at config generation as a static `proxies:` entry named
+  `<landing> via <front>` carrying mihomo's `dialer-proxy`; the derived
+  entry joins **Node Select** and **NR Auto** (url-test auto-switching
+  included) and is tagged with a chain badge in the Proxies view.
+- **Architecture note (verified against mihomo v1.19.34 source):**
+  `dialer-proxy` resolves ONLY against static `proxies:` entries and groups
+  (`config/utils.go validateDialerProxies` refuses the whole config
+  otherwise; `component/proxydialer/byname.go` looks up `tunnel.Proxies()`,
+  which never contains provider nodes). Subscription nodes used as fronts
+  therefore get a static **`via: <front>`** backing copy, deduped across
+  chains sharing the same front.
+- Chains are **re-derived from live node maps on every generation** —
+  subscription updates flow into chains automatically. Stale endpoints
+  (node left the subscription, profile switched) are skipped the same way
+  stale routing overrides are (#50); a chain whose derived name would
+  collide with a real node is refused (mihomo rejects duplicate names).
+- **Settings → Proxy chains** lists every chain (landing → front) with
+  removal; backend `AddProxyChain`/`RemoveProxyChain` do read-modify-write
+  under the settings lock and hot-reapply (CONTRACT updated). i18n EN/FA.
+- **Proven end-to-end on the real core**: the integration suite now runs a
+  two-hop chain (HTTP front → HTTP landing → upstream) — latency round trip
+  passes AND the traversal is proven by shutting the front down (the chain
+  must die with it; if the core ignored dialer-proxy it would keep
+  succeeding). Clash-kind profiles gain the chain entries without their
+  user groups being touched.
+
 ## v1.14.0 — awesome-tools client parity
 
 Research: every Windows client listed on v2ray.com's awesome-tools page

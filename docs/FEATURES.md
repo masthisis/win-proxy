@@ -18,6 +18,7 @@ Comparison against the tools NeuroRift replaces or borrows from.
 | TUIC v4/v5 | ❌ | ✅ | ✅ |
 | AnyTLS / SOCKS5 / HTTP(S) nodes | 🟡 | ✅ | ✅ |
 | WireGuard outbound | ❌ | 🟡 | ✅ native mihomo node + wg-quick .conf import |
+| **Proxy chains (前置/落地 via dialer-proxy)** | ❌ | 🟡 (manual config) | ✅ (#107) right-click → Route via… |
 | SSH outbound | ❌ | 🟡 | ❌ (rejected: separate system process, see ROADMAP) |
 | Actively maintained engine | ❌ (dead 2023) | ✅ | ✅ (mihomo) |
 | Core auto-update from upstream | ❌ | 🟡 manual | ✅ stable/alpha channels + mirrors |
@@ -76,6 +77,7 @@ Comparison against the tools NeuroRift replaces or borrows from.
 
 ## Shipped since this table was written (now ✅ above)
 
+- Proxy chains via mihomo dialer-proxy (v1.15.0, #107)
 - Share links + QR import/export (v1.14.0, #102)
 - Backup & restore (v1.14.0, #103)
 - IP-CIDR/GEOIP routing overrides (v1.14.0, #104)
