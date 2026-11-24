@@ -150,10 +150,18 @@ same subscriptions.
 ## Agent-filed backlog (after the user-requested set, or as small
 companion items when a cycle has capacity left)
 
-- **#75 — per-profile User-Agent for subscription fetch** — SHIPPED in
-  v1.12.0: `clash-verge/v2.4.4` default (panels serve tuned Clash YAML to
-  clash-family clients) plus a per-subscription override in the Profiles UI.
-  The general "custom headers" half of the issue stays open.
+- **#114 — per-profile enhancement chain** (YAML merge docs + config
+  scripts, Clash Verge Rev parity) — filed 2026-11-25 with a full plan
+  (merge semantics, goja sandbox, configgen hook, two-layer validation).
+  The last big config-shaping gap vs competitors.
+- **#115 — rule-providers management** (mihomo rule-sets .mrs/yaml/text +
+  RULE-SET rules GUI) — filed 2026-11-25, schema verified against
+  mihomo v1.19.34 rules/provider/parse.go; carries health badges via the
+  provider API.
+- **#100 — TLS ClientHello fragmentation** — no mihomo support; Xray-core
+  only, sidecar/upstream paths documented on the issue.
+- **#108 — per-proxy traffic accounting** (mihomo external controller
+  surface; v2rayN server-statistics parity).
 - **#76 — pause traffic sampling / chart work while the window is hidden**
   (frontend-only; Clash Verge Rev's CPU fix). Visibility-gated ring-buffer
   pushes in `store.ts`.
