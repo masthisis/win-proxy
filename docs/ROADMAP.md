@@ -7,10 +7,27 @@ the standard workflow: issue → branch → PR → CI → squash-merge, followed
 release train (version bump, changelog, tag). This file is kept in sync
 whenever issues close.
 
-Released: v1.13.0 (2026-11-24) — v2rayNG settings parity (#96) + custom
-subscription headers (#75); v1.12.0 WireGuard import; v1.11.0 (2026-11-22)
-PAC mode; v1.10.0 TUN service complete (#14 done); v1.9.0 TUN service
-foundation; v1.8.0 sing-box import.
+Released: v1.14.0 (2026-11-24) — awesome-tools client parity: share links +
+QR (#102), backup & restore (#103), IP-CIDR/GEOIP overrides (#104), UWP
+loopback exemption (#105), geo database manager (#106). v1.13.0 (2026-11-24)
+— v2rayNG settings parity (#96) + custom subscription headers (#75);
+v1.12.0 WireGuard import; v1.11.0 (2026-11-22) PAC mode; v1.10.0 TUN service
+complete (#14 done); v1.9.0 TUN service foundation; v1.8.0 sing-box import.
+
+### 0-quater. #102–#106 — awesome-tools Windows client parity (owner chat directive 2026-11-24)
+
+> **LANDED — ships in v1.14.0 (PRs #109/#110).** Owner directive: research
+> the Windows clients on v2ray.com's awesome-tools page and implement the
+> features/best practices NeuroRift lacks. Shipped: share links + QR
+> import/export (right-click a node → link + QR; Scan QR from screen/file;
+> pure-Go codecs, round-trip tested per scheme + two real parser fixes),
+> backup & restore (marker-guarded zip, safety copy, app relaunch),
+> IP-CIDR + GEOIP routing-override types (domain-before-IP ordering),
+> UWP loopback exemption (CheckNetIsolation per AppContainer SID, one
+> elevated child), geo database manager (mirror presets — also now emitted
+> for clash-kind configs — + update-now). Research follow-up: #108
+> (per-proxy traffic accounting). #107 (proxy chains / 前置代理) is the
+> next user-requested implementation.
 
 ### 0-ter. #75 — subscription custom request headers
 
@@ -45,7 +62,17 @@ foundation; v1.8.0 sing-box import.
 
 ## User-requested queue (in order)
 
-### 1. #14 — TUN service mode (no UAC prompt on every launch)
+### 1. #107 — proxy chains (前置/落地 proxy via mihomo dialer-proxy)
+
+v2rayN wiki "前置代理和落地代理说明": chain an outbound through another
+node first. Next implementation target (top of the queue after the
+v1.14.0 parity release): right-click a node → "Route via…" creates a
+derived `A via B` proxy (copy of A with `dialer-proxy: B`) in an
+app-managed proxies block, joined into the url-test group; re-derived on
+provider updates; validated when either endpoint disappears. Acceptance:
+two-hop chain proven in the integration suite.
+
+### 2. #14 — TUN service mode (no UAC prompt on every launch)
 
 Staged delivery; each stage is a shippable, compiling, tested increment.
 
@@ -71,7 +98,7 @@ Staged delivery; each stage is a shippable, compiling, tested increment.
   post-install option to pre-register the service, TROUBLESHOOTING
   section, crash-loop reporting piped into the service-side status.
 
-### 2. #15 — PAC mode alongside system proxy
+### 3. #15 — PAC mode alongside system proxy
 
 > **SHIPPED in v1.11.0 (2026-11-23, PR #84).** `internal/pacserve` listener +
 > `AutoConfigURL` switch, tri-state `proxyMode` (off/system/pac), tray radios,
@@ -86,7 +113,7 @@ defaults for LAN/private ranges; port configurable + collision-checked;
 mode switch live without restart; mode enum + event documented in
 CONTRACT.md.
 
-### 3. #17 — Scriptable rules
+### 4. #17 — Scriptable rules
 
 Tiny user snippets compiled to mihomo sub-rules / AND-OR-NOT logic rules.
 Pick ONE expression engine (goja vs expr-lang — justify on bundle size +
@@ -95,7 +122,7 @@ errors (same two-layer discipline as the YAML editor), render below
 overrides and above defaults in `configgen.go`. Snippets never touch the
 data plane; no filesystem/network access from snippet evaluation.
 
-### 4. #19 — Linux + macOS parity builds
+### 5. #19 — Linux + macOS parity builds
 
 Feature-by-feature behind the existing `internal/platform` build-tag
 contract, one PR per feature: system proxy (gsettings/GNOME + KDE;
@@ -104,7 +131,7 @@ LaunchAgent) → TUN (Linux `/dev/net/tun` + pkexec guidance; macOS utun) →
 tray parity; CI build matrix (Ubuntu + macOS artifacts, per-OS test/vet
 smoke). The pure-Go engine core needs zero changes.
 
-### 5. #73 — Android (research track, separate product)
+### 6. #73 — Android (research track, separate product)
 
 Not implementable inside this Wails v3 desktop codebase. Plan posted on the
 issue: sibling repository (`neurorift-android`), Kotlin app embedding the

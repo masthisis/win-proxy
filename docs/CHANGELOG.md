@@ -1,5 +1,74 @@
 # Changelog
 
+## v1.14.0 — awesome-tools client parity
+
+Research: every Windows client listed on v2ray.com's awesome-tools page
+(v2rayN wiki, Qv2ray, Mellow, V2RayW) was compared against NeuroRift; the
+five features they have and we lacked are shipped in this release, all
+implemented against the mihomo v1.19.34 schema and official docs.
+
+### Share links + QR codes (#102)
+
+- **Export (share out)**: `internal/profile/uriexport.go` is the exact
+  inverse of `uriparse.go` — any stored node serializes back to its
+  standard share-link format (vmess base64-JSON, vless incl. REALITY +
+  post-quantum encryption, trojan, ss SIP002 incl. obfs/v2ray-plugin,
+  ssr, hysteria2 incl. port hopping, tuic v4/v5, anytls, socks5, http).
+  WireGuard nodes export as a standard wg-quick `.conf`. Right-click any
+  node chip on the Dashboard → Share modal with the link, a QR PNG and a
+  copy button; wireguard gets a `.conf` download instead.
+- **Import (QR in)**: "Scan QR" captures the whole virtual screen on
+  Windows (hand-rolled GDI syscall capture — no cgo) and imports the
+  decoded payload; the import-file dialog also accepts PNG/JPEG QR
+  images through the same pipeline. QR encode/decode are pure-Go
+  (skip2/go-qrcode + makiuchi-d/gozxing).
+- Round-trip unit tests per scheme (parse→export→parse idempotent)
+  surfaced and fixed two real parser gaps: v2rayN vmess `net=tcp &
+  type=http` (HTTP obfs) links now map to mihomo's `http` network, and
+  the ss `v2ray-plugin` bare `;tls` token now enables TLS.
+
+### Backup & restore (#103)
+
+`internal/backup`: one-click export of the full app state (settings —
+including the PAC script and routing overrides — plus the profile
+registry and materialized provider/clash files) as a marker-guarded zip
+via the native save dialog. Restore validates the marker, refuses
+foreign zips and path-traversal entries, keeps a **safety zip of the
+pre-restore state**, swaps the files with the engine stopped, then
+relaunches the app (delayed starter respects the single-instance lock).
+Settings → Maintenance.
+
+### IP-CIDR + GEOIP routing overrides (#104)
+
+The routing-override editor (v2rayN custom routing / Mellow IP-rule
+parity) gains `ip-cidr` (validated CIDR; IPv6 emits `IP-CIDR6`) and
+`geoip` (ISO country code / LAN / PRIVATE) match types. Domain-type
+overrides emit before IP-type (no needless DNS resolution), both config
+shapes (nodes + clash) included. Backend validation drops rows that
+would break the core config.
+
+### UWP loopback exemption (#105)
+
+v2rayN's 解除Win10 UWP回环限制: Windows blocks UWP/AppContainer apps
+(Microsoft Store, …) from reaching the 127.0.0.1 system proxy.
+Settings → Maintenance → "Allow UWP apps to use the proxy" enumerates
+every AppContainer SID from the `AppContainer\Mappings` registry key and
+runs `CheckNetIsolation.exe LoopbackExempt -a -p=<SID>` for each, via a
+one-shot elevated child (`neurorift.exe uwp-exempt`, the same pre-GUI
+dispatch + one-UAC-prompt pattern as the TUN service install); the
+result is persisted as `uwp-exempt-last.json` in the data root.
+
+### Geo database manager (#106)
+
+`settings.geo.mirror` presets (jsdelivr testingcf / fastly, gh-proxy,
+direct raw — verified against the MetaCubeX/meta-rules-dat mirror list)
+now drive the emitted `geox-url`; **clash-kind profiles get the mirrored
+geox-url + geo-auto-update too** (they previously rode mihomo's
+GitHub-only defaults, unreachable from censored networks). Settings →
+Geo databases: mirror picker + "Update geo data now" (deletes the local
+geodata files and restarts the core — mihomo re-downloads from the
+selected mirror at boot).
+
 ## v1.13.0 — v2rayNG settings parity, subscription custom headers
 
 ### v2rayNG settings parity (#96 — owner directive 2026-11-24)

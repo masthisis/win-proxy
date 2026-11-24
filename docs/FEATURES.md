@@ -30,6 +30,12 @@ Comparison against the tools NeuroRift replaces or borrows from.
 | Per-subscription fetch User-Agent | ❌ | 🟡 global only | ✅ (#75) |
 | Import from clipboard | 🟡 | ✅ | ✅ |
 | Import local file (Clash YAML / sing-box JSON / wg-quick .conf) | ✅ | ❌ | ✅ |
+| Import QR image / scan screen for a subscription | ❌ | ✅ | ✅ (#102) |
+| **Share any node as link + QR (incl. wg-quick export)** | 🟡 (QR only) | ✅ | ✅ (#102) |
+| **Backup & restore full app state (zip)** | ❌ | ✅ | ✅ (#103) |
+| **UWP loopback exemption for system proxy** | 🟡 (external tool) | ✅ | ✅ (#105) |
+| **Geo database mirror + update-now** | 🟡 | ✅ | ✅ (#106) |
+| IP-CIDR / GEOIP custom rules (GUI) | 🟡 | ✅ | ✅ (#104) |
 | Auto-detect format (links/base64/clash/sing-box/wg-quick) | ✅ | ✅ | ✅ |
 | Scheduled auto-update | 🟡 | ✅ | ✅ per-profile interval + jitter + backoff |
 | Traffic / expiry panel (Subscription-Userinfo) | ✅ | ✅ | ✅ |
@@ -70,6 +76,11 @@ Comparison against the tools NeuroRift replaces or borrows from.
 
 ## Shipped since this table was written (now ✅ above)
 
+- Share links + QR import/export (v1.14.0, #102)
+- Backup & restore (v1.14.0, #103)
+- IP-CIDR/GEOIP routing overrides (v1.14.0, #104)
+- UWP loopback exemption (v1.14.0, #105)
+- Geo database manager (v1.14.0, #106)
 - Sing-box config import (v1.8.0)
 - Profile merge / union subscriptions (v1.5.0)
 - PAC mode (v1.11.0)
