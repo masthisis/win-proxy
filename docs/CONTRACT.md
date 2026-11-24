@@ -23,6 +23,7 @@ a bound signature changes.
 | `Status()` | `engine.Status` | {state, coreVersion, activeProfile, activeName, uptimeSec, detail} |
 | `Start()` | – | downloads core on first run (progress via `core:download`) |
 | `Stop()` / `Restart()` | – | |
+| `RefreshGeoData()` | – | #106: deletes geodata files + restarts core (re-downloads from the configured mirror) |
 | `CheckUpdate()` | `CoreUpdateInfo` | {current, latest, hasUpdate, channel} |
 | `UpdateNow()` | – | stops core, installs, restarts |
 | `SetChannel(channel)` | `CoreUpdateInfo` | "stable" \| "alpha" |
@@ -47,7 +48,7 @@ a bound signature changes.
 | `AddFromURL(url, name, userAgent)` | `Profile` | `userAgent` optional (`""` = `clash-verge/v2.4.4` default; panels serve different payloads per client UA — #75, #90) |
 | `AddFromText(text, name)` | `Profile` | parsed content (links/clash yaml) |
 | `ImportFromClipboard()` | `Profile` | |
-| `AddFromFile(path)` | `Profile` | |
+| `AddFromFile(path)` | `Profile` | accepts Clash YAML, sing-box JSON, wg-quick .conf AND QR images (PNG/JPEG — payload decoded and imported, #102) |
 | `Update(id)` | `Profile` | refresh + hot-apply |
 | `Remove(id)` | – | removes files; reverts engine if active |
 | `SetActive(id)` | – | hot-applies the profile |
@@ -56,6 +57,8 @@ a bound signature changes.
 | `SetUnion(id, on)` | – | joins the subscription's nodes into the active profile's routing groups (#48) |
 | `UpdateAll()` | `UpdateSummary` | `{updated, failed, skipped, errors}` — parallel refresh (#46) |
 | `GetNodes(id)` | `string[]` | node names |
+| `ShareNode(node)` | `ShareInfo` | #102: `{name, type, kind: "uri"\|"wg-quick", text, qr}` — searched across all profiles, active first; `qr` is a PNG data-URL (`""` when too long) |
+| `ScanScreenQR()` | `Profile` | #102 (Windows): captures the whole virtual screen, decodes the first QR, imports it as a profile |
 | `GetRaw(id)` | `string` | raw YAML: editable source for clash/local, generated provider file (read-only) for nodes (#49) |
 | `ValidateRaw(content)` | `LintIssue[]` | `{line, column?, message, fatal}` — live validation, no write (#49) |
 | `UpdateRaw(id, content)` | `RawEditResult` | `{ok, issues?}` — atomic save + hot-reload when active; lint failures return issues, not errors (#49) |
@@ -98,6 +101,11 @@ a bound signature changes.
 | `SetAutostart(enabled)` / `GetAutostart()` | `bool` | HKCU Run key; autostarted instances start minimized |
 | `OpenFolder(which)` | – | "config" \| "core" \| "logs" |
 | `OpenURL(url)` | – | external browser |
+| `ExemptUWP()` | `UWPExemptResult` | #105: `{elevated, families}` — adds every AppContainer to the loopback exemption list (`CheckNetIsolation.exe LoopbackExempt -a -p=<SID>`); not elevated → one UAC prompt via the elevated child (`neurorift.exe uwp-exempt`), fire-and-forget |
+| `UWPExemptCount()` | `int` | #105: current exemption list size |
+| `BackupExport()` | `BackupSummary` | #103: `{path, files, bytes}` — native save dialog + marker-guarded zip of settings + profile registry + provider/clash files; `null` when cancelled |
+| `BackupRestore()` | `RestoreSummary` | #103: `{files, safetyBackup}` — validates the marker, refuses foreign/traversal entries, keeps a safety zip, swaps state with the engine stopped; `null` when cancelled. UI then calls `RestartApp` |
+| `RestartApp()` | – | #103: schedules the relaunch (delayed starter beats the single-instance lock) and quits |
 
 #### TUN service pipe protocol (#14)
 
@@ -239,10 +247,14 @@ sniffer: {enable, tls, http, quic, overrideDest} — mihomo sniffer block,
 tun: {enable, stack: "system"|"gvisor"|"mixed"}
 subscription: {defaultIntervalH, updateViaProxy}
 log: {appLevel, coreLevel}
-routingOverrides: [{pattern, type: "domain-suffix"|"domain"|"domain-keyword"|"process-name",
-                    target}] — high-priority rules after the LAN block, ≤200 (#50)
+routingOverrides: [{pattern, type: "domain-suffix"|"domain"|"domain-keyword"|"process-name"|
+                    "ip-cidr"|"geoip", target}] — high-priority rules after the LAN
+                    block, ≤200 (#50; ip-cidr/geoip: #104 — domain-type
+                    rules emit before IP-type, IPv6 CIDRs → IP-CIDR6)
 bypassCN: bool — GEOSITE,cn + GEOIP,CN direct rules after the LAN block,
           before the user overrides (#96)
+geo: {mirror: ""|"jsdelivr"|"fastly"|"ghproxy"|"direct"} — geox-url
+          mirror preset + manual refresh action (#106)
 proxyGuard: {enable (default false), intervalSec (3..300, default 10), killSwitch (default false)} (#47)
 updates: {autoCheck (default true), includePrerelease (default false)}
 reporting: {enable (default true), githubToken} — token stored locally only (#36)
