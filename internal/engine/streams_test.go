@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -272,4 +273,103 @@ func TestLogLoop_ConcurrentStreamAndFlush(t *testing.T) {
 		t.Fatal("logLoop did not exit within 2s of cancellation")
 	}
 	s.wg.Wait()
+}
+
+// TestTrafficLoop_DecodesMihomoSchema (issue #121): the real mihomo /traffic
+// endpoint streams `{"up":N,"down":M}` ("up / down are in bytes/s", official
+// API docs). The v1.16.0 decoder read `{"in":…,"out":…}` — json.Unmarshal
+// silently ignored the unknown fields and every tick decoded to zero, so the
+// titlebar widget showed 0 B/s forever while traffic flowed. This test pins
+// the REAL schema: values must round-trip, and a legacy in/out payload must
+// NOT be mistaken for traffic (stays zero instead of swapping fields).
+func TestTrafficLoop_DecodesMihomoSchema(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Errorf("response writer cannot flush")
+			return
+		}
+		// mihomo's exact line shape, alternating values.
+		for i := 1; ; i++ {
+			fmt.Fprintf(w, "{\"up\":%d,\"down\":%d}\n", 1000*i, 2000*i)
+			flusher.Flush()
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	b := bus.New(testLogger())
+	set := settings.NewManager(filepath.Join(t.TempDir(), "settings.json"), b, testLogger())
+	s := &Streams{api: apiForServer(srv), bus: b, log: testLogger(), mgr: &Manager{Settings: set}}
+
+	var mu sync.Mutex
+	var ticks []TrafficTick
+	subCtx, stopSub := context.WithCancel(context.Background())
+	defer stopSub()
+	b.Subscribe(subCtx, nr.EventTraffic, func(_ string, payload any) {
+		if tt, ok := payload.(TrafficTick); ok {
+			mu.Lock()
+			defer mu.Unlock()
+			ticks = append(ticks, tt)
+		}
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s.wg.Add(1)
+	done := make(chan struct{})
+	go func() {
+		s.trafficLoop(ctx)
+		close(done)
+	}()
+
+	deadline := time.After(5 * time.Second)
+	for {
+		mu.Lock()
+		n := len(ticks)
+		nonzero := false
+		for _, tk := range ticks {
+			if tk.DownBytes > 0 || tk.UpBytes > 0 {
+				nonzero = true
+				break
+			}
+		}
+		mu.Unlock()
+		if n >= 2 && nonzero {
+			mu.Lock()
+			first := ticks[0]
+			mu.Unlock()
+			if first.DownBytes != 2000 || first.UpBytes != 1000 {
+				t.Fatalf("field mapping wrong: down=%d up=%d, want down=2000 up=1000 (up<->down swapped?)",
+					first.DownBytes, first.UpBytes)
+			}
+			break
+		}
+		select {
+		case <-deadline:
+			mu.Lock()
+			defer mu.Unlock()
+			t.Fatalf("no nonzero traffic ticks in 5s: %d ticks, first=%+v", len(ticks), firstOf(ticks))
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("trafficLoop did not exit within 2s of cancellation")
+	}
+	s.wg.Wait()
+}
+
+// firstOf safely reads the first element for failure messages.
+func firstOf(ticks []TrafficTick) *TrafficTick {
+	if len(ticks) == 0 {
+		return nil
+	}
+	return &ticks[0]
 }

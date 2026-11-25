@@ -64,7 +64,10 @@ async function hideToTray(): Promise<void> {
   }
 }
 
-const engineState = store.engineStatus?.state ?? "unknown";
+// Issue #121: this used to be a plain const evaluated once at mount, when
+// the status had not loaded yet — the pill stayed "unknown" forever. A
+// computed tracks core:status events for the component's lifetime.
+const engineState = computed(() => store.engineStatus?.state ?? "unknown");
 // OS proxy mode (#15): the button cycles off -> system -> pac -> off.
 // legacy "" (pre-#15 install) displays as off until first cycle.
 const proxyMode = computed(() => store.proxyMode?.mode ?? "");

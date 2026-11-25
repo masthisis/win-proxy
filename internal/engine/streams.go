@@ -64,6 +64,13 @@ func (s *Streams) Stop() {
 }
 
 // trafficLoop reads /traffic lines and re-emits at most once per second.
+//
+// PAYLOAD SCHEMA (issue #121): mihomo streams `{"up":N,"down":M}` —
+// "up / down are in bytes/s" per the official API docs
+// (wiki.metacubex.one/en/api). The original implementation decoded
+// `{"in":…,"out":…}`; json.Unmarshal silently ignores unknown fields, so
+// every tick decoded to zero and the titlebar widget showed 0 B/s forever
+// while traffic flowed (reproduced live against the real core).
 func (s *Streams) trafficLoop(ctx context.Context) {
 	defer s.wg.Done()
 	for {
@@ -72,14 +79,14 @@ func (s *Streams) trafficLoop(ctx context.Context) {
 		}
 		err := s.api.StreamLine(ctx, "/traffic", func(line []byte) {
 			var tick struct {
-				In  int64 `json:"in"`
-				Out int64 `json:"out"`
+				Up   int64 `json:"up"`
+				Down int64 `json:"down"`
 			}
 			if json.Unmarshal(line, &tick) != nil {
 				return
 			}
 			s.bus.Emit(nr.EventTraffic, TrafficTick{
-				DownBytes: tick.In, UpBytes: tick.Out, Memory: s.lastMemory(),
+				DownBytes: tick.Down, UpBytes: tick.Up, Memory: s.lastMemory(),
 			})
 		})
 		if ctx.Err() != nil {
