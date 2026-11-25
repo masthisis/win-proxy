@@ -1,5 +1,52 @@
 # Changelog
 
+## v1.18.0 — true mobile compact design: the no-shrink law (#128)
+
+Owner feedback on the v1.17.0 compact shell: it was a **scaled-down
+desktop**, not a mobile design — fonts, buttons and rows shrank together
+as the window narrowed. Two root causes were fixed.
+
+### Window floors were never enforced (#128)
+
+Wails v3.1.0 does not enforce `MinWidth`/`MinHeight` for **frameless**
+windows on Windows, so the compact widget could be dragged into the
+~260px cram zone (the owner's screenshots). `windowgeometry.go` now
+installs `enforceMinSize` — a debounced, layout-aware clamp on every
+resize: **compact 340×520, desktop 880×560**. Restored geometry is
+clamped per layout (compact defaults to a 420×700 phone-like widget),
+and switching to the desktop shell on a small window grows it to
+960×640 so the 224px rail never strands in the cram zone.
+
+### Compact mode reorganizes instead of shrinking (#128)
+
+The owner's rule is now law in the stylesheet: **sizing never changes in
+the compact shell — only the arrangement does.** All rules are scoped to
+`[data-layout="compact"]`; the desktop cockpit is untouched.
+
+- **Floors at any compact width**: 40px inputs, 42px buttons, 40px icon
+  buttons, 38px segmented buttons, 22px switches, 62px bottom tab bar
+  with an active accent pill.
+- **Below 620px** the layout stacks: the hero connect card reorders to
+  status → ↓/↑ rates row → full-width Rule/Global/Direct segmented
+  control → full-width Test All; node chips become full-width **52px
+  rows** (name ellipsized, type + latency pill right); tables (Test
+  center, Connections, failover history) become **stacked
+  label-above-value cards**; the search box takes the full row; panel
+  headers wrap instead of clipping; the titlebar page label hides below
+  470px (it duplicates the active tab).
+- **621–880px**: 2-column chip grid; tables return to real tables.
+
+Nothing was removed — every control survives, re-homed. Card labels
+reuse the existing en/fa i18n keys. Verified with vue-tsc + production
+build, the Windows cross-build, the full internal test suite, and a
+headless render of the compact shell at 380px and 800px.
+
+Also this cycle: research refinement on rule-providers (#115) with the
+confirmed mihomo v1.19.x provider surface (behaviors domain/ipcidr/
+classical; formats yaml/text/mrs; http/file/inline types); mihomo stays
+at v1.19.34 and Wails stable stays at v3.1.0 (both verified current).
+
+
 ## v1.17.0 — Stitch Adaptive Cockpit redesign, country routing, live traffic fix
 
 Three owner directives from the 2026-11-25 chat, shipped together.
