@@ -7,13 +7,27 @@ the standard workflow: issue → branch → PR → CI → squash-merge, followed
 release train (version bump, changelog, tag). This file is kept in sync
 whenever issues close.
 
-Released: v1.15.0 — proxy chains (前置/落地, #107). v1.14.0 (2026-11-24) —
+Released: v1.17.0 (2026-11-25) — Stitch Adaptive Cockpit redesign (#123),
+country routing picker (#122), traffic-widget schema fix (#121). v1.16.0 —
+scriptable rules (#17). v1.15.0 — proxy chains (前置/落地, #107). v1.14.0 (2026-11-24) —
 awesome-tools client parity: share links + QR (#102), backup & restore
 (#103), IP-CIDR/GEOIP overrides (#104), UWP loopback exemption (#105), geo
 database manager (#106). v1.13.0 (2026-11-24)
 — v2rayNG settings parity (#96) + custom subscription headers (#75);
 v1.12.0 WireGuard import; v1.11.0 (2026-11-22) PAC mode; v1.10.0 TUN service
 complete (#14 done); v1.9.0 TUN service foundation; v1.8.0 sing-box import.
+
+### 0-quinquies. #121–#123 — owner chat directives 2026-11-25
+
+> **LANDED — ships in v1.17.0 (PRs #124/#125/#126).** Traffic up/down
+> widget fixed (mihomo /traffic emits {"up","down"} — old decoder read
+> in/out and silently decoded zeros; proven live 0 → 6.29 MB/s), country
+> routing picker over the GeoIP database (250 ISO countries + LAN, EN/FA
+> names, DIRECT or any group/node; GEOIP rules proven on the real core),
+> and the Stitch Adaptive Cockpit redesign implemented from the owner's
+> exported design template (compact + desktop layouts, light/dark/system
+> themes, bundled Alatsi/Instrument Sans/Spline Sans Mono, hero connect
+> card, Traffic tab) with zero feature removal.
 
 ### 0-quater. #102–#106 — awesome-tools Windows client parity (owner chat directive 2026-11-24)
 
