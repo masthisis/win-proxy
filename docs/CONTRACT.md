@@ -291,6 +291,9 @@ bypassCN: bool — GEOSITE,cn + GEOIP,CN direct rules after the LAN block,
           before the user overrides (#96)
 geo: {mirror: ""|"jsdelivr"|"fastly"|"ghproxy"|"direct"} — geox-url
           mirror preset + manual refresh action (#106)
+ui: {theme: "dark"|"light"|"system" (default dark), layout: "compact"|"desktop"
+          (default compact)} — shell appearance (#123); frontend-only, never
+          triggers a core restart/reload
 proxyGuard: {enable (default false), intervalSec (3..300, default 10), killSwitch (default false)} (#47)
 updates: {autoCheck (default true), includePrerelease (default false)}
 reporting: {enable (default true), githubToken} — token stored locally only (#36)

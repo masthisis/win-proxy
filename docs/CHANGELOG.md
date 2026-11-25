@@ -1,5 +1,57 @@
 # Changelog
 
+## v1.17.0 — Stitch Adaptive Cockpit redesign, country routing, live traffic fix
+
+Three owner directives from the 2026-11-25 chat, shipped together.
+
+### Traffic up/down widget works again (#121 — user-reported bug)
+
+mihomo streams `/traffic` as `{"up":N,"down":M}`; the old decoder read
+`{"in":…,"out":…}` and `json.Unmarshal` silently dropped the unknown
+fields — every tick decoded to zero and the titlebar widget showed
+**0 B/s forever while traffic flowed**. Reproduced live against the real
+core (12 ticks, maxDown=0, with 6 MB pushed through the mixed port); after
+the fix the same probe sees **6.29 MB/s**. New tests pin the real payload
+schema (unit) and nonzero ticks end-to-end (integration). The titlebar
+status pill was also stuck at "unknown" (plain const evaluated before the
+status arrived) — now a computed.
+
+### Country routing (#122 — owner-directed)
+
+Settings → Routing gains a **Country routing** picker over the GeoIP
+database: all **250 ISO 3166-1 alpha-2 countries** (249 official +
+XK/Kosovo) + the LAN pseudo-entry, with CLDR English/Persian names and
+flag emoji. Pick the route target (DIRECT / REJECT / any group or node),
+then tap countries — e.g. **Iran → DIRECT** while everything else rides
+the selected proxy. Assignments are geoip routing overrides, reusing the
+proven #50/#104 pipeline (validation, ordering, hot-reload); proven
+end-to-end on the real core (`GEOIP,IR,DIRECT` in `/rules`). New
+`GeoService.Countries` binding; CONTRACT updated.
+
+### Stitch Adaptive Cockpit redesign (#123 — owner-directed, the exported design)
+
+The owner's exported Stitch design (`NEURORIFT_DESIGN_TEMPLATE_FULL.md`)
+is now the app's design system — replacing the previous dark-only cockpit:
+
+- **Two layouts**: **Compact** (default; widget window, 48px bar with
+  theme toggle, bottom 5-tab bar — Home / Profiles / Tests / Traffic /
+  Settings) and **Desktop** (cockpit: live traffic pill, system-proxy
+  switch pill, 224px rail with active-profile card). Connections + Logs
+  merge under a **Traffic** tab in compact mode; every view stays
+  reachable in both layouts.
+- **Two themes**: the design's exact light + dark token sets; "system"
+  follows the OS. 39 hardcoded colors converted to token-derived
+  `color-mix()` so both themes stay coherent everywhere.
+- **Design typography**: Alatsi (display) + Instrument Sans (UI) +
+  Spline Sans Mono (metrics) — bundled as local woff2, offline-safe.
+- **Dashboard hero card** (both layouts): power button, active node with
+  latency-tier chip, live ↓/↑ rates, routing-mode segment, Test all.
+- **Settings → Appearance & layout**: Window layout (Compact (default) /
+  Desktop) + Theme (Light/Dark/System), persisted as `settings.ui`
+  (sanitized backend-side; CONTRACT updated).
+- **No feature removed**: every view, control and setting survives; the
+  redesign is additive (Traffic tab, proxy switch, hero card, theme).
+
 ## v1.16.0 — scriptable rules (قواعد اسکریپتی)
 
 Issue #17 (owner-requested): tiny user JavaScript snippets compile into
