@@ -3,7 +3,7 @@
  * Views read from `store` and call the exported action functions.
  */
 import { reactive } from "vue";
-import { Events } from "@wailsio/runtime";
+import { Events, Window } from "@wailsio/runtime";
 
 import * as App from "../bindings/github.com/neurorift/neurorift/appservice.js";
 import * as Core from "../bindings/github.com/neurorift/neurorift/coreservice.js";
@@ -335,6 +335,18 @@ export async function setLayout(layout: LayoutMode): Promise<void> {
   const saved = await SettingsSvc.Save(s);
   store.settings = saved;
   applyAppearance(saved);
+  // #128: the desktop cockpit (224px rail + content) needs >=880px. The
+  // compact widget window is allowed down to 340px, so switching shells on
+  // a small window would strand the desktop layout in the cram zone — grow
+  // the window to a comfortable desktop size. (The Go side enforces the
+  // floor on every resize too; this is the friendly one-time grow.)
+  if (layout === "desktop" && window.innerWidth < 900) {
+    try {
+      Window.SetSize(960, 640);
+    } catch {
+      /* runtime not ready — the Go guard still applies on next resize */
+    }
+  }
   if (layout === "compact" && (store.currentView === "connections" || store.currentView === "logs")) {
     store.currentView = "traffic";
   }

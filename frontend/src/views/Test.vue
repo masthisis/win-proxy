@@ -423,7 +423,6 @@ const tableCaption = computed(() => {
           type="text"
           class="node-search"
           :placeholder="t('test.searchNodes')"
-          style="max-width: 220px"
         />
         <div class="seg" role="group" :aria-label="t('test.filter')">
           <button :class="{ active: latFilter === 'all' }" @click="latFilter = 'all'">{{ t("test.filterAll") }}</button>
@@ -477,25 +476,31 @@ const tableCaption = computed(() => {
         </thead>
         <tbody>
           <tr v-for="row in sortedRows" :key="rowKey(row)">
-            <td v-if="showingAll" class="dim" style="max-width: 140px; overflow: hidden; text-overflow: ellipsis" :title="row.profileName">
+            <td
+              v-if="showingAll"
+              class="dim"
+              data-label=""
+              style="max-width: 140px; overflow: hidden; text-overflow: ellipsis"
+              :title="row.profileName"
+            >
               {{ row.profileName }}
             </td>
-            <td class="mono" style="max-width: 260px; overflow: hidden; text-overflow: ellipsis" :title="row.name">
+            <td class="mono" data-label="" style="max-width: 260px; overflow: hidden; text-overflow: ellipsis" :title="row.name">
               {{ row.name }}
             </td>
-            <td class="dim">{{ row.type || "—" }}</td>
-            <td>
+            <td class="dim" :data-label="t('test.colType')">{{ row.type || "—" }}</td>
+            <td :data-label="t('test.colLatency')">
               <span class="latency" :class="latCls(row.delay)">{{ fmtLatency(row.delay) }}</span>
             </td>
-            <td>
+            <td :data-label="t('test.colTrend')">
               <LatencySpark :samples="spark(row.name)" />
             </td>
-            <td class="num" :title="speedOf(row.name) ? fmtDateTime(speedOf(row.name)!.at) : ''">
+            <td class="num" :data-label="t('test.colDown')" :title="speedOf(row.name) ? fmtDateTime(speedOf(row.name)!.at) : ''">
               <span v-if="speedOf(row.name)?.error" class="dim" :title="speedOf(row.name)?.error">✕</span>
               <template v-else>{{ speedDown(row.name) }}</template>
             </td>
-            <td class="num">{{ speedUp(row.name) }}</td>
-            <td v-if="engineRunning()">
+            <td class="num" :data-label="t('test.colUp')">{{ speedUp(row.name) }}</td>
+            <td v-if="engineRunning()" class="td-actions">
               <div class="row" style="gap: 6px; flex-wrap: nowrap">
                 <button class="btn sm" :disabled="pingBusy !== null || store.speedBusy" @click="ping(row)">
                   <span v-if="pingBusy === row.name" class="spinner" style="width: 10px; height: 10px" />

@@ -297,7 +297,7 @@ async function selectNode(g: GroupUI, node: NodeUI): Promise<void> {
               </p>
             </div>
           </div>
-          <div class="row" style="gap: 16px; flex-wrap: wrap">
+          <div class="row hero-actions" style="gap: 16px; flex-wrap: wrap">
             <div class="hero-rates" :title="t('header.traffic')">
               <div class="down">↓ {{ fmtRate(store.curDown) }}</div>
               <div class="up">↑ {{ fmtRate(store.curUp) }}</div>
@@ -330,7 +330,6 @@ async function selectNode(g: GroupUI, node: NodeUI): Promise<void> {
             type="text"
             class="node-search"
             :placeholder="t('test.searchNodes')"
-            style="max-width: 200px"
           />
           <button
             class="btn-icon"
