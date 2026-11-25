@@ -43,7 +43,7 @@ interface WailsEventLike {
   data: unknown;
 }
 
-export type ViewId = "dashboard" | "profiles" | "test" | "connections" | "logs" | "settings" | "about";
+export type ViewId = "dashboard" | "profiles" | "test" | "connections" | "logs" | "traffic" | "settings" | "about";
 
 const TRAFFIC_SAMPLES = 60;
 const LOG_CAP = 500;
@@ -150,6 +150,46 @@ export const store = reactive<AppState>({
 });
 
 /* ------------------------------------------------------------------ */
+/* appearance (#123): theme + layout mode from settings.ui              */
+/* ------------------------------------------------------------------ */
+
+export type ThemeMode = "dark" | "light" | "system";
+export type LayoutMode = "compact" | "desktop";
+
+/** Resolved theme ("system" follows prefers-color-scheme). */
+export function resolvedTheme(theme: ThemeMode | undefined): "dark" | "light" {
+  if (theme === "light" || theme === "dark") return theme;
+  if (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: light)").matches) {
+    return "light";
+  }
+  return "dark";
+}
+
+function systemThemeListener(e: MediaQueryListEvent): void {
+  if ((store.settings?.ui?.theme ?? "dark") === "system") {
+    applyTheme(resolvedTheme("system"));
+  }
+}
+
+let systemThemeBound = false;
+
+/** Applies the resolved theme to <html> (tokens live under html.light). */
+export function applyTheme(resolved: "dark" | "light"): void {
+  document.documentElement.classList.toggle("light", resolved === "light");
+}
+
+/** Applies settings.ui to the document + returns the layout for the shell. */
+export function applyAppearance(s: SettingsDoc | null): LayoutMode {
+  const theme = (s?.ui?.theme ?? "dark") as ThemeMode;
+  applyTheme(resolvedTheme(theme));
+  if (!systemThemeBound && typeof window !== "undefined" && window.matchMedia) {
+    window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", systemThemeListener);
+    systemThemeBound = true;
+  }
+  return (s?.ui?.layout ?? "compact") as LayoutMode;
+}
+
+/* ------------------------------------------------------------------ */
 /* helpers                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -238,6 +278,7 @@ export async function refreshSettings(): Promise<void> {
     store.settings = await SettingsSvc.Get();
     const lang = (store.settings.language as Lang) === "fa" ? "fa" : "en";
     setLang(lang);
+    applyAppearance(store.settings);
     if (!engineRunning()) store.mode = store.settings.mode || "rule";
   } catch (e) {
     toast.error(errMsg(e));
@@ -252,11 +293,50 @@ export async function refreshSysProxy(): Promise<void> {
   }
 }
 
+let lastOnProxyMode: ProxyMode = "system";
+
 export async function refreshProxyMode(): Promise<void> {
   try {
     store.proxyMode = await Sys.GetProxyMode();
+    const m = store.proxyMode?.mode;
+    if (m === "system" || m === "pac") lastOnProxyMode = m;
   } catch {
     /* non-fatal */
+  }
+}
+
+/** Design pill switch semantics: ON restores the last non-off mode. */
+export function proxySwitchOn(): boolean {
+  const m = store.proxyMode?.mode ?? "off";
+  return m === "system" || m === "pac";
+}
+
+export function toggleProxySwitch(): Promise<void> {
+  return proxySwitchOn() ? setProxyMode("off") : setProxyMode(lastOnProxyMode);
+}
+
+/** Persist settings.ui.theme (design Appearance switcher, #123). */
+export async function setTheme(theme: ThemeMode): Promise<void> {
+  if (!store.settings) await refreshSettings();
+  if (!store.settings) return;
+  const s = JSON.parse(JSON.stringify(store.settings)) as SettingsDoc;
+  s.ui = { ...(s.ui ?? { theme: "dark", layout: "compact" }), theme };
+  const saved = await SettingsSvc.Save(s);
+  store.settings = saved;
+  applyAppearance(saved);
+}
+
+/** Persist settings.ui.layout (compact | desktop) and normalize the view. */
+export async function setLayout(layout: LayoutMode): Promise<void> {
+  if (!store.settings) await refreshSettings();
+  if (!store.settings) return;
+  const s = JSON.parse(JSON.stringify(store.settings)) as SettingsDoc;
+  s.ui = { ...(s.ui ?? { theme: "dark", layout: "compact" }), layout };
+  const saved = await SettingsSvc.Save(s);
+  store.settings = saved;
+  applyAppearance(saved);
+  if (layout === "compact" && (store.currentView === "connections" || store.currentView === "logs")) {
+    store.currentView = "traffic";
   }
 }
 
@@ -708,6 +788,7 @@ export async function bootstrap(): Promise<void> {
     store.settings = settingsR.value;
     const lang = (store.settings.language as Lang) === "fa" ? "fa" : "en";
     setLang(lang);
+    applyAppearance(store.settings);
     store.mode = store.settings.mode || "rule";
   } else {
     toast.error(errMsg(settingsR.reason));

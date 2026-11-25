@@ -14,6 +14,7 @@ import type { PendingInfo, PortableInfo } from "../../bindings/github.com/neuror
 import type { Settings as SettingsDoc } from "../../bindings/github.com/neurorift/neurorift/internal/settings/models.js";
 import {
   store,
+  setView,
   checkAppUpdate,
   downloadAppUpdate,
   installAppUpdate,
@@ -21,8 +22,12 @@ import {
   refreshProxyMode,
   savePACScript,
   setProxyMode,
+  setTheme,
+  setLayout,
   PROXY_MODES,
   type ProxyMode,
+  type ThemeMode,
+  type LayoutMode,
 } from "../store";
 import { t, setLang, i18nState, type Lang } from "../lib/i18n";
 import { toast, errMsg } from "../lib/toast";
@@ -789,6 +794,24 @@ function shortTarget(target: string | undefined): string {
   if (target === "DIRECT" || target === "REJECT") return target;
   return target.length > 16 ? `${target.slice(0, 15)}…` : target;
 }
+
+/* ---------------------------------------------------------------- */
+/* appearance & layout (#123 Stitch design): persisted instantly     */
+/* via the store actions (shell applies live), then mirrored into   */
+/* the local form so a later whole-document Save cannot revert it.   */
+/* ---------------------------------------------------------------- */
+
+async function setUiTheme(theme: ThemeMode): Promise<void> {
+  if (!form.value) return;
+  await setTheme(theme);
+  if (store.settings && form.value) form.value.ui = JSON.parse(JSON.stringify(store.settings.ui));
+}
+
+async function setUiLayout(layout: LayoutMode): Promise<void> {
+  if (!form.value) return;
+  await setLayout(layout);
+  if (store.settings && form.value) form.value.ui = JSON.parse(JSON.stringify(store.settings.ui));
+}
 </script>
 
 <template>
@@ -801,6 +824,58 @@ function shortTarget(target: string | undefined): string {
     </div>
 
     <template v-else>
+      <!-- Appearance & layout (#123 Stitch design): window layout + theme -->
+      <section class="panel">
+        <div class="row" style="justify-content: space-between; flex-wrap: wrap; gap: 12px">
+          <div class="row" style="gap: 10px; flex-wrap: wrap">
+            <span class="label-md">{{ t("settings.windowLayout") }}</span>
+            <div class="seg" role="group" :aria-label="t('settings.windowLayout')">
+              <button
+                :class="{ active: (form.ui?.layout ?? 'compact') !== 'desktop' }"
+                :aria-pressed="(form.ui?.layout ?? 'compact') !== 'desktop'"
+                @click="setUiLayout('compact')"
+              >
+                {{ t("settings.layoutCompact") }}
+              </button>
+              <button
+                :class="{ active: form.ui?.layout === 'desktop' }"
+                :aria-pressed="form.ui?.layout === 'desktop'"
+                @click="setUiLayout('desktop')"
+              >
+                {{ t("settings.layoutDesktop") }}
+              </button>
+            </div>
+          </div>
+          <div class="row" style="gap: 10px; flex-wrap: wrap">
+            <span class="label-md">{{ t("settings.theme") }}</span>
+            <div class="seg" role="group" :aria-label="t('settings.theme')">
+              <button
+                :class="{ active: form.ui?.theme === 'light' }"
+                :aria-pressed="form.ui?.theme === 'light'"
+                @click="setUiTheme('light')"
+              >
+                {{ t("settings.themeLight") }}
+              </button>
+              <button
+                :class="{ active: (form.ui?.theme ?? 'dark') === 'dark' }"
+                :aria-pressed="(form.ui?.theme ?? 'dark') === 'dark'"
+                @click="setUiTheme('dark')"
+              >
+                {{ t("settings.themeDark") }}
+              </button>
+              <button
+                :class="{ active: form.ui?.theme === 'system' }"
+                :aria-pressed="form.ui?.theme === 'system'"
+                @click="setUiTheme('system')"
+              >
+                {{ t("settings.themeSystem") }}
+              </button>
+            </div>
+          </div>
+          <button class="btn sm" @click="setView('about')">{{ t("nav.about") }}</button>
+        </div>
+      </section>
+
       <div class="panel">
         <div class="row" style="justify-content: space-between">
           <span v-if="dirty" class="badge warn">{{ t("common.save") }}?</span>

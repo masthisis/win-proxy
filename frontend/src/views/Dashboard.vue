@@ -9,13 +9,14 @@ import type { ShareInfo } from "../../bindings/github.com/neurorift/neurorift/in
 import type { ProxyChain } from "../../bindings/github.com/neurorift/neurorift/internal/settings/models.js";
 import type { ChipMenu } from "../components/NodeChip.vue";
 import RouteViaModal from "../components/RouteViaModal.vue";
-import { store, refreshGroups, startEngine, setView, engineRunning } from "../store";
+import { store, refreshGroups, startEngine, stopEngine, setView, engineRunning } from "../store";
 import { t } from "../lib/i18n";
 import { toast, errMsg } from "../lib/toast";
+import { fmtRate, fmtDuration } from "../lib/format";
 import NodeChip from "../components/NodeChip.vue";
 import ShareModal from "../components/ShareModal.vue";
 import StatusPill from "../components/StatusPill.vue";
-import { IconRefresh, IconBolt, IconGauge, IconProfiles, IconWarn, IconSort } from "../components/Icons";
+import { IconRefresh, IconBolt, IconGauge, IconProfiles, IconWarn, IconSort, IconPower } from "../components/Icons";
 
 const MODES = ["rule", "global", "direct"] as const;
 
@@ -144,6 +145,30 @@ const engineOff = computed(
 const engineBusyState = computed(() => engineState.value === "starting" || engineState.value === "updating");
 const visibleGroups = computed(() => store.groups.filter((g) => !g.hidden));
 const downloading = computed(() => store.coreDownload !== null || engineState.value === "updating");
+
+/** Hero card (#123): the node the primary selector currently points at. */
+const heroNode = computed(() => {
+  for (const g of visibleGroups.value) {
+    if (g.type !== "Selector" || !g.now) continue;
+    const node = (g.all ?? []).find((n) => n.name === g.now);
+    return { name: g.now, delay: node?.delay ?? store.latency[g.now] ?? 0, type: node?.type ?? "" };
+  }
+  return null;
+});
+
+/** Latency chip tier per the design system (success / warning / error). */
+const heroTier = computed<"good" | "mid" | "bad" | null>(() => {
+  const d = heroNode.value?.delay ?? 0;
+  if (d <= 0) return null;
+  if (d <= 200) return "good";
+  if (d <= 400) return "mid";
+  return "bad";
+});
+
+const heroProto = computed(() => {
+  const t = heroNode.value?.type ?? "";
+  return t && t !== "Selector" ? t.toUpperCase() : "";
+});
 const showEmptyEngine = computed(
   () => engineOff.value && !store.groups.length && !store.groupsBusy && !store.groupsError,
 );
@@ -236,10 +261,47 @@ async function selectNode(g: GroupUI, node: NodeUI): Promise<void> {
     </div>
 
     <template v-else>
-      <!-- header controls -->
-      <div class="panel">
-        <div class="row" style="justify-content: space-between">
-          <div class="row">
+      <!-- Hero connect card (#123 Stitch design): power, active node,
+           live rates, routing mode, test-all. -->
+      <section class="hero-card" aria-label="Connection status">
+        <div class="hero-main">
+          <div class="row" style="gap: 16px; min-width: 0">
+            <button
+              class="power-btn"
+              :class="{ off: engineOff }"
+              :disabled="store.engineBusy || engineBusyState"
+              :aria-label="engineOff ? t('dash.powerOn') : t('dash.powerOff')"
+              :title="engineOff ? t('dash.powerOn') : t('dash.powerOff')"
+              @click="engineOff ? startEngine() : stopEngine()"
+            >
+              <span v-if="store.engineBusy || engineBusyState" class="spinner" style="border-top-color: currentcolor" />
+              <IconPower v-else :size="26" />
+            </button>
+            <div style="min-width: 0">
+              <div class="row" style="gap: 8px">
+                <h1 style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
+                  {{ heroNode?.name ?? store.engineStatus?.activeName ?? t("dash.noActiveNode") }}
+                </h1>
+                <span v-if="heroTier" class="latency-chip" :class="heroTier">
+                  <span
+                    class="dot"
+                    :style="{ width: '6px', height: '6px', borderRadius: '999px', background: 'currentcolor' }"
+                  />
+                  {{ heroNode?.delay }} ms
+                </span>
+              </div>
+              <p class="hero-sub" style="margin-top: 2px">
+                <template v-if="heroProto">{{ heroProto }} · </template>{{ t("dash.routingVia") }}
+                <b style="color: var(--on-surface)">{{ t(`mode.${store.mode}`) }}</b>
+                <template v-if="store.engineStatus?.uptimeSec"> · {{ t("dash.uptime") }} {{ fmtDuration(store.engineStatus.uptimeSec) }}</template>
+              </p>
+            </div>
+          </div>
+          <div class="row" style="gap: 16px; flex-wrap: wrap">
+            <div class="hero-rates" :title="t('header.traffic')">
+              <div class="down">↓ {{ fmtRate(store.curDown) }}</div>
+              <div class="up">↑ {{ fmtRate(store.curUp) }}</div>
+            </div>
             <div class="seg" role="group" :aria-label="t('settings.mode')">
               <button
                 v-for="m in MODES"
@@ -251,35 +313,41 @@ async function selectNode(g: GroupUI, node: NodeUI): Promise<void> {
                 {{ t(`mode.${m}`) }}
               </button>
             </div>
-            <StatusPill :state="engineState" />
-          </div>
-          <div class="row">
-            <input
-              v-model="nodeSearch"
-              type="text"
-              class="node-search"
-              :placeholder="t('test.searchNodes')"
-              style="max-width: 180px"
-            />
-            <button
-              class="btn-icon"
-              :class="{ on: sortByDelay }"
-              :aria-pressed="sortByDelay"
-              :aria-label="t('dash.sortByDelay')"
-              :title="t('dash.sortByDelay')"
-              @click="setSortByDelay(!sortByDelay)"
-            >
-              <IconSort :size="15" />
-            </button>
             <button class="btn" :disabled="testAllBusy || !engineRunning() || !visibleGroups.length" @click="testAll()">
               <span v-if="testAllBusy" class="spinner" />
-              <IconGauge v-else :size="14" />
+              <IconGauge v-else :size="16" style="color: var(--accent)" />
               {{ t("dash.testAll") }}
             </button>
-            <button class="btn-icon" :aria-label="t('common.refresh')" :title="t('common.refresh')" :disabled="store.groupsBusy" @click="refreshGroups()">
-              <IconRefresh :size="15" :class="{ spin: store.groupsBusy }" />
-            </button>
           </div>
+        </div>
+      </section>
+
+      <!-- toolbar: search + sort + refresh -->
+      <div class="row" style="justify-content: space-between; gap: 8px; flex-wrap: wrap">
+        <div class="row" style="gap: 8px">
+          <input
+            v-model="nodeSearch"
+            type="text"
+            class="node-search"
+            :placeholder="t('test.searchNodes')"
+            style="max-width: 200px"
+          />
+          <button
+            class="btn-icon"
+            :class="{ on: sortByDelay }"
+            :aria-pressed="sortByDelay"
+            :aria-label="t('dash.sortByDelay')"
+            :title="t('dash.sortByDelay')"
+            @click="setSortByDelay(!sortByDelay)"
+          >
+            <IconSort :size="15" />
+          </button>
+        </div>
+        <div class="row" style="gap: 8px">
+          <StatusPill :state="engineState" />
+          <button class="btn-icon" :aria-label="t('common.refresh')" :title="t('common.refresh')" :disabled="store.groupsBusy" @click="refreshGroups()">
+            <IconRefresh :size="15" :class="{ spin: store.groupsBusy }" />
+          </button>
         </div>
       </div>
 

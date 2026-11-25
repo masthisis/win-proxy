@@ -51,8 +51,8 @@ const downArea = computed(() => {
     role="img"
     aria-hidden="true"
   >
-    <polygon v-if="downArea" :points="downArea" fill="var(--accent)" opacity="0.1" />
-    <polyline v-if="downPts" :points="downPts" fill="none" stroke="var(--accent)" stroke-width="1.4" />
+    <polygon v-if="downArea" :points="downArea" fill="var(--success)" opacity="0.12" />
+    <polyline v-if="downPts" :points="downPts" fill="none" stroke="var(--success)" stroke-width="1.4" />
     <polyline v-if="upPts" :points="upPts" fill="none" stroke="var(--accent-2)" stroke-width="1.4" opacity="0.85" />
   </svg>
 </template>
