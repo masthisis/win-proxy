@@ -8,6 +8,8 @@ import * as Sys from "../../bindings/github.com/neurorift/neurorift/sysservice.j
 import * as CoreSvc from "../../bindings/github.com/neurorift/neurorift/coreservice.js";
 import * as ReportSvc from "../../bindings/github.com/neurorift/neurorift/reportservice.js";
 import * as AppSvc from "../../bindings/github.com/neurorift/neurorift/appservice.js";
+import * as Geo from "../../bindings/github.com/neurorift/neurorift/geoservice.js";
+import type { Country } from "../../bindings/github.com/neurorift/neurorift/internal/geo/models.js";
 import type { PendingInfo, PortableInfo } from "../../bindings/github.com/neurorift/neurorift/models.js";
 import type { Settings as SettingsDoc } from "../../bindings/github.com/neurorift/neurorift/internal/settings/models.js";
 import {
@@ -22,7 +24,7 @@ import {
   PROXY_MODES,
   type ProxyMode,
 } from "../store";
-import { t, setLang, type Lang } from "../lib/i18n";
+import { t, setLang, i18nState, type Lang } from "../lib/i18n";
 import { toast, errMsg } from "../lib/toast";
 import { askConfirm } from "../lib/confirm";
 import { IconChevron, IconFolder, IconWarn, IconCheck, IconEdit, IconRefresh, IconDownload, IconUpload, IconExternal, IconShield, IconTrash, IconPlus } from "../components/Icons";
@@ -710,6 +712,83 @@ async function importOverrides(ev: Event): Promise<void> {
     toast.error(t("settings.routingImportFailed"));
   }
 }
+
+/* ---------------------------------------------------------------- */
+/* country routing (#122): geo database country picker              */
+/* ---------------------------------------------------------------- */
+
+const geoCountries = ref<Country[]>([]);
+const countrySearch = ref("");
+/** The routing target newly tapped countries get assigned to. */
+const countryTarget = ref("DIRECT");
+
+onMounted(() => {
+  void Geo.Countries()
+    .then((list) => {
+      geoCountries.value = list ?? [];
+    })
+    .catch(() => {
+      geoCountries.value = [];
+    });
+});
+
+/** All geoip-type overrides as code -> target (the picker's storage). */
+const countryAssignments = computed<Map<string, string>>(() => {
+  const m = new Map<string, string>();
+  for (const o of form.value?.routingOverrides ?? []) {
+    if (o.type === "geoip") m.set(o.pattern.trim().toUpperCase(), o.target);
+  }
+  return m;
+});
+
+function countryName(c: Country): string {
+  return i18nState.lang === "fa" ? c.nameFa : c.nameEn;
+}
+
+const filteredCountries = computed<Country[]>(() => {
+  const q = countrySearch.value.trim().toLowerCase();
+  if (!q) return geoCountries.value;
+  return geoCountries.value.filter(
+    (c) =>
+      c.code.toLowerCase().includes(q) ||
+      c.nameEn.toLowerCase().includes(q) ||
+      c.nameFa.includes(countrySearch.value.trim()),
+  );
+});
+
+/** Tap semantics: same target removes, different target overwrites, none assigns. */
+function toggleCountry(code: string): void {
+  const arr = form.value?.routingOverrides;
+  if (!arr) return;
+  const idx = arr.findIndex(
+    (o) => o.type === "geoip" && o.pattern.trim().toUpperCase() === code,
+  );
+  if (idx >= 0) {
+    if (arr[idx].target === countryTarget.value) {
+      arr.splice(idx, 1);
+    } else {
+      arr[idx].target = countryTarget.value;
+    }
+    return;
+  }
+  arr.push({ pattern: code, type: "geoip", target: countryTarget.value });
+}
+
+function removeCountry(code: string): void {
+  const arr = form.value?.routingOverrides;
+  if (!arr) return;
+  const idx = arr.findIndex(
+    (o) => o.type === "geoip" && o.pattern.trim().toUpperCase() === code,
+  );
+  if (idx >= 0) arr.splice(idx, 1);
+}
+
+/** Compact target label for the chip badge / assigned list. */
+function shortTarget(target: string | undefined): string {
+  if (!target) return "";
+  if (target === "DIRECT" || target === "REJECT") return target;
+  return target.length > 16 ? `${target.slice(0, 15)}…` : target;
+}
 </script>
 
 <template>
@@ -1351,6 +1430,78 @@ async function importOverrides(ev: Event): Promise<void> {
             <input ref="ovFile" type="file" accept=".yaml,.yml,.txt" style="display: none" @change="importOverrides" />
           </div>
           <p class="hint" style="margin: 10px 0 0">{{ t("settings.routingHint") }}</p>
+
+          <!-- Country routing (#122): geo database country picker -->
+          <div class="country-routing">
+            <div class="row" style="justify-content: space-between; margin-top: 14px">
+              <h3 class="sub-head">{{ t("settings.countryRouting") }}</h3>
+              <span v-if="countryAssignments.size" class="badge accent">
+                {{ t("settings.countryAssigned", { n: countryAssignments.size }) }}
+              </span>
+            </div>
+            <p class="hint" style="margin: 4px 0 10px">{{ t("settings.countryDesc") }}</p>
+
+            <div class="row" style="gap: 8px; flex-wrap: wrap; margin-bottom: 8px">
+              <label class="dim small" for="country-target">{{ t("settings.countryAssignTo") }}</label>
+              <select
+                id="country-target"
+                v-model="countryTarget"
+                class="input"
+                style="width: 240px"
+                :aria-label="t('settings.countryAssignTo')"
+              >
+                <option v-for="tg in targetOptions" :key="tg" :value="tg">{{ tg }}</option>
+              </select>
+            </div>
+
+            <input
+              v-model="countrySearch"
+              type="text"
+              class="input"
+              :placeholder="t('settings.countrySearch')"
+              style="width: 100%; margin-bottom: 8px"
+              :aria-label="t('settings.countrySearch')"
+            />
+
+            <div class="country-grid" role="group" :aria-label="t('settings.countryRouting')">
+              <button
+                v-for="c in filteredCountries"
+                :key="c.code"
+                class="country-chip"
+                :class="{ assigned: countryAssignments.has(c.code) }"
+                :aria-pressed="countryAssignments.has(c.code)"
+                :title="`${countryName(c)} (${c.code}) → ${countryAssignments.get(c.code) ?? ''}`"
+                @click="toggleCountry(c.code)"
+              >
+                <span class="flag">{{ c.flag }}</span>
+                <span class="cname">{{ countryName(c) }}</span>
+                <span v-if="countryAssignments.has(c.code)" class="cbadge">{{ shortTarget(countryAssignments.get(c.code)) }}</span>
+              </button>
+            </div>
+
+            <!-- assigned summary: one removable row per country -->
+            <div v-if="countryAssignments.size" class="assigned-countries">
+              <span
+                v-for="[code, target] in countryAssignments"
+                :key="code"
+                class="assigned-row"
+              >
+                <span class="dim mono">{{ code }}</span>
+                <span class="arrow">→</span>
+                <span class="mono">{{ target }}</span>
+                <button
+                  class="btn-icon"
+                  :aria-label="t('common.delete')"
+                  :title="t('common.delete')"
+                  @click="removeCountry(code)"
+                >
+                  <IconTrash :size="12" />
+                </button>
+              </span>
+            </div>
+
+            <p class="hint" style="margin: 8px 0 0">{{ t("settings.countryHint") }}</p>
+          </div>
         </div>
       </section>
 

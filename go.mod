@@ -14,7 +14,7 @@ require (
 
 require (
 	github.com/coder/websocket v1.8.14 // indirect
-	github.com/dlclark/regexp2/v2 v2.11.0 // indirect
+	github.com/dlclark/regexp2/v2 v2.13.2 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
