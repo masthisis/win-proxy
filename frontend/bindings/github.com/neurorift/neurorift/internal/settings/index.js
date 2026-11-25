@@ -22,6 +22,7 @@ export {
     Subscription,
     Test,
     Tun,
+    UI,
     Updates,
     WindowGeometry
 } from "./models.js";

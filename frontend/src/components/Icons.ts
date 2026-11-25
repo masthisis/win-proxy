@@ -155,6 +155,16 @@ export const IconPower = icon("IconPower", () => [
   p("M17.7 6.3a8 8 0 1 1-11.4 0"),
 ]);
 
+/** Theme toggle (design "contrast" glyph): circle half-filled. */
+export const IconContrast = icon("IconContrast", () => [
+  c(12, 12, 9),
+  h("path", {
+    d: "M12 3a9 9 0 0 1 0 18z",
+    fill: "currentColor",
+    stroke: "none",
+  }),
+]);
+
 export const IconGauge = icon("IconGauge", () => [
   p("M5 17.5a8.5 8.5 0 1 1 14 0"),
   p("M12 13.5l3.5-4"),

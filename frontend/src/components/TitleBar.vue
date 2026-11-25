@@ -1,15 +1,30 @@
 <script setup lang="ts">
 /**
- * Custom titlebar for the borderless window (issue #45).
+ * Custom titlebar for the borderless window (issue #45), redesigned to the
+ * Stitch "NeuroRift Adaptive Cockpit" system (#123).
+ *
+ * Compact layout (default): logo chip + page name on the left; theme toggle
+ * and window controls on the right — live rates move into the Dashboard
+ * hero card per the design.
+ *
+ * Desktop layout: adds the live traffic pill, the system-proxy pill with a
+ * switch (ON restores the last non-off mode; PAC stays selectable in
+ * Settings) and the engine status pill.
  *
  * The bar itself is the drag region (`--wails-draggable: drag` — Wails v3
  * intercepts mousedown and runs the native window move; double-click
- * toggles maximize). Interactive children (buttons) explicitly reset the
- * property so they stay clickable.
+ * toggles maximize). Interactive children explicitly reset the property.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import { Window, Events } from "@wailsio/runtime";
-import { store, cycleProxyMode } from "../store";
+import { Window } from "@wailsio/runtime";
+import {
+  store,
+  setTheme,
+  toggleProxySwitch,
+  proxySwitchOn,
+  resolvedTheme,
+  type ThemeMode,
+} from "../store";
 import { t } from "../lib/i18n";
 import { fmtRate } from "../lib/format";
 import TrafficGraph from "./TrafficGraph.vue";
@@ -17,14 +32,14 @@ import StatusPill from "./StatusPill.vue";
 import UpdateProgress from "./UpdateProgress.vue";
 import {
   IconBolt,
-  IconDownload,
-  IconUpload,
-  IconGlobe,
+  IconContrast,
   IconWinMin,
   IconWinMax,
   IconWinRestore,
   IconWinClose,
 } from "./Icons";
+
+const props = defineProps<{ compact?: boolean }>();
 
 const maximised = ref(false);
 let unresize: (() => void) | undefined;
@@ -64,19 +79,21 @@ async function hideToTray(): Promise<void> {
   }
 }
 
-// Issue #121: this used to be a plain const evaluated once at mount, when
-// the status had not loaded yet — the pill stayed "unknown" forever. A
-// computed tracks core:status events for the component's lifetime.
+// Issue #121: computed — a plain const went stale before core:status arrived.
 const engineState = computed(() => store.engineStatus?.state ?? "unknown");
-// OS proxy mode (#15): the button cycles off -> system -> pac -> off.
-// legacy "" (pre-#15 install) displays as off until first cycle.
-const proxyMode = computed(() => store.proxyMode?.mode ?? "");
-const proxyOn = computed(() => proxyMode.value === "system" || proxyMode.value === "pac");
+// OS proxy mode (#15): the desktop pill switch toggles on/off; the Settings
+// card keeps the full off/system/pac choice, and the compact layout keeps
+// the cycle button there.
+const proxyOn = computed(() => proxySwitchOn());
 const proxyTitle = computed(() =>
-  proxyMode.value === "pac" ? t("header.proxyPac")
-    : proxyMode.value === "system" ? t("header.proxySystem")
-    : t("header.proxyOff"),
+  proxyOn.value ? t("header.sysProxyOn") : t("header.sysProxyOff"),
 );
+
+/** Compact theme toggle: flip between the two concrete themes. */
+async function cycleTheme(): Promise<void> {
+  const cur = resolvedTheme((store.settings?.ui?.theme ?? "dark") as ThemeMode);
+  await setTheme(cur === "dark" ? "light" : "dark");
+}
 
 onMounted(() => {
   void syncMaximised();
@@ -91,45 +108,65 @@ onBeforeUnmount(() => unresize?.());
 <template>
   <header class="titlebar">
     <div class="tb-left">
-      <IconBolt :size="15" />
-      <span class="tb-app">Neuro<em>Rift</em></span>
-      <span class="tb-sep" aria-hidden="true" />
-      <span class="tb-page">{{ t(`nav.${store.currentView}`) }}</span>
+      <span class="tb-logo-chip"><IconBolt :size="16" /></span>
+      <span class="tb-app">NeuroRift</span>
+      <span class="tb-sep" aria-hidden="true">/</span>
+      <span class="tb-page">{{ t(`nav.${store.currentView === "traffic" ? "traffic" : store.currentView}`) }}</span>
     </div>
 
     <div class="tb-right">
       <UpdateProgress />
-      <div class="traffic-widget" :title="t('header.traffic')">
+
+      <!-- Live traffic pill (desktop layout; compact shows rates in the hero card) -->
+      <div v-if="!props.compact" class="traffic-widget" :title="t('header.traffic')">
         <TrafficGraph :down="store.trafficDown" :up="store.trafficUp" :width="88" :height="24" />
         <span class="rates">
           <span class="rate down">
-            <IconDownload :size="11" />
-            <b>{{ fmtRate(store.curDown) }}</b>
+            <b>↓ {{ fmtRate(store.curDown) }}</b>
           </span>
           <span class="rate up">
-            <IconUpload :size="11" />
-            <b>{{ fmtRate(store.curUp) }}</b>
+            <b>↑ {{ fmtRate(store.curUp) }}</b>
           </span>
         </span>
       </div>
-      <button
-        class="btn-icon"
-        :class="{ on: proxyOn }"
-        :disabled="store.proxyModeBusy"
-        :aria-pressed="proxyOn"
-        :aria-label="proxyTitle"
-        :title="proxyTitle"
-        @click="cycleProxyMode()"
-      >
+
+      <!-- System proxy pill with switch (desktop layout, #15/#123) -->
+      <div v-if="!props.compact" class="proxy-pill">
         <IconGlobe :size="15" />
+        <span class="proxy-pill-label">{{ t("header.sysProxyLabel") }}</span>
+        <button
+          type="button"
+          role="switch"
+          class="switch"
+          :aria-checked="proxyOn"
+          :aria-label="proxyTitle"
+          :title="proxyTitle"
+          :disabled="store.proxyModeBusy"
+          @click="toggleProxySwitch()"
+        >
+          <span class="knob" />
+        </button>
+      </div>
+
+      <StatusPill v-if="!props.compact" :state="engineState" />
+
+      <!-- Compact theme toggle (design: contrast glyph in the compact bar) -->
+      <button
+        v-if="props.compact"
+        class="tb-theme-btn"
+        :aria-label="t('settings.themeToggle')"
+        :title="t('settings.themeToggle')"
+        @click="cycleTheme()"
+      >
+        <IconContrast :size="16" />
       </button>
-      <StatusPill :state="engineState" />
 
       <div class="tb-controls">
         <button class="tb-btn" :aria-label="t('window.minimise')" :title="t('window.minimise')" @click="minimise()">
           <IconWinMin :size="14" />
         </button>
         <button
+          v-if="!props.compact"
           class="tb-btn"
           :aria-label="t('window.maximise')"
           :title="t('window.maximise')"
@@ -145,3 +182,40 @@ onBeforeUnmount(() => unresize?.());
     </div>
   </header>
 </template>
+
+<style scoped>
+.proxy-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 12px;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-pill);
+  background: var(--panel);
+  color: var(--on-surface);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.proxy-pill-label {
+  white-space: nowrap;
+}
+
+.tb-theme-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  border: 1px solid var(--outline-variant);
+  color: var(--on-surface-variant);
+  transition: color 0.1s ease-out, border-color 0.1s ease-out;
+}
+
+.tb-theme-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+</style>

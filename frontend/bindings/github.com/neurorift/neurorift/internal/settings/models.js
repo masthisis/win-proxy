@@ -1015,6 +1015,16 @@ export class Settings {
              */
             this["geo"] = (new Geo());
         }
+        if (!("ui" in $$source)) {
+            /**
+             * UI holds the appearance preferences of the redesigned shell (#123):
+             * window layout mode (compact widget vs desktop cockpit) and the color
+             * theme. Frontend-only — never triggers a core restart or reload.
+             * @member
+             * @type {UI}
+             */
+            this["ui"] = (new UI());
+        }
         if (!("proxyGuard" in $$source)) {
             /**
              * @member
@@ -1090,7 +1100,8 @@ export class Settings {
         const $$createField25_0 = $$createType21;
         const $$createField26_0 = $$createType22;
         const $$createField27_0 = $$createType23;
-        const $$createField29_0 = $$createType0;
+        const $$createField28_0 = $$createType24;
+        const $$createField30_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("ports" in $$parsedSource) {
             $$parsedSource["ports"] = $$createField7_0($$parsedSource["ports"]);
@@ -1140,20 +1151,23 @@ export class Settings {
         if ("geo" in $$parsedSource) {
             $$parsedSource["geo"] = $$createField23_0($$parsedSource["geo"]);
         }
+        if ("ui" in $$parsedSource) {
+            $$parsedSource["ui"] = $$createField24_0($$parsedSource["ui"]);
+        }
         if ("proxyGuard" in $$parsedSource) {
-            $$parsedSource["proxyGuard"] = $$createField24_0($$parsedSource["proxyGuard"]);
+            $$parsedSource["proxyGuard"] = $$createField25_0($$parsedSource["proxyGuard"]);
         }
         if ("updates" in $$parsedSource) {
-            $$parsedSource["updates"] = $$createField25_0($$parsedSource["updates"]);
+            $$parsedSource["updates"] = $$createField26_0($$parsedSource["updates"]);
         }
         if ("reporting" in $$parsedSource) {
-            $$parsedSource["reporting"] = $$createField26_0($$parsedSource["reporting"]);
+            $$parsedSource["reporting"] = $$createField27_0($$parsedSource["reporting"]);
         }
         if ("window" in $$parsedSource) {
-            $$parsedSource["window"] = $$createField27_0($$parsedSource["window"]);
+            $$parsedSource["window"] = $$createField28_0($$parsedSource["window"]);
         }
         if ("bypassDomains" in $$parsedSource) {
-            $$parsedSource["bypassDomains"] = $$createField29_0($$parsedSource["bypassDomains"]);
+            $$parsedSource["bypassDomains"] = $$createField30_0($$parsedSource["bypassDomains"]);
         }
         return new Settings(/** @type {Partial<Settings>} */($$parsedSource));
     }
@@ -1394,6 +1408,49 @@ export class Tun {
 }
 
 /**
+ * UI holds the shell appearance preferences (issue #123).
+ */
+export class UI {
+    /**
+     * Creates a new UI instance.
+     * @param {Partial<UI>} [$$source = {}] - The source object to create the UI.
+     */
+    constructor($$source = {}) {
+        if (!("theme" in $$source)) {
+            /**
+             * Theme selects the color scheme: "dark" (default) | "light" |
+             * "system" (follow the OS preference). Empty upgrades to "dark".
+             * @member
+             * @type {string}
+             */
+            this["theme"] = "";
+        }
+        if (!("layout" in $$source)) {
+            /**
+             * Layout selects the window shell: "compact" (default — widget-like,
+             * bottom tab bar, per the Stitch design) | "desktop" (nav rail
+             * cockpit). Empty upgrades to "compact".
+             * @member
+             * @type {string}
+             */
+            this["layout"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new UI instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {UI}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new UI(/** @type {Partial<UI>} */($$parsedSource));
+    }
+}
+
+/**
  * Updates configures the application self-update checker (#13).
  */
 export class Updates {
@@ -1524,7 +1581,8 @@ const $$createType16 = $Create.Array($$createType15);
 const $$createType17 = RuleScript.createFrom;
 const $$createType18 = $Create.Array($$createType17);
 const $$createType19 = Geo.createFrom;
-const $$createType20 = ProxyGuard.createFrom;
-const $$createType21 = Updates.createFrom;
-const $$createType22 = Reporting.createFrom;
-const $$createType23 = WindowGeometry.createFrom;
+const $$createType20 = UI.createFrom;
+const $$createType21 = ProxyGuard.createFrom;
+const $$createType22 = Updates.createFrom;
+const $$createType23 = Reporting.createFrom;
+const $$createType24 = WindowGeometry.createFrom;
