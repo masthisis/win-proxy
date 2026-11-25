@@ -691,11 +691,6 @@ export class Reporting {
     }
 }
 
-/**
- * RoutingOverride is one user-defined routing rule that takes precedence
- * over the profile's own rules (issue #50 / #10). Pattern semantics depend
- * on Type; Target is a node name, group name, DIRECT or REJECT.
- */
 export class RoutingOverride {
     /**
      * Creates a new RoutingOverride instance.
@@ -741,6 +736,82 @@ export class RoutingOverride {
     static createFrom($$source = {}) {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new RoutingOverride(/** @type {Partial<RoutingOverride>} */($$parsedSource));
+    }
+}
+
+/**
+ * RoutingOverride is one user-defined routing rule that takes precedence
+ * over the profile's own rules (issue #50 / #10). Pattern semantics depend
+ * on Type; Target is a node name, group name, DIRECT or REJECT.
+ * RuleScript is one user-authored JavaScript snippet (#17, scriptable
+ * rules). The snippet runs in a sandboxed interpreter at config generation
+ * and its output — validated rule lines — is rendered below the routing
+ * overrides and above the catch-all. Preview holds the last successful
+ * compile output (display only; never fed back into generation).
+ */
+export class RuleScript {
+    /**
+     * Creates a new RuleScript instance.
+     * @param {Partial<RuleScript>} [$$source = {}] - The source object to create the RuleScript.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * ID is stable across renames; generated on first save when empty.
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            /**
+             * Name is the display label (required, unique).
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("enabled" in $$source)) {
+            /**
+             * Enabled scripts are compiled and rendered on every generation.
+             * @member
+             * @type {boolean}
+             */
+            this["enabled"] = false;
+        }
+        if (!("source" in $$source)) {
+            /**
+             * Source is the JavaScript body. It must return a rule string, an
+             * array of rule strings, or nothing (see internal/rulescript).
+             * @member
+             * @type {string}
+             */
+            this["source"] = "";
+        }
+        if (!("preview" in $$source)) {
+            /**
+             * Preview is the last successful compile output — display only.
+             * @member
+             * @type {string[]}
+             */
+            this["preview"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RuleScript instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {RuleScript}
+     */
+    static createFrom($$source = {}) {
+        const $$createField4_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("preview" in $$parsedSource) {
+            $$parsedSource["preview"] = $$createField4_0($$parsedSource["preview"]);
+        }
+        return new RuleScript(/** @type {Partial<RuleScript>} */($$parsedSource));
     }
 }
 
@@ -916,6 +987,15 @@ export class Settings {
              */
             this["proxyChains"] = [];
         }
+        if (!("ruleScripts" in $$source)) {
+            /**
+             * RuleScripts are user JavaScript snippets compiled to rule lines
+             * (#17): rendered below the routing overrides, above the catch-all.
+             * @member
+             * @type {RuleScript[]}
+             */
+            this["ruleScripts"] = [];
+        }
         if (!("bypassCN" in $$source)) {
             /**
              * BypassCN routes mainland-China traffic DIRECT (v2rayNG "bypass
@@ -1004,12 +1084,13 @@ export class Settings {
         const $$createField18_0 = $$createType12;
         const $$createField19_0 = $$createType14;
         const $$createField20_0 = $$createType16;
-        const $$createField22_0 = $$createType17;
-        const $$createField23_0 = $$createType18;
-        const $$createField24_0 = $$createType19;
-        const $$createField25_0 = $$createType20;
-        const $$createField26_0 = $$createType21;
-        const $$createField28_0 = $$createType0;
+        const $$createField21_0 = $$createType18;
+        const $$createField23_0 = $$createType19;
+        const $$createField24_0 = $$createType20;
+        const $$createField25_0 = $$createType21;
+        const $$createField26_0 = $$createType22;
+        const $$createField27_0 = $$createType23;
+        const $$createField29_0 = $$createType0;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("ports" in $$parsedSource) {
             $$parsedSource["ports"] = $$createField7_0($$parsedSource["ports"]);
@@ -1053,23 +1134,26 @@ export class Settings {
         if ("proxyChains" in $$parsedSource) {
             $$parsedSource["proxyChains"] = $$createField20_0($$parsedSource["proxyChains"]);
         }
+        if ("ruleScripts" in $$parsedSource) {
+            $$parsedSource["ruleScripts"] = $$createField21_0($$parsedSource["ruleScripts"]);
+        }
         if ("geo" in $$parsedSource) {
-            $$parsedSource["geo"] = $$createField22_0($$parsedSource["geo"]);
+            $$parsedSource["geo"] = $$createField23_0($$parsedSource["geo"]);
         }
         if ("proxyGuard" in $$parsedSource) {
-            $$parsedSource["proxyGuard"] = $$createField23_0($$parsedSource["proxyGuard"]);
+            $$parsedSource["proxyGuard"] = $$createField24_0($$parsedSource["proxyGuard"]);
         }
         if ("updates" in $$parsedSource) {
-            $$parsedSource["updates"] = $$createField24_0($$parsedSource["updates"]);
+            $$parsedSource["updates"] = $$createField25_0($$parsedSource["updates"]);
         }
         if ("reporting" in $$parsedSource) {
-            $$parsedSource["reporting"] = $$createField25_0($$parsedSource["reporting"]);
+            $$parsedSource["reporting"] = $$createField26_0($$parsedSource["reporting"]);
         }
         if ("window" in $$parsedSource) {
-            $$parsedSource["window"] = $$createField26_0($$parsedSource["window"]);
+            $$parsedSource["window"] = $$createField27_0($$parsedSource["window"]);
         }
         if ("bypassDomains" in $$parsedSource) {
-            $$parsedSource["bypassDomains"] = $$createField28_0($$parsedSource["bypassDomains"]);
+            $$parsedSource["bypassDomains"] = $$createField29_0($$parsedSource["bypassDomains"]);
         }
         return new Settings(/** @type {Partial<Settings>} */($$parsedSource));
     }
@@ -1437,8 +1521,10 @@ const $$createType13 = RoutingOverride.createFrom;
 const $$createType14 = $Create.Array($$createType13);
 const $$createType15 = ProxyChain.createFrom;
 const $$createType16 = $Create.Array($$createType15);
-const $$createType17 = Geo.createFrom;
-const $$createType18 = ProxyGuard.createFrom;
-const $$createType19 = Updates.createFrom;
-const $$createType20 = Reporting.createFrom;
-const $$createType21 = WindowGeometry.createFrom;
+const $$createType17 = RuleScript.createFrom;
+const $$createType18 = $Create.Array($$createType17);
+const $$createType19 = Geo.createFrom;
+const $$createType20 = ProxyGuard.createFrom;
+const $$createType21 = Updates.createFrom;
+const $$createType22 = Reporting.createFrom;
+const $$createType23 = WindowGeometry.createFrom;

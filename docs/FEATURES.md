@@ -37,6 +37,7 @@ Comparison against the tools NeuroRift replaces or borrows from.
 | **UWP loopback exemption for system proxy** | 🟡 (external tool) | ✅ | ✅ (#105) |
 | **Geo database mirror + update-now** | 🟡 | ✅ | ✅ (#106) |
 | IP-CIDR / GEOIP custom rules (GUI) | 🟡 | ✅ | ✅ (#104) |
+| **Scriptable rules (JS snippets → rule lines, sandboxed)** | ❌ | 🟡 (Clash Verge Rev only, as profile scripts) | ✅ (#17) deterministic double-run, no-I/O sandbox, AND/OR/NOT helpers, validate-before-apply |
 | Auto-detect format (links/base64/clash/sing-box/wg-quick) | ✅ | ✅ | ✅ |
 | Scheduled auto-update | 🟡 | ✅ | ✅ per-profile interval + jitter + backoff |
 | Traffic / expiry panel (Subscription-Userinfo) | ✅ | ✅ | ✅ |

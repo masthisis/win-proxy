@@ -16,6 +16,7 @@ export {
     ProxyGuard,
     Reporting,
     RoutingOverride,
+    RuleScript,
     Settings,
     Sniffer,
     Subscription,

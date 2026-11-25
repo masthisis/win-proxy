@@ -15,6 +15,7 @@ import (
 	"github.com/neurorift/neurorift/internal/nrservice"
 	"github.com/neurorift/neurorift/internal/platform"
 	"github.com/neurorift/neurorift/internal/proxyguard"
+	"github.com/neurorift/neurorift/internal/rulescript"
 	"github.com/neurorift/neurorift/internal/settings"
 )
 
@@ -108,6 +109,94 @@ func (s *SettingsService) saveChains(cur settings.Settings, chains []settings.Pr
 	}
 	s.c.Engine.ReapplyForSettings(context.Background(), cur, saved)
 	return saved.ProxyChains, nil
+}
+
+// --- Rule scripts (#17) -----------------------------------------------------
+
+// SaveRuleScript creates or updates one rule script (#17). The source is
+// COMPILED before anything is stored: a script that does not compile (or
+// emits invalid rules) is rejected with the precise error and nothing
+// changes. On success the compile output is stored as the script's preview
+// and the engine re-applies (scripts render below the routing overrides).
+func (s *SettingsService) SaveRuleScript(sc settings.RuleScript) ([]settings.RuleScript, error) {
+	sc.Name = strings.TrimSpace(sc.Name)
+	if sc.Name == "" {
+		return nil, errors.New("script name is required")
+	}
+	if len(sc.Name) > 64 {
+		return nil, errors.New("script name too long (max 64)")
+	}
+	sc.Source = strings.TrimSpace(sc.Source)
+	if sc.Source == "" {
+		return nil, errors.New("script source is empty")
+	}
+	rules, err := rulescript.Compile(sc.Source)
+	if err != nil {
+		return nil, fmt.Errorf("script does not compile: %w", err)
+	}
+	sc.Preview = rules
+
+	cur := s.c.Settings.Get()
+	scripts := make([]settings.RuleScript, 0, len(cur.RuleScripts)+1)
+	replaced := false
+	for _, existing := range cur.RuleScripts {
+		if sc.ID != "" && existing.ID == sc.ID {
+			scripts = append(scripts, sc) // update in place
+			replaced = true
+			continue
+		}
+		if existing.Name == sc.Name && !replaced {
+			sc.ID = existing.ID // rename keeps the id slot
+			scripts = append(scripts, sc)
+			replaced = true
+			continue
+		}
+		scripts = append(scripts, existing)
+	}
+	if !replaced {
+		if sc.ID == "" {
+			sc.ID = settings.RuleScriptID(sc.Name)
+		}
+		scripts = append(scripts, sc)
+	}
+	return s.saveRuleScripts(cur, scripts)
+}
+
+// DeleteRuleScript removes the script with the given id (#17).
+func (s *SettingsService) DeleteRuleScript(id string) ([]settings.RuleScript, error) {
+	cur := s.c.Settings.Get()
+	scripts := make([]settings.RuleScript, 0, len(cur.RuleScripts))
+	removed := false
+	for _, sc := range cur.RuleScripts {
+		if sc.ID == id {
+			removed = true
+			continue
+		}
+		scripts = append(scripts, sc)
+	}
+	if !removed {
+		return cur.RuleScripts, nil
+	}
+	return s.saveRuleScripts(cur, scripts)
+}
+
+// PreviewRuleScript compiles a source WITHOUT saving — the editor's
+// "validate" button. Returns the emitted rule lines or the precise error.
+func (s *SettingsService) PreviewRuleScript(source string) ([]string, error) {
+	return rulescript.Compile(strings.TrimSpace(source))
+}
+
+// saveRuleScripts persists the script list through the normal settings
+// pipeline (sanitize → save → engine reapply) and returns the stored list.
+func (s *SettingsService) saveRuleScripts(cur settings.Settings, scripts []settings.RuleScript) ([]settings.RuleScript, error) {
+	next := cur
+	next.RuleScripts = scripts
+	saved, err := s.c.Settings.Replace(next)
+	if err != nil {
+		return cur.RuleScripts, err
+	}
+	s.c.Engine.ReapplyForSettings(context.Background(), cur, saved)
+	return saved.RuleScripts, nil
 }
 
 // TestService runs latency and speed tests.

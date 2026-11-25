@@ -25,7 +25,7 @@ import {
 import { t, setLang, type Lang } from "../lib/i18n";
 import { toast, errMsg } from "../lib/toast";
 import { askConfirm } from "../lib/confirm";
-import { IconChevron, IconFolder, IconWarn, IconCheck, IconRefresh, IconDownload, IconUpload, IconExternal, IconShield, IconTrash, IconPlus } from "../components/Icons";
+import { IconChevron, IconFolder, IconWarn, IconCheck, IconEdit, IconRefresh, IconDownload, IconUpload, IconExternal, IconShield, IconTrash, IconPlus } from "../components/Icons";
 
 const form = ref<SettingsDoc | null>(null);
 const saving = ref(false);
@@ -99,6 +99,102 @@ async function removeChain(id: string): Promise<void> {
   }
 }
 
+// ---- rule scripts (#17): tiny JS snippets compiled to mihomo rule lines.
+// The editor validates (PreviewRuleScript) before saving; the backend
+// compiles again on save and refuses anything that does not emit valid
+// rules. Scripts render below the routing overrides, above the catch-all.
+const scriptBusy = ref(false);
+const scriptEditing = ref(false);
+const scriptDraft = ref({ id: "", name: "", source: "", enabled: true });
+const scriptPreview = ref<string[]>([]);
+const scriptError = ref("");
+
+const SCRIPT_EXAMPLE = `// emit rules: return a string or an array of strings
+return [
+  domainSuffix("openai.com", "PROXY"),
+  and([network("udp"), dstPort(53)], "DIRECT"),
+];`;
+
+function newScript(): void {
+  scriptDraft.value = { id: "", name: "", source: SCRIPT_EXAMPLE, enabled: true };
+  scriptPreview.value = [];
+  scriptError.value = "";
+  scriptEditing.value = true;
+}
+
+function editScript(sc: { id: string; name: string; source: string; enabled: boolean }): void {
+  scriptDraft.value = { id: sc.id, name: sc.name, source: sc.source, enabled: sc.enabled };
+  scriptPreview.value = [];
+  scriptError.value = "";
+  scriptEditing.value = true;
+}
+
+async function validateScript(): Promise<void> {
+  scriptError.value = "";
+  scriptPreview.value = [];
+  scriptBusy.value = true;
+  try {
+    const rules = await SettingsSvc.PreviewRuleScript(scriptDraft.value.source);
+    scriptPreview.value = rules ?? [];
+    toast.success(t("settings.scriptsValidatedToast"));
+  } catch (e) {
+    scriptError.value = errMsg(e);
+  } finally {
+    scriptBusy.value = false;
+  }
+}
+
+async function saveRuleScript(): Promise<void> {
+  if (scriptBusy.value) return;
+  scriptBusy.value = true;
+  try {
+    const next = await SettingsSvc.SaveRuleScript({
+      id: scriptDraft.value.id,
+      name: scriptDraft.value.name,
+      enabled: scriptDraft.value.enabled,
+      source: scriptDraft.value.source,
+      preview: [],
+    });
+    if (form.value) form.value.ruleScripts = next ?? [];
+    scriptEditing.value = false;
+    toast.success(t("settings.scriptsSavedToast"));
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    scriptBusy.value = false;
+  }
+}
+
+async function toggleRuleScript(sc: { id: string; name: string; source: string; enabled: boolean; preview?: string[] }): Promise<void> {
+  if (scriptBusy.value) return;
+  scriptBusy.value = true;
+  try {
+    const next = await SettingsSvc.SaveRuleScript({
+      id: sc.id, name: sc.name, source: sc.source, enabled: !sc.enabled, preview: sc.preview ?? [],
+    });
+    if (form.value) form.value.ruleScripts = next ?? [];
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    scriptBusy.value = false;
+  }
+}
+
+async function removeRuleScript(id: string): Promise<void> {
+  if (scriptBusy.value) return;
+  if (!(await askConfirm({ title: t("settings.scriptsDeleteConfirm"), danger: true }))) return;
+  scriptBusy.value = true;
+  try {
+    const next = await SettingsSvc.DeleteRuleScript(id);
+    if (form.value) form.value.ruleScripts = next ?? [];
+    toast.success(t("settings.scriptsDeletedToast"));
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    scriptBusy.value = false;
+  }
+}
+
 const open = reactive<Record<string, boolean>>({
   general: true,
   proxy: false,
@@ -113,6 +209,7 @@ const open = reactive<Record<string, boolean>>({
   tun: false,
   subscriptions: false,
   routing: false,
+  scripts: false,
   chains: false,
   maintenance: false,
   updates: false,
@@ -1254,6 +1351,93 @@ async function importOverrides(ev: Event): Promise<void> {
             <input ref="ovFile" type="file" accept=".yaml,.yml,.txt" style="display: none" @change="importOverrides" />
           </div>
           <p class="hint" style="margin: 10px 0 0">{{ t("settings.routingHint") }}</p>
+        </div>
+      </section>
+
+      <!-- Rule scripts (#17): JS snippets compiled to rule lines -->
+      <section class="panel">
+        <button class="section-head" :aria-expanded="open.scripts" @click="open.scripts = !open.scripts">
+          <IconChevron :size="14" class="chev" :class="{ open: open.scripts }" />
+          {{ t("settings.secScripts") }}
+          <span v-if="form?.ruleScripts?.length" class="badge accent">{{ form.ruleScripts.length }}</span>
+        </button>
+        <div v-if="open.scripts" style="margin-top: 12px">
+          <p class="hint" style="margin: 0 0 10px">{{ t("settings.scriptsDesc") }}</p>
+
+          <!-- editor card -->
+          <div v-if="scriptEditing" class="mono-editor" style="border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 12px">
+            <div class="row" style="gap: 8px; margin-bottom: 8px">
+              <input
+                v-model="scriptDraft.name"
+                class="input"
+                style="flex: 1"
+                :placeholder="t('settings.scriptsName')"
+                :aria-label="t('settings.scriptsName')"
+              />
+              <label class="checkbox" style="margin: 0">
+                <input v-model="scriptDraft.enabled" type="checkbox" />
+                <span class="box" />
+                <span>{{ t("settings.scriptsEnabled") }}</span>
+              </label>
+            </div>
+            <textarea
+              v-model="scriptDraft.source"
+              class="mono"
+              rows="10"
+              spellcheck="false"
+              style="width: 100%; resize: vertical"
+              :aria-label="t('settings.scriptsSource')"
+            />
+            <div v-if="scriptError" class="error-text" style="white-space: pre-wrap; margin-top: 8px">
+              {{ scriptError }}
+            </div>
+            <div v-if="scriptPreview.length" class="mono small dim" style="margin-top: 8px">
+              <div style="margin-bottom: 4px">{{ t("settings.scriptsPreviewTitle") }} ({{ scriptPreview.length }})</div>
+              <div v-for="(r, i) in scriptPreview" :key="i" style="white-space: pre-wrap">{{ r }}</div>
+            </div>
+            <div class="row" style="gap: 8px; margin-top: 10px">
+              <button class="btn sm" :disabled="scriptBusy || !scriptDraft.source.trim()" @click="validateScript">
+                <span v-if="scriptBusy" class="spinner" style="width: 12px; height: 12px" />
+                {{ t("settings.scriptsValidate") }}
+              </button>
+              <button class="btn sm" :disabled="scriptBusy || !scriptDraft.name.trim() || !scriptDraft.source.trim()" @click="saveRuleScript">
+                <IconCheck :size="13" />
+                {{ t("common.save") }}
+              </button>
+              <button class="btn sm ghost" :disabled="scriptBusy" @click="scriptEditing = false">
+                {{ t("common.cancel") }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="!form?.ruleScripts?.length && !scriptEditing" class="dim" style="padding: 6px 0 10px">
+            {{ t("settings.scriptsEmpty") }}
+          </div>
+
+          <div v-for="sc in form?.ruleScripts ?? []" :key="sc.id" class="row" style="gap: 8px; margin-bottom: 6px">
+            <span class="mono small" style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis" :title="sc.name">
+              {{ sc.name }}
+            </span>
+            <span v-if="sc.preview?.length" class="dim small">{{ t("settings.scriptsRulesN", { n: sc.preview.length }) }}</span>
+            <label class="checkbox" style="margin: 0" :title="t('settings.scriptsEnabled')">
+              <input type="checkbox" :checked="sc.enabled" :disabled="scriptBusy" @change="toggleRuleScript(sc)" />
+              <span class="box" />
+            </label>
+            <button class="btn-icon" :aria-label="t('common.edit')" :title="t('common.edit')" @click="editScript(sc)">
+              <IconEdit :size="13" />
+            </button>
+            <button class="btn-icon" :aria-label="t('common.delete')" :title="t('common.delete')" :disabled="scriptBusy" @click="removeRuleScript(sc.id)">
+              <IconTrash :size="13" />
+            </button>
+          </div>
+
+          <div class="row" style="gap: 8px; margin-top: 10px">
+            <button class="btn sm" @click="newScript()">
+              <IconPlus :size="13" />
+              {{ t("settings.scriptsAdd") }}
+            </button>
+          </div>
+          <p class="hint" style="margin: 10px 0 0">{{ t("settings.scriptsHint") }}</p>
         </div>
       </section>
 
