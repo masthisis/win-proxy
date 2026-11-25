@@ -2432,3 +2432,277 @@ html.light {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* ============================================================
+   Mobile-grade compact redesign (#128) — the no-shrink law.
+
+   Owner rule: in the compact ("mobile-like") shell the SIZING
+   never changes — fonts, buttons, rows keep their floors — only
+   the ARRANGEMENT changes. Wails v3.1.0 does not enforce min
+   window sizes for frameless windows, so the widget can be any
+   width; below 620px the layout reorganizes (stacks, full-width
+   controls, tables become cards) instead of cramming.
+
+   Everything here is scoped to the compact shell
+   (.shell[data-layout="compact"]) — the desktop cockpit is
+   untouched. Appended last: these rules win the cascade.
+   ============================================================ */
+
+/* ---------- sizing floors (any compact width) ---------- */
+
+.shell[data-layout="compact"] .content {
+  padding: 14px;
+}
+
+/* inputs keep a touch-friendly height and full-size type */
+.shell[data-layout="compact"] input,
+.shell[data-layout="compact"] select,
+.shell[data-layout="compact"] textarea {
+  min-height: 40px;
+  font-size: 14px;
+}
+
+.shell[data-layout="compact"] .btn {
+  min-height: 42px;
+}
+
+.shell[data-layout="compact"] .btn.sm {
+  min-height: 34px;
+  padding: 6px 12px;
+}
+
+.shell[data-layout="compact"] .btn-icon {
+  width: 40px;
+  height: 40px;
+}
+
+.shell[data-layout="compact"] .seg {
+  padding: 5px;
+  gap: 5px;
+}
+
+.shell[data-layout="compact"] .seg button {
+  min-height: 38px;
+  padding: 6px 16px;
+  font-size: 13px;
+}
+
+/* switch: bigger throw, same design language */
+.shell[data-layout="compact"] .switch {
+  width: 40px;
+  height: 22px;
+}
+
+.shell[data-layout="compact"] .switch .knob {
+  width: 16px;
+  height: 16px;
+}
+
+.shell[data-layout="compact"] .switch[aria-checked="true"] .knob {
+  transform: translateX(16px);
+}
+
+/* tab bar: taller items with an active pill */
+.shell[data-layout="compact"] .tabbar {
+  height: 62px;
+}
+
+.shell[data-layout="compact"] .tabbar-item {
+  margin: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 11.5px;
+  gap: 3px;
+}
+
+.shell[data-layout="compact"] .tabbar-item.active {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+/* very narrow: the page label duplicates the active tab — drop it,
+   keep the app name + theme + window controls */
+@media (max-width: 470px) {
+  .shell[data-layout="compact"] .tb-page,
+  .shell[data-layout="compact"] .tb-sep {
+    display: none;
+  }
+}
+
+/* ---------- narrow tier: reorganize, never shrink ---------- */
+
+@media (max-width: 620px) {
+  /* hero connect card stacks: status → rates → mode → test-all */
+  .shell[data-layout="compact"] .hero-main {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .shell[data-layout="compact"] .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .shell[data-layout="compact"] .hero-rates {
+    display: flex;
+    justify-content: space-between;
+    text-align: start;
+    font-size: 14px;
+    line-height: 20px;
+  }
+
+  .shell[data-layout="compact"] .hero-card .seg {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .shell[data-layout="compact"] .hero-card .seg button {
+    min-height: 42px;
+    padding: 6px 8px;
+  }
+
+  .shell[data-layout="compact"] .hero-actions .btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+
+  /* search takes the row, sort/status/refresh drop below it */
+  .shell[data-layout="compact"] .node-search {
+    flex: 1 1 170px;
+    max-width: none;
+  }
+
+  /* node chips become full-width rows: name left, meta right */
+  .shell[data-layout="compact"] .chips {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .shell[data-layout="compact"] .node-chip {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 52px;
+    padding: 10px 14px;
+  }
+
+  .shell[data-layout="compact"] .node-chip .n-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 13.5px;
+  }
+
+  .shell[data-layout="compact"] .node-chip .n-meta {
+    width: auto;
+    flex-shrink: 0;
+    gap: 8px;
+  }
+
+  .shell[data-layout="compact"] .node-chip .n-type {
+    flex: none;
+    max-width: 45%;
+    font-size: 11px;
+  }
+
+  /* tables become stacked cards (label-above-value rows) */
+  .shell[data-layout="compact"] .table-wrap {
+    border: none;
+    background: transparent;
+    border-radius: 0;
+  }
+
+  .shell[data-layout="compact"] .tbl {
+    border-collapse: separate;
+    background: transparent;
+  }
+
+  .shell[data-layout="compact"] .tbl thead {
+    display: none;
+  }
+
+  .shell[data-layout="compact"] .tbl tr {
+    display: block;
+    margin: 0 0 8px;
+    padding: 10px 14px;
+    background: var(--panel);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-md);
+  }
+
+  .shell[data-layout="compact"] .tbl tbody tr:hover {
+    background: var(--panel-2);
+  }
+
+  .shell[data-layout="compact"] .tbl td {
+    display: block;
+    max-width: none;
+    padding: 3px 0;
+    border: none;
+    text-align: start;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .shell[data-layout="compact"] .tbl td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 10.5px;
+    font-weight: 500;
+    color: var(--outline);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 1px;
+  }
+
+  /* title cells (host / node name): no label, act as the card title */
+  .shell[data-layout="compact"] .tbl td[data-label=""]::before {
+    content: none;
+  }
+
+  .shell[data-layout="compact"] .tbl td[data-label=""] {
+    font-size: 13.5px;
+    font-weight: 500;
+    padding-bottom: 6px;
+  }
+
+  /* action cells keep their buttons on one line */
+  .shell[data-layout="compact"] .tbl td.td-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-top: 8px;
+  }
+
+  .shell[data-layout="compact"] .tbl td.td-actions::before {
+    content: none;
+  }
+
+  /* panels and toolbars breathe, headers wrap instead of clip */
+  .shell[data-layout="compact"] .panel {
+    padding: 12px 14px;
+  }
+
+  .shell[data-layout="compact"] .panel-head {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+
+  .shell[data-layout="compact"] .panel-head .dim.small {
+    flex-basis: 100%;
+  }
+
+  /* import/tool fields take the full row instead of squeezing */
+  .shell[data-layout="compact"] .view > .panel .field {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+}
+
+/* ---------- mid tier (621-880px): 2-column chip grid ---------- */
+
+@media (min-width: 621px) and (max-width: 880px) {
+  .shell[data-layout="compact"] .chips {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

@@ -130,23 +130,23 @@ async function applyRoute(): Promise<void> {
         </thead>
         <tbody>
           <tr v-for="c in items" :key="c.id">
-            <td class="mono" style="max-width: 240px; overflow: hidden; text-overflow: ellipsis" :title="c.host">
+            <td class="mono" data-label="" style="max-width: 240px; overflow: hidden; text-overflow: ellipsis" :title="c.host">
               {{ c.host || "—" }}
             </td>
-            <td class="dim">{{ c.network }}</td>
-            <td class="dim" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis" :title="c.rule">
+            <td class="dim" :data-label="t('conn.network')">{{ c.network }}</td>
+            <td class="dim" :data-label="t('conn.rule')" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis" :title="c.rule">
               {{ c.rule || "—" }}
             </td>
-            <td class="dim" style="max-width: 240px; overflow: hidden; text-overflow: ellipsis" :title="c.chain">
+            <td class="dim" :data-label="t('conn.chain')" style="max-width: 240px; overflow: hidden; text-overflow: ellipsis" :title="c.chain">
               {{ c.chain || "—" }}
             </td>
-            <td class="dim" style="max-width: 160px; overflow: hidden; text-overflow: ellipsis" :title="c.process">
+            <td class="dim" :data-label="t('conn.process')" style="max-width: 160px; overflow: hidden; text-overflow: ellipsis" :title="c.process">
               {{ c.process || "—" }}
             </td>
-            <td class="num">{{ fmtBytes(c.down) }}</td>
-            <td class="num">{{ fmtBytes(c.up) }}</td>
-            <td class="num dim">{{ duration(c.start) }}</td>
-            <td>
+            <td class="num" :data-label="t('conn.down')">{{ fmtBytes(c.down) }}</td>
+            <td class="num" :data-label="t('conn.up')">{{ fmtBytes(c.up) }}</td>
+            <td class="num dim" :data-label="t('conn.duration')">{{ duration(c.start) }}</td>
+            <td class="td-actions">
               <span class="row" style="gap: 2px">
                 <button
                   v-if="isDomainHost(c.host)"
