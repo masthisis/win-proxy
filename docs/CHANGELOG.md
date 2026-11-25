@@ -1,5 +1,46 @@
 # Changelog
 
+## v1.16.0 — scriptable rules (قواعد اسکریپتی)
+
+Issue #17 (owner-requested): tiny user JavaScript snippets compile into
+mihomo rule lines — the expressiveness layer on top of static routing
+overrides.
+
+### Rule scripts (#17)
+
+- **Settings → Rule scripts**: each script is a name + a JavaScript body
+  that returns a rule string, an array of rule strings, or nothing. Rules
+  render **below the routing overrides and above the catch-all MATCH** on
+  every config generation, in both config shapes (app-generated "nodes"
+  configs and user clash documents), joining speed testing, url-test
+  switching and traffic display like any other rule.
+- **Engine: goja** — the issue asked for one choice, justified: every
+  competing client embeds JavaScript for this feature (Clash Verge Rev,
+  Surge, Loon, Quantumult X), so the community script corpus is JS;
+  expr-lang's ~3 MB size win is noise on a desktop binary.
+- **Sandbox, acceptance-tested**: no I/O bindings exist (require/fetch/
+  process/fs/timers/console are all undefined — probe + globalThis
+  baseline-diff tests), 2 s run budget via goja's interrupt pattern
+  (infinite loops and runaway recursion interrupted, tested), call-stack
+  cap, output caps (≤256 rules/script, ≤1 KiB per rule), and **determinism
+  enforced by a double run** — Math.random/Date-dependent output is
+  rejected because config reloads must never silently reorder traffic.
+- **Helper surface emits verified mihomo syntax** (rule types checked
+  against the v1.19.34 wiki): `domainSuffix("x.com","PROXY")`, inner-form
+  helpers nesting into `and()/or()/not()` →
+  `AND,((NETWORK,udp),(DST-PORT,53)),DIRECT`, nested policy-less logic
+  groups, `match(policy)`, `rule(inner, policy)`. `ipCidr()` auto-switches
+  to IP-CIDR6 for IPv6 literals.
+- **Validate before apply**: Save compiles first — a script that does not
+  compile or emits invalid rules is rejected with a line-precise error and
+  nothing is stored; the editor's Validate button shows the emitted rules
+  or the error live (EN/FA). Generation time re-bounds each compile
+  (1.5 s skip guard) and drops stale policy targets exactly like routing
+  overrides — one broken script can never take the engine down.
+- **Documented non-goals (verified)**: mihomo has NO time-based rule type
+  (time-window routing is filed as research); SUB-RULE sections add
+  organization only — inline logic rules carry the same power.
+
 ## v1.15.0 — proxy chains (前置/落地代理)
 
 v2rayN's front/landing proxy parity (#107): any node can be dialed THROUGH
