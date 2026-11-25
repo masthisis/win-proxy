@@ -6,9 +6,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/neurorift/neurorift/internal/nr"
 	"github.com/neurorift/neurorift/internal/profile"
+	"github.com/neurorift/neurorift/internal/rulescript"
 	"github.com/neurorift/neurorift/internal/settings"
 	"github.com/neurorift/neurorift/internal/yamlx"
 	"gopkg.in/yaml.v3"
@@ -314,6 +316,7 @@ func (g *ConfigGen) generateNodes(s settings.Settings, active profile.Summary, h
 	rules := lanRules()
 	rules = append(rules, bypassRules(s)...)
 	rules = append(rules, g.overrideRuleNodes(s, g.providerTargets())...)
+	rules = append(rules, scriptRuleNodes(s, g.providerTargets())...)
 	rules = append(rules, "MATCH,"+nr.GroupNodeSelect)
 	root.Set("rules", rules)
 
@@ -754,6 +757,76 @@ func (g *ConfigGen) overrideRuleNodes(s settings.Settings, validTargets map[stri
 	return out
 }
 
+// scriptRuleStrings renders the enabled rule scripts (#17) as mihomo rule
+// strings. Compile errors SKIP the script silently at generation time —
+// the save flow surfaces compile errors interactively, and one broken
+// script must never take the engine down (the same philosophy as stale
+// routing overrides #50). Rules whose policy does not exist in the
+// generated config are skipped too (generation-time target filtering, same
+// as overrides). Ordering: scripts render BELOW the routing overrides and
+// ABOVE the catch-all MATCH, in script list order.
+func scriptRuleStrings(s settings.Settings, validTargets map[string]bool) []string {
+	if len(s.RuleScripts) == 0 {
+		return nil
+	}
+	var out []string
+	for _, sc := range s.RuleScripts {
+		if !sc.Enabled || strings.TrimSpace(sc.Source) == "" {
+			continue
+		}
+		rules, err := compileScriptBounded(sc.Source, scriptCompileBudget)
+		if err != nil {
+			continue // a broken script must never break the config
+		}
+		for _, r := range rules {
+			if !validTargets[rulescript.RulePolicy(r)] {
+				continue
+			}
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// scriptCompileBudget bounds one script compile during config generation:
+// the save flow already compiled the source (typically <10 ms), so a
+// compile that still runs past this budget is pathological — skip it and
+// keep the config apply fast. The underlying goja runtime self-interrupts
+// within its own 2 s budget, so the skipped goroutine never leaks.
+const scriptCompileBudget = 1500 * time.Millisecond
+
+// compileScriptBounded runs rulescript.Compile with a wall-clock cap.
+func compileScriptBounded(source string, budget time.Duration) ([]string, error) {
+	type result struct {
+		rules []string
+		err   error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		r, e := rulescript.Compile(source)
+		ch <- result{r, e}
+	}()
+	select {
+	case r := <-ch:
+		return r.rules, r.err
+	case <-time.After(budget):
+		return nil, fmt.Errorf("script compile exceeded %s — skipped", budget)
+	}
+}
+
+// scriptRuleNodes is the []any variant used by generateNodes.
+func scriptRuleNodes(s settings.Settings, validTargets map[string]bool) []any {
+	lines := scriptRuleStrings(s, validTargets)
+	if lines == nil {
+		return nil
+	}
+	out := make([]any, len(lines))
+	for i, l := range lines {
+		out[i] = l
+	}
+	return out
+}
+
 // providerTargets lists every name a generated "nodes" config can legally
 // route to: the built-in groups plus every provider node (issue #42 loads
 // all subscriptions as providers, so all their nodes are addressable).
@@ -825,6 +898,9 @@ func bypassRules(s settings.Settings) []any {
 func (g *ConfigGen) spliceOverrideRules(s settings.Settings, rootMap *yaml.Node) {
 	lines := bypassRules(s)
 	for _, l := range overrideRuleStrings(s, g.clashDocTargets(rootMap)) {
+		lines = append(lines, l)
+	}
+	for _, l := range scriptRuleStrings(s, g.clashDocTargets(rootMap)) {
 		lines = append(lines, l)
 	}
 	if len(lines) == 0 {

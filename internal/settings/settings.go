@@ -18,6 +18,8 @@ import (
 	"net"
 	"strings"
 	"time"
+
+	"github.com/neurorift/neurorift/internal/rulescript"
 )
 
 // Ports groups the local listening ports managed by the app.
@@ -65,6 +67,25 @@ type ProxyGuard struct {
 // RoutingOverride is one user-defined routing rule that takes precedence
 // over the profile's own rules (issue #50 / #10). Pattern semantics depend
 // on Type; Target is a node name, group name, DIRECT or REJECT.
+// RuleScript is one user-authored JavaScript snippet (#17, scriptable
+// rules). The snippet runs in a sandboxed interpreter at config generation
+// and its output — validated rule lines — is rendered below the routing
+// overrides and above the catch-all. Preview holds the last successful
+// compile output (display only; never fed back into generation).
+type RuleScript struct {
+	// ID is stable across renames; generated on first save when empty.
+	ID string `json:"id"`
+	// Name is the display label (required, unique).
+	Name string `json:"name"`
+	// Enabled scripts are compiled and rendered on every generation.
+	Enabled bool `json:"enabled"`
+	// Source is the JavaScript body. It must return a rule string, an
+	// array of rule strings, or nothing (see internal/rulescript).
+	Source string `json:"source"`
+	// Preview is the last successful compile output — display only.
+	Preview []string `json:"preview"`
+}
+
 type RoutingOverride struct {
 	// Pattern is the matched value: domain, domain suffix, domain
 	// keyword, process name, IP CIDR or GEOIP country code
@@ -330,6 +351,9 @@ type Settings struct {
 	// ProxyChains are user-defined two-hop node chains (#107): landing
 	// node dialed through a front node via mihomo dialer-proxy.
 	ProxyChains []ProxyChain `json:"proxyChains"`
+	// RuleScripts are user JavaScript snippets compiled to rule lines
+	// (#17): rendered below the routing overrides, above the catch-all.
+	RuleScripts []RuleScript `json:"ruleScripts"`
 	// BypassCN routes mainland-China traffic DIRECT (v2rayNG "bypass
 	// mainland" parity, issue #96): GEOSITE,cn + GEOIP,CN. Placed after
 	// the LAN block and BEFORE the user overrides (#50 wins on conflict).
@@ -408,6 +432,7 @@ func Default() Settings {
 		Log:              Log{AppLevel: "info", CoreLevel: "info"},
 		PAC:              PAC{Port: 7899, Script: ""},
 		RoutingOverrides: []RoutingOverride{},
+		RuleScripts:      []RuleScript{},
 		ProxyGuard:       ProxyGuard{Enable: false, IntervalSec: 10, KillSwitch: false},
 		Updates:          Updates{AutoCheck: true, IncludePrerelease: false},
 		Reporting:        Reporting{Enable: true, GithubToken: ""},
@@ -540,6 +565,7 @@ func (s *Settings) validate() {
 	}
 	s.RoutingOverrides = sanitizeRoutingOverrides(s.RoutingOverrides)
 	s.ProxyChains = sanitizeProxyChains(s.ProxyChains)
+	s.RuleScripts = sanitizeRuleScripts(s.RuleScripts)
 	s.ProxyGuard.IntervalSec = clampInt(s.ProxyGuard.IntervalSec, 3, 300, d.ProxyGuard.IntervalSec)
 }
 
@@ -658,6 +684,52 @@ func (s Settings) ProbeInterval() time.Duration {
 	return time.Duration(s.Failover.IntervalSec) * time.Second
 }
 
+// sanitizeRuleScripts normalizes the script list: trims names, enforces
+// the caps (count, source bytes, preview lines), keeps names unique and
+// generates missing IDs. Compilation itself happens in the save flow and
+// at generation time — sanitize only guards document shape.
+func sanitizeRuleScripts(in []RuleScript) []RuleScript {
+	out := make([]RuleScript, 0, len(in))
+	seenNames := map[string]bool{}
+	seenIDs := map[string]bool{}
+	for _, sc := range in {
+		sc.Name = strings.TrimSpace(sc.Name)
+		sc.ID = strings.TrimSpace(sc.ID)
+		if sc.ID == "" {
+			sc.ID = RuleScriptID(sc.Name)
+		}
+		if seenIDs[sc.ID] || sc.Name == "" || seenNames[sc.Name] {
+			continue
+		}
+		if len(sc.Source) > rulescript.MaxSourceBytes {
+			sc.Source = sc.Source[:rulescript.MaxSourceBytes]
+		}
+		if len(sc.Preview) > MaxRuleScriptPreviewLines {
+			sc.Preview = sc.Preview[:MaxRuleScriptPreviewLines]
+		}
+		seenIDs[sc.ID] = true
+		seenNames[sc.Name] = true
+		out = append(out, sc)
+	}
+	if len(out) > 32 {
+		out = out[:32]
+	}
+	if out == nil {
+		out = []RuleScript{}
+	}
+	return out
+}
+
+// MaxRuleScriptPreviewLines caps the stored compile preview (display only;
+// generation always recompiles from source, so the preview can be short).
+const MaxRuleScriptPreviewLines = 64
+
+// RuleScriptID derives a stable id from the script name.
+func RuleScriptID(name string) string {
+	sum := sha256.Sum256([]byte(name))
+	return "rs-" + hex.EncodeToString(sum[:6])
+}
+
 // NeedsConfigReload reports which sensitive areas changed between two
 // settings documents (drives engine reconfiguration decisions).
 func NeedsConfigReload(a, b Settings) bool {
@@ -676,7 +748,8 @@ func NeedsConfigReload(a, b Settings) bool {
 		a.Sniffer != b.Sniffer ||
 		!kcpEqual(a.KCP, b.KCP) ||
 		!routingOverridesEqual(a.RoutingOverrides, b.RoutingOverrides) ||
-		!proxyChainsEqual(a.ProxyChains, b.ProxyChains)
+		!proxyChainsEqual(a.ProxyChains, b.ProxyChains) ||
+		!ruleScriptsEqual(a.RuleScripts, b.RuleScripts)
 }
 
 // proxyChainsEqual compares two chain lists (order must match — the
@@ -705,6 +778,22 @@ func routingOverridesEqual(a, b []RoutingOverride) bool {
 	}
 	for i := range a {
 		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// ruleScriptsEqual compares two script lists. Preview is DERIVED state
+// (refreshed on save) — comparing it would trigger spurious config
+// reloads; ID, name, enabled flag and source define behavior.
+func ruleScriptsEqual(a, b []RuleScript) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].ID != b[i].ID || a[i].Name != b[i].Name ||
+			a[i].Enabled != b[i].Enabled || a[i].Source != b[i].Source {
 			return false
 		}
 	}

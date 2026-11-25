@@ -31,12 +31,35 @@ export function AddProxyChain(node, via) {
 }
 
 /**
+ * DeleteRuleScript removes the script with the given id (#17).
+ * @param {string} id
+ * @returns {$CancellablePromise<settings$0.RuleScript[]>}
+ */
+export function DeleteRuleScript(id) {
+    return $Call.ByID(2489122598, id).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
  * Get returns the current settings.
  * @returns {$CancellablePromise<settings$0.Settings>}
  */
 export function Get() {
     return $Call.ByID(710695688).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType2($result);
+        return $$createType4($result);
+    }));
+}
+
+/**
+ * PreviewRuleScript compiles a source WITHOUT saving — the editor's
+ * "validate" button. Returns the emitted rule lines or the precise error.
+ * @param {string} source
+ * @returns {$CancellablePromise<string[]>}
+ */
+export function PreviewRuleScript(source) {
+    return $Call.ByID(1228966277, source).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType5($result);
     }));
 }
 
@@ -58,11 +81,29 @@ export function RemoveProxyChain(id) {
  */
 export function Save(next) {
     return $Call.ByID(2704157817, next).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType2($result);
+        return $$createType4($result);
+    }));
+}
+
+/**
+ * SaveRuleScript creates or updates one rule script (#17). The source is
+ * COMPILED before anything is stored: a script that does not compile (or
+ * emits invalid rules) is rejected with the precise error and nothing
+ * changes. On success the compile output is stored as the script's preview
+ * and the engine re-applies (scripts render below the routing overrides).
+ * @param {settings$0.RuleScript} sc
+ * @returns {$CancellablePromise<settings$0.RuleScript[]>}
+ */
+export function SaveRuleScript(sc) {
+    return $Call.ByID(40168808, sc).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
     }));
 }
 
 // Private type creation functions
 const $$createType0 = settings$0.ProxyChain.createFrom;
 const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = settings$0.Settings.createFrom;
+const $$createType2 = settings$0.RuleScript.createFrom;
+const $$createType3 = $Create.Array($$createType2);
+const $$createType4 = settings$0.Settings.createFrom;
+const $$createType5 = $Create.Array($Create.Any);

@@ -71,6 +71,9 @@ a bound signature changes.
 | `Save(next)` | sanitized `Settings` (engine re-applies automatically) |
 | `AddProxyChain(node, via)` | `ProxyChain[]` | #107: creates/replaces the chain "node dials via front" (mihomo dialer-proxy); read-modify-write under the settings lock, engine re-applies. Idempotent when the pair is unchanged |
 | `RemoveProxyChain(id)` | `ProxyChain[]` | #107: deletes the chain by id |
+| `SaveRuleScript(script)` | `RuleScript[]` | #17: creates/updates a rule script. The source is compiled FIRST (goja sandbox, two runs, determinism-checked) — a script that does not emit valid rules is rejected with a precise error and nothing changes; on success the compile output is stored as `preview` and the engine re-applies |
+| `DeleteRuleScript(id)` | `RuleScript[]` | #17: deletes the script by id |
+| `PreviewRuleScript(source)` | `string[]` | #17: compile-only validation for the editor ("Validate" button) — returns the emitted rule lines or the error |
 
 ### TestService (`testservice`)
 | Method | Returns | Notes |
@@ -253,6 +256,19 @@ routingOverrides: [{pattern, type: "domain-suffix"|"domain"|"domain-keyword"|"pr
                     "ip-cidr"|"geoip", target}] — high-priority rules after the LAN
                     block, ≤200 (#50; ip-cidr/geoip: #104 — domain-type
                     rules emit before IP-type, IPv6 CIDRs → IP-CIDR6)
+ruleScripts: [{id, name, enabled, source, preview}] — user JavaScript
+                    snippets (#17) compiled to rule lines on every config
+                    generation: rendered BELOW the routing overrides and
+                    ABOVE the catch-all MATCH. Sandbox (goja, no I/O
+                    bindings), deterministic output enforced (double-run),
+                    source ≤32 KiB, ≤32 scripts, ≤256 emitted rules each.
+                    Compile errors skip the script at generation time (the
+                    save flow surfaces them interactively). Stale policy
+                    targets are dropped like override targets. Rule helpers:
+                    domain/domainSuffix/domainKeyword/domainRegex/
+                    domainWildcard/geosite/ipCidr(→IP-CIDR6 for v6)/geoip/
+                    dstPort/network/processName/ruleSet/... (inner form) +
+                    and()/or()/not()/match()/rule() (final form).
 proxyChains: [{id, node, via}] — two-hop chains (#107): config generation
                     materializes a static "node via via" proxy with
                     dialer-proxy (provider fronts get a static "via: ..."

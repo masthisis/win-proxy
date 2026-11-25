@@ -123,12 +123,17 @@ CONTRACT.md.
 
 ### 4. #17 — Scriptable rules
 
-Tiny user snippets compiled to mihomo sub-rules / AND-OR-NOT logic rules.
-Pick ONE expression engine (goja vs expr-lang — justify on bundle size +
-sandboxing in the PR), validate + compile before apply with line-precise
-errors (same two-layer discipline as the YAML editor), render below
-overrides and above defaults in `configgen.go`. Snippets never touch the
-data plane; no filesystem/network access from snippet evaluation.
+> **LANDED — ships in v1.16.0.** User JavaScript snippets compile to mihomo
+> rule lines (AND/OR/NOT logic rules included) in `internal/rulescript`
+> (engine choice: goja — ecosystem parity with Clash Verge Rev/Surge/Loon
+> scripts, justified in the PR; sandbox: no I/O bindings, run budget +
+> call-stack caps, output caps, determinism enforced by a double run).
+> Scripts render below the routing overrides and above the catch-all in
+> both config shapes; save flow compiles before storing (validate-before-
+> apply, line-precise errors); generation re-bounds each compile and skips
+> broken/stale scripts. Settings → Rule scripts UI (EN/FA) with live
+> validation. Verified mihomo has NO time-based rule type — schedule
+> routing becomes a separate research issue.
 
 ### 5. #19 — Linux + macOS parity builds
 
