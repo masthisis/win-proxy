@@ -1524,6 +1524,97 @@ table.tbl {
   }
 }
 
+/* Country routing picker (#122): grid of tappable country chips. */
+.country-routing {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.country-routing .sub-head {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.country-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 264px;
+  overflow-y: auto;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-ctrl, 8px);
+  background: var(--panel-2);
+}
+
+.country-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.country-chip:hover {
+  border-color: var(--accent);
+}
+
+.country-chip.assigned {
+  border-color: var(--accent);
+  background: rgb(59 130 246 / 0.12);
+}
+
+.country-chip .flag {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.country-chip .cname {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.country-chip .cbadge {
+  font-size: 10.5px;
+  color: var(--accent);
+  font-weight: 600;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.assigned-countries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.assigned-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  font-size: 11.5px;
+}
+
+.assigned-row .arrow {
+  color: var(--accent);
+}
+
 /* Node context menu (Dashboard right-click: share / route via — #102, #107) */
 .chip-menu {
   position: fixed;

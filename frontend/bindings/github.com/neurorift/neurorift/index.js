@@ -4,6 +4,7 @@
 
 import * as AppService from "./appservice.js";
 import * as CoreService from "./coreservice.js";
+import * as GeoService from "./geoservice.js";
 import * as ProfileService from "./profileservice.js";
 import * as ProxyService from "./proxyservice.js";
 import * as ReportService from "./reportservice.js";
@@ -14,6 +15,7 @@ import * as UpdateService from "./updateservice.js";
 export {
     AppService,
     CoreService,
+    GeoService,
     ProfileService,
     ProxyService,
     ReportService,

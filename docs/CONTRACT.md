@@ -195,6 +195,17 @@ under `reports/pending/` before any network attempt; send failures are
 retried on launch + every 10 min. Overflow beyond two 50k-char comments
 stays in the local bundle file.
 
+### GeoService (`geoservice`) — country dataset for the routing picker (#122)
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `Countries()` | `Country[]` | static dataset: 250 ISO 3166-1 alpha-2 entries (249 official + XK/Kosovo) + the `LAN` pseudo-entry, sorted by English name. Each: `{code, nameEn, nameFa, flag}` (names from Unicode CLDR; flag emoji from regional indicators). No network, no state. |
+
+The Settings → Routing "Country routing" picker renders these and writes
+geoip routing overrides (`{pattern: <CC>, type: "geoip", target}`) — the same
+storage the manual override editor uses; the generator emits them as
+`GEOIP,<CC>,<target>` above the catch-all (mihomo lowercases payloads
+internally — codes are matched case-insensitively end-to-end).
+
 ## Events (backend → frontend; payloads arrive as `ev.data`)
 
 | Event | Payload |
