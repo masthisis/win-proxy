@@ -155,6 +155,10 @@ same subscriptions.
 ## Agent-filed backlog (after the user-requested set, or as small
 companion items when a cycle has capacity left)
 
+- **#119 — schedule-based routing** (time-window actions: profiles/mode/
+  scripts; filed 2026-11-25 as the #17 follow-up — verified mihomo has no
+  time-based rule type, so time routing must be client-side; acceptance
+  criteria incl. DST tests and wake-recovery on the issue).
 - **#114 — per-profile enhancement chain** (YAML merge docs + config
   scripts, Clash Verge Rev parity) — filed 2026-11-25 with a full plan
   (merge semantics, goja sandbox, configgen hook, two-layer validation).
