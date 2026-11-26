@@ -7,6 +7,7 @@ export {
     LintIssue,
     Profile,
     RawEditResult,
+    RestoreReport,
     ShareInfo,
     SubscriptionInfo,
     Summary,

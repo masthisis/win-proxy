@@ -270,6 +270,56 @@ export class RawEditResult {
 }
 
 /**
+ * RestoreReport summarizes a one-file restore: how many profiles came back,
+ * which names were skipped (unreadable content) and what is now active.
+ */
+export class RestoreReport {
+    /**
+     * Creates a new RestoreReport instance.
+     * @param {Partial<RestoreReport>} [$$source = {}] - The source object to create the RestoreReport.
+     */
+    constructor($$source = {}) {
+        if (!("profiles" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["profiles"] = 0;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string[] | undefined}
+             */
+            this["skipped"] = undefined;
+        }
+        if (!("activeId" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["activeId"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new RestoreReport instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {RestoreReport}
+     */
+    static createFrom($$source = {}) {
+        const $$createField1_0 = $$createType5;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("skipped" in $$parsedSource) {
+            $$parsedSource["skipped"] = $$createField1_0($$parsedSource["skipped"]);
+        }
+        return new RestoreReport(/** @type {Partial<RestoreReport>} */($$parsedSource));
+    }
+}
+
+/**
  * ShareInfo is the UI-facing result of exporting one node for sharing
  * (issue #102).
  */
@@ -464,3 +514,4 @@ const $$createType1 = $Create.Nullable($$createType0);
 const $$createType2 = $Create.Map($Create.Any, $Create.Any);
 const $$createType3 = LintIssue.createFrom;
 const $$createType4 = $Create.Array($$createType3);
+const $$createType5 = $Create.Array($Create.Any);

@@ -86,6 +86,51 @@ export class AppInfo {
 }
 
 /**
+ * BackupExportResult describes a finished one-file export.
+ */
+export class BackupExportResult {
+    /**
+     * Creates a new BackupExportResult instance.
+     * @param {Partial<BackupExportResult>} [$$source = {}] - The source object to create the BackupExportResult.
+     */
+    constructor($$source = {}) {
+        if (!("path" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["path"] = "";
+        }
+        if (!("profiles" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["profiles"] = 0;
+        }
+        if (!("bytes" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["bytes"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new BackupExportResult instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {BackupExportResult}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new BackupExportResult(/** @type {Partial<BackupExportResult>} */($$parsedSource));
+    }
+}
+
+/**
  * BackupSummary describes what was exported (service-facing alias).
  */
 export const BackupSummary = backup$0.ExportSummary;

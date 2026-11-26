@@ -34,6 +34,7 @@ Comparison against the tools NeuroRift replaces or borrows from.
 | Import QR image / scan screen for a subscription | ❌ | ✅ | ✅ (#102) |
 | **Share any node as link + QR (incl. wg-quick export)** | 🟡 (QR only) | ✅ | ✅ (#102) |
 | **Backup & restore full app state (zip)** | ❌ | ✅ | ✅ (#103) |
+| **One-file portable backup (.nrbackup, in-place restore)** | ❌ | 🟡 (zip + restart) | ✅ (#132) |
 | **UWP loopback exemption for system proxy** | 🟡 (external tool) | ✅ | ✅ (#105) |
 | **Geo database mirror + update-now** | 🟡 | ✅ | ✅ (#106) |
 | IP-CIDR / GEOIP custom rules (GUI) | 🟡 | ✅ | ✅ (#104) |
@@ -81,6 +82,7 @@ Comparison against the tools NeuroRift replaces or borrows from.
 - Proxy chains via mihomo dialer-proxy (v1.15.0, #107)
 - Share links + QR import/export (v1.14.0, #102)
 - Backup & restore (v1.14.0, #103)
+- One-file portable backup & restore, Throne semantics (v1.19.0, #132)
 - IP-CIDR/GEOIP routing overrides (v1.14.0, #104)
 - UWP loopback exemption (v1.14.0, #105)
 - Geo database manager (v1.14.0, #106)

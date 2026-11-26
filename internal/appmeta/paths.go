@@ -8,6 +8,7 @@
 //	  speedhistory.json    persisted speed-test results (internal/nettest)
 //	  logs/neurorift.log   rotating application log
 //	  reports/             captured problem reports (#36): pending/ + sent/
+//	  backups/             one-file *.nrbackup exports (#132)
 //	  providers/           materialized mihomo proxy-provider files
 //	  clash/<id>.yaml      raw Clash YAML for "clash" kind profiles
 //	  core/                mihomo binary, config.yaml, cache.db, geodata
@@ -64,6 +65,8 @@ type Paths struct {
 	CoreDir string
 	// ReportsDir holds captured problem reports (#36): pending/ + sent/.
 	ReportsDir string
+	// BackupsDir holds one-file *.nrbackup exports (#132).
+	BackupsDir string
 	// Portable reports whether all state lives under <exe-dir>/data
 	// (portable.flag next to the executable) instead of the per-user
 	// config dir. Decided once at startup, before any store opens (#18).
@@ -135,12 +138,13 @@ func ResolveAt(root string) *Paths {
 		ClashDir:     join(root, "clash"),
 		CoreDir:      join(root, "core"),
 		ReportsDir:   join(root, "reports"),
+		BackupsDir:   join(root, "backups"),
 	}
 }
 
 // Ensure creates the directory skeleton. Safe to call repeatedly.
 func (p *Paths) Ensure() error {
-	for _, dir := range []string{p.Root, p.LogsDir, p.ProvidersDir, p.ClashDir, p.CoreDir, p.ReportsDir} {
+	for _, dir := range []string{p.Root, p.LogsDir, p.ProvidersDir, p.ClashDir, p.CoreDir, p.ReportsDir, p.BackupsDir} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}

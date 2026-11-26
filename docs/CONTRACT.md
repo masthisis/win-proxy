@@ -195,6 +195,26 @@ under `reports/pending/` before any network attempt; send failures are
 retried on launch + every 10 min. Overflow beyond two 50k-char comments
 stays in the local bundle file.
 
+### BackupService (`backupservice`) — one-file portable backup & restore (#132)
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `ExportBackup()` | `BackupExportResult` | `{path, profiles, bytes}` — writes `<data>/backups/neurorift-backup-YYYYMMDD-HHMMSS.nrbackup` atomically: the full settings document + every profile with its materialized content |
+| `ImportBackup()` | `RestoreReport` | `{profiles, skipped?, activeId}` — native `.nrbackup`/`.json` dialog, full-replace restore applied IN PLACE (no restart): settings via the validated Replace pipeline, profiles re-decoded through DecodeContent (P2 sanitize + dedupe); broken entries skipped and reported; `null` when cancelled |
+| `OpenBackupsFolder()` | – | reveals the managed backups directory |
+
+#### .nrbackup document (v1)
+
+```json
+{ "version": 1, "app": "NeuroRift", "exportedAt": "<RFC3339>",
+  "settings": { …full settings document… },
+  "profiles": [ { "profile": { …Profile entry… }, "content": "<provider yaml | clash yaml>" } ],
+  "activeId": "<id or empty>" }
+```
+
+Validation: `app` must be NeuroRift, `version` must be 1. Restore is Throne
+semantics — a full replace — as opposed to the #103 zip restore (raw state
+swap + relaunch). Both are offered in Settings → Maintenance.
+
 ### GeoService (`geoservice`) — country dataset for the routing picker (#122)
 | Method | Returns | Notes |
 | --- | --- | --- |

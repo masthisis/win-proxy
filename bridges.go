@@ -14,6 +14,7 @@ var (
 	pickFileFn      func() (string, error)
 	pickSaveFn      func() (string, error) // save-file dialog (#103)
 	pickZipFn       func() (string, error) // open-zip dialog for restore (#103)
+	pickBackupFn    func() (string, error) // open-dialog for .nrbackup import (#132)
 	autostartOnFn   func(args []string) error
 	autostartOffFn  func() error
 	autostartIsOnFn func() (bool, error)
@@ -69,6 +70,15 @@ func pickZipFile() (string, error) {
 		return "", errBridgeUnavailable
 	}
 	return pickZipFn()
+}
+
+// pickBackupFile shows the native open-file dialog for one-file backups
+// (.nrbackup / .json, #132).
+func pickBackupFile() (string, error) {
+	if pickBackupFn == nil {
+		return "", errBridgeUnavailable
+	}
+	return pickBackupFn()
 }
 
 // setAutostart registers/unregisters login launch (args e.g. --minimized).

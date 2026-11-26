@@ -223,7 +223,8 @@ func main() {
 			application.NewService(&SysService{c: container}),
 			application.NewService(&UpdateService{c: container}),
 			application.NewService(&ReportService{c: container}),
-			application.NewService(&GeoService{}), // static country dataset (#122)
+			application.NewService(&BackupService{c: container}), // one-file backup (#132)
+			application.NewService(&GeoService{}),                // static country dataset (#122)
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -357,6 +358,14 @@ func installBridges(app *application.App) {
 			CanChooseFiles(true).
 			CanChooseDirectories(false).
 			AddFilter("Backup archives", "*.zip").
+			PromptForSingleSelection()
+	}
+	pickBackupFn = func() (string, error) {
+		return app.Dialog.OpenFile().
+			SetTitle("Import NeuroRift one-file backup").
+			CanChooseFiles(true).
+			CanChooseDirectories(false).
+			AddFilter("NeuroRift backups", "*.nrbackup;*.json").
 			PromptForSingleSelection()
 	}
 	autostartOnFn = func(args []string) error {

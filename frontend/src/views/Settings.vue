@@ -5,6 +5,7 @@ import { Events } from "@wailsio/runtime";
 import { EV } from "../lib/events";
 import * as SettingsSvc from "../../bindings/github.com/neurorift/neurorift/settingsservice.js";
 import * as Sys from "../../bindings/github.com/neurorift/neurorift/sysservice.js";
+import * as BackupSvc from "../../bindings/github.com/neurorift/neurorift/backupservice.js";
 import * as CoreSvc from "../../bindings/github.com/neurorift/neurorift/coreservice.js";
 import * as ReportSvc from "../../bindings/github.com/neurorift/neurorift/reportservice.js";
 import * as AppSvc from "../../bindings/github.com/neurorift/neurorift/appservice.js";
@@ -302,6 +303,59 @@ async function restoreBackup(): Promise<void> {
     toast.error(errMsg(e));
   } finally {
     restoreBusy.value = false;
+  }
+}
+
+// ---- one-file backup & restore (#132, Throne parity) ----
+const nrExportBusy = ref(false);
+const nrImportBusy = ref(false);
+
+/** Export the one-file .nrbackup document into the managed backups dir (#132). */
+async function exportNrBackup(): Promise<void> {
+  if (nrExportBusy.value) return;
+  nrExportBusy.value = true;
+  try {
+    const res = await BackupSvc.ExportBackup();
+    if (res) toast.success(t("settings.nrbackupExported", { path: res.path }));
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    nrExportBusy.value = false;
+  }
+}
+
+/** Import a .nrbackup document — full replace, applied in place, no restart (#132). */
+async function importNrBackup(): Promise<void> {
+  if (nrImportBusy.value) return;
+  const ok = await askConfirm({
+    title: t("settings.nrbackupImportTitle"),
+    body: t("settings.nrbackupImportWarn"),
+    danger: true,
+    confirmLabel: t("common.confirm"),
+  });
+  if (!ok) return;
+  nrImportBusy.value = true;
+  try {
+    const report = await BackupSvc.ImportBackup();
+    if (report) {
+      toast.success(t("settings.nrbackupImported", { n: report.profiles }));
+      if (report.skipped?.length) {
+        toast.info(t("settings.nrbackupSkipped", { n: report.skipped.length }));
+      }
+    }
+  } catch (e) {
+    toast.error(errMsg(e));
+  } finally {
+    nrImportBusy.value = false;
+  }
+}
+
+/** Reveal the managed backups directory (#132). */
+async function openBackupsFolder(): Promise<void> {
+  try {
+    await BackupSvc.OpenBackupsFolder();
+  } catch (e) {
+    toast.error(errMsg(e));
   }
 }
 
@@ -1718,6 +1772,26 @@ async function setUiLayout(layout: LayoutMode): Promise<void> {
               </button>
             </div>
             <span class="hint">{{ t("settings.backupHint") }}</span>
+          </div>
+          <div class="field span-all">
+            <label>{{ t("settings.nrbackupLabel") }}</label>
+            <div class="row" style="gap: 8px">
+              <button class="btn sm" :disabled="nrExportBusy" @click="exportNrBackup()">
+                <span v-if="nrExportBusy" class="spinner" style="width: 12px; height: 12px" />
+                <IconDownload v-else :size="13" />
+                {{ t("settings.nrbackupExport") }}
+              </button>
+              <button class="btn sm" :disabled="nrImportBusy" @click="importNrBackup()">
+                <span v-if="nrImportBusy" class="spinner" style="width: 12px; height: 12px" />
+                <IconUpload v-else :size="13" />
+                {{ t("settings.nrbackupImport") }}
+              </button>
+              <button class="btn sm" @click="openBackupsFolder()">
+                <IconFolder :size="13" />
+                {{ t("settings.nrbackupReveal") }}
+              </button>
+            </div>
+            <span class="hint">{{ t("settings.nrbackupHint") }}</span>
           </div>
           <div class="field span-all">
             <label>{{ t("settings.uwpLabel") }}</label>
