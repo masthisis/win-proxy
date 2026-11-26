@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo/neurorift-256.png" width="128" alt="NeuroRift — a neural network split by a glowing rift"></p>
+
 # NeuroRift
 
 [![CI](https://github.com/masthisis/win-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/masthisis/win-proxy/actions/workflows/ci.yml)

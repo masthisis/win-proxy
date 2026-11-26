@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- NeuroRift app icon: one neural network torn into two glowing halves.
+       Palette harmonized with the app cockpit: navy #081425 base, cyan
+       #4CD7F6 accent family, periwinkle #BDC2FF secondary. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0C1B31"/>
+      <stop offset="0.55" stop-color="#0A1626"/>
+      <stop offset="1" stop-color="#0A1220"/>
+    </linearGradient>
+    <radialGradient id="riftGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#2E9CC8" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#2E9CC8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="riftCore" x1="0.5" y1="0" x2="0.45" y2="1">
+      <stop offset="0" stop-color="#BDC2FF"/>
+      <stop offset="0.45" stop-color="#9FE6FA"/>
+      <stop offset="1" stop-color="#4CD7F6"/>
+    </linearGradient>
+    <radialGradient id="nodeCyan" cx="0.36" cy="0.3" r="0.95">
+      <stop offset="0" stop-color="#F0FDFF"/>
+      <stop offset="0.38" stop-color="#9FE6FA"/>
+      <stop offset="1" stop-color="#1F8FB5"/>
+    </radialGradient>
+    <radialGradient id="nodePeri" cx="0.36" cy="0.3" r="0.95">
+      <stop offset="0" stop-color="#F8FAFF"/>
+      <stop offset="0.38" stop-color="#BFD8FF"/>
+      <stop offset="1" stop-color="#8FA6F0"/>
+    </radialGradient>
+    <filter id="soft" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+    <filter id="bloom" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="20"/>
+    </filter>
+    <clipPath id="tileClip">
+      <rect x="0" y="0" width="1024" height="1024" rx="226"/>
+    </clipPath>
+  </defs>
+
+  <rect x="0" y="0" width="1024" height="1024" rx="226" fill="url(#tile)"/>
+  <g clip-path="url(#tileClip)">
+    <ellipse cx="512" cy="512" rx="310" ry="430" fill="url(#riftGlow)"/>
+
+    <!-- Left hemisphere synapses (cyan) -->
+    <g stroke="#4CD7F6" stroke-opacity="0.65" stroke-width="14" stroke-linecap="round">
+      <line x1="162" y1="258" x2="252" y2="158"/>
+      <line x1="162" y1="258" x2="200" y2="430"/>
+      <line x1="252" y1="158" x2="200" y2="430"/>
+      <line x1="200" y1="430" x2="150" y2="640"/>
+      <line x1="200" y1="430" x2="222" y2="596"/>
+      <line x1="150" y1="640" x2="222" y2="596"/>
+      <line x1="150" y1="640" x2="212" y2="780"/>
+      <line x1="222" y1="596" x2="212" y2="780"/>
+    </g>
+    <!-- Right hemisphere synapses (periwinkle) -->
+    <g stroke="#BDC2FF" stroke-opacity="0.75" stroke-width="15" stroke-linecap="round">
+      <line x1="862" y1="258" x2="772" y2="158"/>
+      <line x1="862" y1="258" x2="824" y2="430"/>
+      <line x1="772" y1="158" x2="824" y2="430"/>
+      <line x1="824" y1="430" x2="874" y2="640"/>
+      <line x1="824" y1="430" x2="802" y2="596"/>
+      <line x1="874" y1="640" x2="802" y2="596"/>
+      <line x1="874" y1="640" x2="812" y2="780"/>
+      <line x1="802" y1="596" x2="812" y2="780"/>
+    </g>
+
+    <!-- The rift: dark fissure first (the tear), then light inside it -->
+    <g fill="none" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M 536 70 L 470 300 L 546 430 L 462 655 L 538 950"
+            stroke="#050B14" stroke-width="72"/>
+      <path d="M 536 70 L 470 300 L 546 430 L 462 655 L 538 950"
+            stroke="#4CD7F6" stroke-opacity="0.25" stroke-width="92" filter="url(#bloom)"/>
+      <path d="M 536 70 L 470 300 L 546 430 L 462 655 L 538 950"
+            stroke="url(#riftCore)" stroke-opacity="0.8" stroke-width="40" filter="url(#soft)"/>
+      <path d="M 536 70 L 470 300 L 546 430 L 462 655 L 538 950"
+            stroke="url(#riftCore)" stroke-width="26"/>
+      <path d="M 536 70 L 470 300 L 546 430 L 462 655 L 538 950"
+            stroke="#F4FEFF" stroke-opacity="0.95" stroke-width="9"/>
+    </g>
+    <!-- Spark fragments near the rift -->
+    <g fill="#DFF6FF" fill-opacity="0.85" filter="url(#soft)">
+      <path d="M 596 212 l 14 22 l -14 22 l -14 -22 z"/>
+      <path d="M 420 522 l 11 17 l -11 17 l -11 -17 z"/>
+      <path d="M 604 716 l 12 19 l -12 19 l -12 -19 z"/>
+    </g>
+
+    <!-- Left hemisphere nodes (cyan) -->
+    <g>
+      <circle cx="162" cy="258" r="42" fill="url(#nodeCyan)" stroke="#4CD7F6" stroke-opacity="0.6" stroke-width="3"/>
+      <circle cx="252" cy="158" r="30" fill="url(#nodeCyan)" stroke="#4CD7F6" stroke-opacity="0.55" stroke-width="3"/>
+      <circle cx="200" cy="430" r="48" fill="url(#nodeCyan)" stroke="#4CD7F6" stroke-opacity="0.6" stroke-width="3"/>
+      <circle cx="150" cy="640" r="34" fill="url(#nodeCyan)" stroke="#4CD7F6" stroke-opacity="0.55" stroke-width="3"/>
+      <circle cx="212" cy="780" r="36" fill="url(#nodeCyan)" stroke="#4CD7F6" stroke-opacity="0.6" stroke-width="3"/>
+    </g>
+    <!-- Right hemisphere nodes (periwinkle) -->
+    <g>
+      <circle cx="862" cy="258" r="44" fill="url(#nodePeri)" stroke="#BDC2FF" stroke-opacity="0.55" stroke-width="3"/>
+      <circle cx="772" cy="158" r="32" fill="url(#nodePeri)" stroke="#BDC2FF" stroke-opacity="0.5" stroke-width="3"/>
+      <circle cx="824" cy="430" r="50" fill="url(#nodePeri)" stroke="#BDC2FF" stroke-opacity="0.55" stroke-width="3"/>
+      <circle cx="874" cy="640" r="36" fill="url(#nodePeri)" stroke="#BDC2FF" stroke-opacity="0.5" stroke-width="3"/>
+      <circle cx="812" cy="780" r="38" fill="url(#nodePeri)" stroke="#BDC2FF" stroke-opacity="0.55" stroke-width="3"/>
+    </g>
+  </g>
+  <rect x="0" y="0" width="1024" height="1024" rx="226" fill="none" stroke="#1E3A5C" stroke-opacity="0.6" stroke-width="3"/>
+</svg>
