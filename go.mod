@@ -3,7 +3,7 @@ module github.com/neurorift/neurorift
 go 1.27.4
 
 require (
-	github.com/Microsoft/go-winio v0.6.2
+	github.com/Microsoft/go-winio v0.6.4
 	github.com/dop251/goja v0.0.0-20261124180248-00ef7861e082
 	github.com/makiuchi-d/gozxing v0.1.1
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
